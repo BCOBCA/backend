@@ -25,6 +25,64 @@ dotnet run --project BCOBCA.API --no-launch-profile -- --provision-superadmin
 
 Xóa các biến Bootstrap sau khi dùng; không có tài khoản/mật khẩu admin mặc định.
 
+## Chạy bằng Docker (local development)
+
+Cài Docker Engine/Desktop với Linux containers và Docker Compose v2. Chạy trong
+thư mục `backend`; không cần cài .NET SDK hoặc PostgreSQL trên máy:
+
+```powershell
+# Chỉ tạo file nếu chưa có .env; không ghi đè cấu hình hiện tại.
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+Điền `Jwt__SigningKey` và `Security__BankDataKey` như hướng dẫn phía trên.
+Thêm `POSTGRES_PASSWORD` vào `.env` nếu file hiện tại chưa có biến này.
+Dùng mật khẩu hex ngẫu nhiên, ví dụ tạo bằng PowerShell:
+
+```powershell
+$bytes = New-Object byte[] 32
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+$rng.Dispose()
+[BitConverter]::ToString($bytes).Replace('-', '').ToLowerInvariant()
+```
+
+Dùng một giá trị ngẫu nhiên riêng cho mỗi secret. JWT key có thể dùng hex như
+trên; bank key dùng `[Convert]::ToBase64String($bytes)` với 32 byte mới.
+Compose ghi đè connection string để kết nối tới `db:5432` bằng
+`POSTGRES_PASSWORD`; không cần sửa `ConnectionStrings__Default` đang dùng local.
+Các cấu hình nghiệp vụ, CORS, JWT và SMTP còn lại lấy từ `.env`.
+
+```powershell
+docker compose config --quiet
+docker compose up --build -d
+docker compose logs migrate api
+Invoke-RestMethod http://localhost:5000/api/health
+```
+
+PostgreSQL phải healthy trước khi service `migrate` chạy EF migrations; API chỉ
+khởi động khi migration thành công. Nếu migration lỗi, xem logs và sửa nguyên
+nhân rồi chạy lại `docker compose up --build -d`.
+API: `http://localhost:5000`, Swagger: `http://localhost:5000/swagger`.
+Compose dùng Development và chỉ publish API trên loopback của máy host;
+PostgreSQL chỉ mở trong mạng Compose. Cấu hình này dành cho phát triển local.
+
+Provision SuperAdmin lần đầu sau khi điền Bootstrap env:
+
+```powershell
+docker compose run --rm api --provision-superadmin
+```
+
+Xóa Bootstrap env sau khi dùng, rồi chạy `docker compose up -d --force-recreate api`
+để loại các biến này khỏi container API. Dừng bằng `docker compose down`;
+database giữ trong named volume. `docker compose down -v` xóa toàn bộ database
+Docker. Đổi `POSTGRES_PASSWORD` trong `.env` không đổi mật khẩu của database đã
+khởi tạo; phải đổi role password trong PostgreSQL tương ứng.
+
+Build image API riêng: `docker build --target final -t bcobca-api .`.
+Image không chứa `.env`, source tests hoặc build outputs từ máy host; API chạy
+bằng non-root user. Startup ordering theo [Docker Compose](https://docs.docker.com/compose/how-tos/startup-order/).
+
 ## Source và verification
 
 - `BCOBCA.API`: controllers, auth, middleware, OpenAPI, expiry worker.
