@@ -19,8 +19,7 @@ using Microsoft.IdentityModel.Tokens;
 
 EnvironmentBootstrap.Load();
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.Sources.Clear();
-builder.Configuration.AddEnvironmentVariables();
+builder.ConfigureEnvironmentHosting();
 var signingKey = builder.Configuration["Jwt:SigningKey"];
 if (string.IsNullOrWhiteSpace(signingKey) || Encoding.UTF8.GetByteCount(signingKey) < 32 || signingKey.Contains("REPLACE", StringComparison.OrdinalIgnoreCase) || signingKey.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
     throw new InvalidOperationException("Configure Jwt__SigningKey with at least 32 random bytes.");
