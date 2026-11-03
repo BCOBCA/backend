@@ -91,7 +91,7 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
     {
         var now = DateTimeOffset.UtcNow;
         return await store.Set<Banner>().AsNoTracking().Where(x => x.IsActive && x.StartsAt <= now && x.EndsAt > now)
-            .OrderBy(x => x.SortOrder).Take(20).Select(x => new BannerDto(x.Id, x.Title, x.ImageUrl, x.TargetUrl)).ToListAsync(ct);
+            .OrderByDescending(x => x.StartsAt).ThenBy(x => x.Id).Take(20).Select(x => new BannerDto(x.Id, x.ImageUrl, x.TargetUrl)).ToListAsync(ct);
     }
 
     public async Task<PageResult<ArticleDto>> ArticlesAsync(CatalogQuery query, CancellationToken ct)

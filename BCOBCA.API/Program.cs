@@ -47,6 +47,8 @@ builder.Services.AddScoped<IRefundSettlementService, RefundSettlementService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IAdminOperationsService, AdminOperationsService>();
 builder.Services.AddHostedService<ReservationExpiryWorker>();
+builder.Services.AddHttpClient<CloudinaryImageService>(client => client.Timeout = TimeSpan.FromSeconds(30))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterValidator>();
 builder.Services.AddControllers().ConfigureApiBehaviorOptions(options => options.InvalidModelStateResponseFactory = context =>
     new BadRequestObjectResult(new ApiResponse<object>(false, "Dữ liệu không hợp lệ", null,
@@ -84,6 +86,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
+    options.AddPolicy("image-upload", context => RateLimitPartition.GetFixedWindowLimiter(context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ =>
+        new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ =>
         new FixedWindowRateLimiterOptions { PermitLimit = builder.Configuration.GetValue<int>("Auth:RateLimitPermit"), Window = TimeSpan.FromSeconds(builder.Configuration.GetValue<int>("Auth:RateLimitWindowSeconds")), QueueLimit = 0 }));
     options.OnRejected = async (context, ct) => await context.HttpContext.Response.WriteAsJsonAsync(new ApiResponse<object>(false, "Quá nhiều yêu cầu. Vui lòng thử lại sau", null), ct);

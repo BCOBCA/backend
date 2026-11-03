@@ -10,11 +10,8 @@ public sealed class BannerConfiguration : IEntityTypeConfiguration<Banner>
     {
         builder.ToTable("Banners");
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Title).HasColumnType("varchar(200)").IsRequired();
         builder.Property(x => x.ImageUrl).HasColumnType("text").IsRequired();
         builder.Property(x => x.TargetUrl).HasColumnType("text").IsRequired();
-        builder.Property(x => x.Position).HasColumnType("varchar(50)").IsRequired();
-        builder.Property(x => x.SortOrder).HasColumnType("int").IsRequired();
         builder.Property(x => x.StartsAt).HasColumnType("timestamptz").IsRequired();
         builder.Property(x => x.EndsAt).HasColumnType("timestamptz").IsRequired();
         builder.Property(x => x.IsActive).HasColumnType("boolean").IsRequired();

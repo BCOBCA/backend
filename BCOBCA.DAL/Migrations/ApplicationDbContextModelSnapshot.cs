@@ -564,23 +564,12 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("Position")
-                        .IsRequired()
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
                     b.Property<DateTimeOffset>("StartsAt")
                         .HasColumnType("timestamptz");
 
                     b.Property<string>("TargetUrl")
                         .IsRequired()
                         .HasColumnType("text");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("varchar(200)");
 
                     b.HasKey("Id");
 

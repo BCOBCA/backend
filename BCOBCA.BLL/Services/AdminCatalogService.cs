@@ -140,10 +140,10 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
 
     public async Task<Guid> SaveBannerAsync(Guid accountId, Guid? id, BannerInput input, CancellationToken ct)
     {
-        await RequireAdmin(accountId, ct); Text(input.Title, "Tiêu đề", 200); Text(input.Position, "Vị trí", 50); Url(input.ImageUrl, true); Url(input.TargetUrl);
+        await RequireAdmin(accountId, ct); Url(input.ImageUrl, true); Url(input.TargetUrl);
         if (input.EndsAt <= input.StartsAt) throw new BusinessException("Thời gian banner không hợp lệ");
         var banner = id is null ? new Banner() : await store.Set<Banner>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy banner", 404);
-        banner.Title = input.Title; banner.ImageUrl = input.ImageUrl; banner.TargetUrl = input.TargetUrl; banner.Position = input.Position; banner.SortOrder = input.SortOrder; banner.StartsAt = input.StartsAt.ToUniversalTime(); banner.EndsAt = input.EndsAt.ToUniversalTime(); banner.IsActive = input.IsActive;
+        banner.ImageUrl = input.ImageUrl; banner.TargetUrl = input.TargetUrl; banner.StartsAt = input.StartsAt.ToUniversalTime(); banner.EndsAt = input.EndsAt.ToUniversalTime(); banner.IsActive = input.IsActive;
         if (id is null) store.Set<Banner>().Add(banner);
         await Audit(accountId, id is null ? "CREATE" : "UPDATE", "Banner", banner.Id, ct); return banner.Id;
     }

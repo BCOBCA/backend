@@ -5,6 +5,6 @@ public sealed record BrandDto(Guid Id, string Name, string Slug, string LogoUrl,
 public sealed record CategoryDto(Guid Id, Guid? ParentId, string Name, string Slug, string IconUrl, string ImageUrl);
 public sealed record VariantDto(Guid Id, string Name, string SKU, decimal Price, decimal? SalePrice, int AvailableStock);
 public sealed record CatalogItemDto(Guid Id, Guid BrandId, string Name, string Slug, string Description, string ImageUrl, decimal? Price, decimal? SalePrice, bool IsService, Guid? VariantId, int AvailableStock, bool IsFavorite = false, IReadOnlyList<VariantDto>? Variants = null, IReadOnlyList<string>? ImageUrls = null);
-public sealed record BannerDto(Guid Id, string Title, string ImageUrl, string TargetUrl);
+public sealed record BannerDto(Guid Id, string ImageUrl, string TargetUrl);
 public sealed record ArticleDto(Guid Id, string Title, string Slug, string ThumbnailUrl, string Summary, string Content, DateTimeOffset? PublishedAt);
 public sealed record ConsultationRequest(Guid ServiceId, string CustomerName, string Phone, string Email, string Description);
