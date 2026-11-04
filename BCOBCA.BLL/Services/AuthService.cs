@@ -24,9 +24,10 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
 
     public async Task<AuthResult> RegisterAsync(RegisterRequest input, CancellationToken ct)
     {
+        input = input with { Email = (input.Email ?? "").Trim().ToLowerInvariant(), Phone = (input.Phone ?? "").Trim() };
         await registerValidator.ValidateAndThrowAsync(input, ct);
-        var email = input.Email.Trim().ToLowerInvariant();
-        if (await store.Set<Account>().IgnoreQueryFilters().AnyAsync(x => x.Email == email || input.Phone != "" && x.Phone == input.Phone, ct))
+        var email = input.Email;
+        if (await store.Set<Account>().IgnoreQueryFilters().AnyAsync(x => email != "" && x.Email == email || input.Phone != "" && x.Phone == input.Phone, ct))
             throw new BusinessException("Email hoặc số điện thoại đã được sử dụng", 409);
         await using var tx = await store.BeginTransactionAsync(ct);
         var now = DateTimeOffset.UtcNow;

@@ -40,8 +40,9 @@ public sealed class AccountSecurityService(ICommerceStore store, IConfiguration 
 
     public async Task SendVerificationAsync(Guid accountId, CancellationToken ct)
     {
-        RequireMailConfiguration();
         var account = await store.Set<Account>().SingleAsync(x => x.Id == accountId, ct);
+        if (string.IsNullOrWhiteSpace(account.Email)) throw new BusinessException("Tài khoản chưa có email để xác minh");
+        RequireMailConfiguration();
         if (!account.EmailVerified) await SendAsync(account, "VERIFY_EMAIL", "verify-email", ct);
     }
 

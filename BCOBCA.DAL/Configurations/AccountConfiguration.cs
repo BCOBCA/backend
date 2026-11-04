@@ -11,7 +11,7 @@ public sealed class AccountConfiguration : IEntityTypeConfiguration<Account>
         builder.ToTable("Accounts");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Email).HasColumnType("varchar(255)").IsRequired();
-        builder.HasIndex(x => x.Email).IsUnique();
+        builder.HasIndex(x => x.Email).IsUnique().HasFilter("\"Email\" <> ''");
         builder.Property(x => x.Phone).HasColumnType("varchar(20)").IsRequired();
         builder.HasIndex(x => x.Phone).IsUnique();
         builder.Property(x => x.PasswordHash).HasColumnType("text").IsRequired();

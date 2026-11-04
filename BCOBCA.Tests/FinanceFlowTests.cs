@@ -29,10 +29,14 @@ public sealed class FinanceFlowTests
             await using var db = new ApplicationDbContext(options); await db.Database.MigrateAsync();
             var config = new ConfigurationBuilder().AddEnvironmentVariables().AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Affiliate:CommissionRate"] = "0.1", ["Affiliate:ApprovalHoldDays"] = "0", ["Membership:SpendPerPoint"] = "10000",
+                // Deliberately differs from database policy: legacy environment rate must be ignored.
+                ["Affiliate:CommissionRate"] = "0.9", ["Affiliate:ApprovalHoldDays"] = "0", ["Membership:SpendPerPoint"] = "10000",
                 ["Settlement:PlatformFeeRate"] = "0.1", ["Settlement:HoldDays"] = "0",
                 ["Security:BankDataKey"] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
             }).Build();
+            // Keep ledger/recovery amounts at 10%; rank pricing is tested separately.
+            foreach (var rank in await db.Set<AffiliateRank>().ToListAsync()) rank.CommissionRate = 0.1m;
+            await db.SaveChangesAsync();
             var store = new CommerceStore(db);
             var auth = new AuthService(store, config, new RegisterValidator(), new LoginValidator(), new ProfileValidator());
             var referrer = await auth.RegisterAsync(new RegisterRequest("referrer@example.com", "StrongPassword123!", "Test referrer"), default);
@@ -96,6 +100,13 @@ public sealed class FinanceFlowTests
             await using (var tx = await store.BeginTransactionAsync(default)) { await finance.AccrueOrderAsync(order.Id, default); await tx.CommitAsync(); }
             Assert.Equal(1, await db.AffiliateCommissions.CountAsync());
             var commission = await db.AffiliateCommissions.SingleAsync();
+            Assert.Equal(0.1m, commission.CommissionRate);
+            var loyalty = new LoyaltyConfigurationService(store);
+            var originalRanks = await loyalty.AffiliateRanksAsync(default);
+            await loyalty.UpdateAffiliateRanksAsync(referrer.User.AccountId, new(originalRanks.Select(x => x with { CommissionRate = 0.08m }).ToArray()), default);
+            Assert.Equal(0.1m, (await db.AffiliateCommissions.AsNoTracking().SingleAsync()).CommissionRate);
+            Assert.Equal(10000, (await db.AffiliateCommissions.AsNoTracking().SingleAsync()).CommissionAmount);
+            await loyalty.UpdateAffiliateRanksAsync(referrer.User.AccountId, new(originalRanks), default);
             await finance.ApproveCommissionAsync(referrer.User.AccountId, commission.Id, default);
             await finance.ApproveCommissionAsync(referrer.User.AccountId, commission.Id, default);
             Assert.Equal(10000, wallet.AvailableBalance); Assert.Equal(0, wallet.PendingBalance);

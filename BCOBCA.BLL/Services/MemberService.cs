@@ -20,14 +20,14 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     public async Task<MembershipDto> MembershipAsync(Guid userId, CancellationToken ct)
     {
         var member = await store.Set<UserMembership>().AsNoTracking().SingleAsync(x => x.UserId == userId, ct);
-        var tier = await store.Set<MembershipTier>().Where(x => x.Id == member.TierId).Select(x => x.Name).SingleAsync(ct);
+        var level = MembershipLevelRules.Calculate(member.AvailablePoints, await LoyaltyQueries.MembershipLevelsAsync(store, ct));
         var orders = store.Set<Order>().Where(x => x.UserId == userId);
         var counts = await orders.GroupBy(x => x.Status).Select(x => new { Status = x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Status, x => x.Count, ct);
         var total = await orders.Where(x => x.Status == "COMPLETED").SumAsync(x => x.TotalAmount, ct);
         var today = CommerceRules.VietnamDate(DateTimeOffset.UtcNow);
         var checkedIn = await store.Set<DailyCheckIn>().AnyAsync(x => x.UserId == userId && x.CheckInDate == today, ct);
         var wallet = await (from p in store.Set<AffiliateProfile>() join w in store.Set<AffiliateWallet>() on p.Id equals w.AffiliateProfileId where p.UserId == userId select w.AvailableBalance).SingleAsync(ct);
-        return new(member.MemberCode, tier, member.AvailablePoints, member.LifetimeEarnedPoints, counts.Values.Sum(), total, checkedIn, wallet, counts, member.PointDebt);
+        return new(member.MemberCode, $"Lv.{level.Level}", member.AvailablePoints, member.LifetimeEarnedPoints, counts.Values.Sum(), total, checkedIn, wallet, counts, member.PointDebt, level);
     }
 
     public async Task<CheckInDto> CheckInAsync(Guid userId, CancellationToken ct)
@@ -42,6 +42,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
         var checkIn = new DailyCheckIn { UserId = userId, CheckInDate = today, RewardPoints = rule.RewardPoints, StreakDays = (previous?.StreakDays ?? 0) + 1, CreatedAt = now };
         store.Set<DailyCheckIn>().Add(checkIn);
         var debtRepaid = RewardLedger.Earn(store, membership, rule.RewardPoints, "CHECK_IN", "DailyCheckIn", checkIn.Id, "Điểm danh hằng ngày");
+        await LoyaltyQueries.RefreshMembershipAsync(store, membership, ct);
         await store.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return new(today, rule.RewardPoints, checkIn.StreakDays, membership.AvailablePoints, debtRepaid);
@@ -119,8 +120,11 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     }
 
     public async Task<AffiliateDto> AffiliateAsync(Guid userId, CancellationToken ct)
-        => await (from p in store.Set<AffiliateProfile>().AsNoTracking() join w in store.Set<AffiliateWallet>() on p.Id equals w.AffiliateProfileId where p.UserId == userId
-            select new AffiliateDto(p.AffiliateCode, w.AvailableBalance, w.PendingBalance, store.Set<AffiliateReferral>().Count(r => r.ReferrerUserId == userId), w.DebtBalance)).SingleAsync(ct);
+    {
+        var affiliate = await (from p in store.Set<AffiliateProfile>().AsNoTracking() join w in store.Set<AffiliateWallet>() on p.Id equals w.AffiliateProfileId where p.UserId == userId
+            select new AffiliateDto(p.AffiliateCode, w.AvailableBalance, w.PendingBalance, store.Set<AffiliateReferral>().Count(r => r.ReferrerUserId == userId), w.DebtBalance, null)).SingleAsync(ct);
+        return affiliate with { RankInfo = await LoyaltyQueries.AffiliateRankAsync(store, userId, ct) };
+    }
 
     public async Task<PageResult<ReferralDto>> ReferralsAsync(Guid userId, CatalogQuery query, CancellationToken ct)
         => await PageAsync((from r in store.Set<AffiliateReferral>().AsNoTracking() join u in store.Set<User>() on r.ReferredUserId equals u.Id where r.ReferrerUserId == userId orderby r.CreatedAt descending, r.Id select new ReferralDto(r.Id, u.FullName, r.Status, r.CreatedAt)), query, ct);

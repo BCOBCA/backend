@@ -28,10 +28,8 @@ foreach (var key in new[] { "Jwt:Issuer", "Jwt:Audience" })
     if (string.IsNullOrWhiteSpace(builder.Configuration[key])) throw new InvalidOperationException($"Configure {key.Replace(":", "__")}.");
 foreach (var key in new[] { "Jwt:AccessTokenMinutes", "Jwt:RefreshTokenDays", "Auth:RateLimitPermit", "Auth:RateLimitWindowSeconds", "Checkout:ReservationHours", "Inventory:SweepIntervalSeconds" })
     if (builder.Configuration.GetValue<int>(key) <= 0) throw new InvalidOperationException($"Configure positive {key.Replace(":", "__")}.");
-foreach (var key in new[] { "Membership:SpendPerPoint", "Affiliate:CommissionRate", "Affiliate:ApprovalHoldDays", "Settlement:PlatformFeeRate", "Settlement:HoldDays" })
+foreach (var key in new[] { "Membership:SpendPerPoint", "Affiliate:ApprovalHoldDays", "Settlement:PlatformFeeRate", "Settlement:HoldDays" })
     if (builder.Configuration[key] is null || builder.Configuration.GetValue<decimal>(key) < 0) throw new InvalidOperationException($"Configure nonnegative {key.Replace(":", "__")}.");
-var commissionRate = builder.Configuration.GetValue<decimal>("Affiliate:CommissionRate");
-if (commissionRate > 1 || decimal.Round(commissionRate, 4) != commissionRate) throw new InvalidOperationException("Affiliate__CommissionRate must be a fraction between 0 and 1 with at most four decimal places.");
 var platformFeeRate = builder.Configuration.GetValue<decimal>("Settlement:PlatformFeeRate");
 if (platformFeeRate > 1 || decimal.Round(platformFeeRate, 4) != platformFeeRate) throw new InvalidOperationException("Settlement__PlatformFeeRate must be a fraction between 0 and 1 with at most four decimal places.");
 builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connection));
@@ -39,6 +37,7 @@ builder.Services.AddScoped<ICommerceStore, CommerceStore>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICatalogService, CatalogService>();
 builder.Services.AddScoped<IMemberService, MemberService>();
+builder.Services.AddScoped<ILoyaltyConfigurationService, LoyaltyConfigurationService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddScoped<IAccountSecurityService, AccountSecurityService>();
 builder.Services.AddScoped<IAdminCatalogService, AdminCatalogService>();

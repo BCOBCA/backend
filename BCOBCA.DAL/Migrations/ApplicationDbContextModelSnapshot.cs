@@ -68,7 +68,8 @@ namespace BCOBCA.DAL.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"Email\" <> ''");
 
                     b.HasIndex("Phone")
                         .IsUnique()
@@ -279,6 +280,75 @@ namespace BCOBCA.DAL.Migrations
                         .IsUnique();
 
                     b.ToTable("AffiliateProfiles", (string)null);
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateRank", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasColumnType("numeric(5,4)");
+
+                    b.Property<int>("MinSuccessfulReferrals")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Rank")
+                        .IsUnique();
+
+                    b.ToTable("AffiliateRanks", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026201"),
+                            CommissionRate = 0.02m,
+                            MinSuccessfulReferrals = 0,
+                            Name = "Đồng",
+                            Rank = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026202"),
+                            CommissionRate = 0.03m,
+                            MinSuccessfulReferrals = 10,
+                            Name = "Bạc",
+                            Rank = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026203"),
+                            CommissionRate = 0.05m,
+                            MinSuccessfulReferrals = 30,
+                            Name = "Vàng",
+                            Rank = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026204"),
+                            CommissionRate = 0.07m,
+                            MinSuccessfulReferrals = 70,
+                            Name = "Bạch kim",
+                            Rank = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026205"),
+                            CommissionRate = 0.10m,
+                            MinSuccessfulReferrals = 150,
+                            Name = "Kim cương",
+                            Rank = 5
+                        });
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateReferral", b =>
@@ -1064,12 +1134,102 @@ namespace BCOBCA.DAL.Migrations
                         new
                         {
                             Id = new Guid("a704b6f3-5664-4428-93d1-668522026001"),
-                            Benefits = "{}",
+                            Benefits = "{\"items\":[]}",
                             IsActive = true,
                             MinPoints = 0,
                             MinSpend = 0m,
-                            Name = "Thành viên",
+                            Name = "Lv.1",
                             SortOrder = 0
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026101"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 100,
+                            MinSpend = 0m,
+                            Name = "Lv.2",
+                            SortOrder = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026102"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 300,
+                            MinSpend = 0m,
+                            Name = "Lv.3",
+                            SortOrder = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026103"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 600,
+                            MinSpend = 0m,
+                            Name = "Lv.4",
+                            SortOrder = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026104"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 1000,
+                            MinSpend = 0m,
+                            Name = "Lv.5",
+                            SortOrder = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026105"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 1600,
+                            MinSpend = 0m,
+                            Name = "Lv.6",
+                            SortOrder = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026106"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 2500,
+                            MinSpend = 0m,
+                            Name = "Lv.7",
+                            SortOrder = 6
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026107"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 4000,
+                            MinSpend = 0m,
+                            Name = "Lv.8",
+                            SortOrder = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026108"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 6000,
+                            MinSpend = 0m,
+                            Name = "Lv.9",
+                            SortOrder = 8
+                        },
+                        new
+                        {
+                            Id = new Guid("a704b6f3-5664-4428-93d1-668522026109"),
+                            Benefits = "{\"items\":[]}",
+                            IsActive = true,
+                            MinPoints = 10000,
+                            MinSpend = 0m,
+                            Name = "Lv.10",
+                            SortOrder = 9
                         });
                 });
 

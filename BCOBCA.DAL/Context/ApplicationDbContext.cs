@@ -69,11 +69,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
-        modelBuilder.Entity<MembershipTier>().HasData(new MembershipTier
-        {
-            Id = Guid.Parse("a704b6f3-5664-4428-93d1-668522026001"), Name = "Thành viên",
-            IsActive = true, SortOrder = 0, Benefits = "{}"
-        });
+        modelBuilder.Entity<MembershipTier>().HasData(LoyaltyDefaults.MembershipLevels());
+        modelBuilder.Entity<AffiliateRank>().HasData(LoyaltyDefaults.AffiliateRanks());
         modelBuilder.Entity<CheckInRule>().HasData(new CheckInRule
         {
             Id = Guid.Parse("a704b6f3-5664-4428-93d1-668522026002"), Name = "Điểm danh hằng ngày", RewardPoints = 1, IsActive = true

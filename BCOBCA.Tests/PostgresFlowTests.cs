@@ -32,7 +32,7 @@ public sealed class PostgresFlowTests
             var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).Options;
             await using var db = new ApplicationDbContext(options);
             await db.Database.MigrateAsync();
-            Assert.Equal(60, db.Model.GetEntityTypes().Count());
+            Assert.Equal(61, db.Model.GetEntityTypes().Count());
             var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
             var store = new CommerceStore(db);
             var catalog = new CatalogService(store);

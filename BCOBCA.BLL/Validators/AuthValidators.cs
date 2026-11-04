@@ -7,7 +7,8 @@ public sealed class RegisterValidator : AbstractValidator<RegisterRequest>
 {
     public RegisterValidator()
     {
-        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(255);
+        RuleFor(x => x.Email).NotEmpty().When(x => string.IsNullOrWhiteSpace(x.Phone));
+        RuleFor(x => x.Email).EmailAddress().MaximumLength(255).When(x => !string.IsNullOrEmpty(x.Email));
         RuleFor(x => x.Password).MinimumLength(12).MaximumLength(128).Matches("[A-Z]").Matches("[a-z]").Matches("[0-9]");
         RuleFor(x => x.FullName).NotEmpty().MaximumLength(150);
         RuleFor(x => x.Phone).MaximumLength(20).Matches("^$|^\\+?[0-9]{9,15}$");

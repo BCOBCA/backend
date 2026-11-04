@@ -91,8 +91,7 @@ public sealed class RefundSettlementService(ICommerceStore store, IConfiguration
         {
             if (member.TotalQualifiedSpend < order.Subtotal - order.DiscountAmount) throw new BusinessException("Doanh số thành viên không khớp", 409);
             member.TotalQualifiedSpend -= order.Subtotal - order.DiscountAmount; RewardLedger.Reverse(store, member, earned.Points, refundId);
-            var tier = await store.Set<MembershipTier>().Where(x => x.IsActive && x.MinSpend <= member.TotalQualifiedSpend && x.MinPoints <= member.LifetimeEarnedPoints).OrderByDescending(x => x.SortOrder).FirstOrDefaultAsync(ct);
-            if (tier is not null) member.TierId = tier.Id;
+            await LoyaltyQueries.RefreshMembershipAsync(store, member, ct);
         }
         var commissions = await (from commission in store.Set<AffiliateCommission>() join item in store.Set<OrderItem>() on commission.OrderItemId equals item.Id where item.OrderId == order.Id && (commission.Status == "PENDING" || commission.Status == "APPROVED") select commission).ToListAsync(ct);
         foreach (var group in commissions.GroupBy(x => x.AffiliateProfileId))

@@ -42,18 +42,16 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
         var points = spendPerPoint > 0 ? checked((long)decimal.Floor(spend / spendPerPoint)) : 0;
         RewardLedger.Earn(store, membership, points, "ORDER_EARN", "Order", orderId, "Tích lũy đơn " + order.OrderCode);
         membership.TotalQualifiedSpend += spend;
-        var tier = await store.Set<MembershipTier>().Where(x => x.IsActive && x.MinSpend <= membership.TotalQualifiedSpend && x.MinPoints <= membership.LifetimeEarnedPoints).OrderByDescending(x => x.SortOrder).FirstOrDefaultAsync(ct);
-        if (tier is not null) membership.TierId = tier.Id;
-        var rate = config.GetValue<decimal>("Affiliate:CommissionRate");
-        if (rate < 0 || rate > 1 || decimal.Round(rate, 4) != rate) throw new InvalidOperationException("Affiliate commission rate must be between 0 and 1 with at most 4 decimal places.");
+        await LoyaltyQueries.RefreshMembershipAsync(store, membership, ct);
         var referredBy = await store.Set<User>().Where(x => x.Id == order.UserId).Select(x => x.ReferredByUserId).SingleAsync(ct);
         if (referredBy is not null)
         {
             var referral = await store.Set<AffiliateReferral>().SingleOrDefaultAsync(x => x.ReferredUserId == order.UserId, ct);
             if (referral is not null) { referral.Status = "QUALIFIED"; referral.QualifiedAt ??= DateTimeOffset.UtcNow; }
             var profile = await store.Set<AffiliateProfile>().SingleOrDefaultAsync(x => x.UserId == referredBy && x.Status == "ACTIVE", ct);
-            if (profile is not null && rate > 0)
+            if (profile is not null)
             {
+                var rate = (await LoyaltyQueries.AffiliateRankAsync(store, referredBy.Value, ct)).CommissionRate;
                 var wallet = await store.Set<AffiliateWallet>().SingleAsync(x => x.AffiliateProfileId == profile.Id, ct);
                 if (!await store.Set<AffiliateAttribution>().AnyAsync(x => x.OrderId == orderId, ct)) store.Set<AffiliateAttribution>().Add(new AffiliateAttribution { AffiliateProfileId = profile.Id, OrderId = orderId, CreatedAt = DateTimeOffset.UtcNow });
                 foreach (var line in await store.Set<OrderItem>().Where(x => x.OrderId == orderId).OrderBy(x => x.Id).ToListAsync(ct))
@@ -138,10 +136,11 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
     public async Task<PageResult<LeaderboardDto>> LeaderboardAsync(CatalogQuery query, CancellationToken ct)
     {
         var (page, size) = CatalogService.Paging(query);
+        var ranks = await LoyaltyQueries.AffiliateRanksAsync(store, ct);
         var source = from p in store.Set<AffiliateProfile>().AsNoTracking() join u in store.Set<User>() on p.UserId equals u.Id where p.Status == "ACTIVE"
-            select new { p.Id, DisplayName = u.Nickname == "" ? "Thành viên " + p.AffiliateCode.Substring(0, 6) : u.Nickname, Count = store.Set<AffiliateReferral>().Count(r => r.ReferrerUserId == u.Id) };
+            select new { p.Id, DisplayName = u.Nickname == "" ? "Thành viên " + p.AffiliateCode.Substring(0, 6) : u.Nickname, Count = store.Set<AffiliateReferral>().Count(r => r.ReferrerUserId == u.Id && store.Set<Order>().Any(o => o.UserId == r.ReferredUserId && o.Status == "COMPLETED" && o.PaymentStatus == "PAID")) };
         var items = await source.OrderByDescending(x => x.Count).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size).ToListAsync(ct);
-        return new(items.Select((x, i) => new LeaderboardDto(x.Id, x.DisplayName, x.Count, (page - 1) * size + i + 1)).ToArray(), page, size, await source.CountAsync(ct));
+        return new(items.Select((x, i) => { var rank = AffiliateRankRules.Calculate(x.Count, ranks); return new LeaderboardDto(x.Id, x.DisplayName, x.Count, (page - 1) * size + i + 1, rank.Name, rank.CommissionRate); }).ToArray(), page, size, await source.CountAsync(ct));
     }
 
     public async Task ApproveCommissionAsync(Guid accountId, Guid id, CancellationToken ct)
