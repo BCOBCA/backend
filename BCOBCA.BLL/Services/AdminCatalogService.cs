@@ -164,7 +164,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         await RequireAdmin(accountId, ct); Text(input.Code, "Mã voucher", 50); Text(input.Name, "Tên voucher", 150); Text(input.Description, "Mô tả", 10000, false);
         Money(input.DiscountValue); Money(input.MinOrderAmount); if (input.MaxDiscount is not null) Money(input.MaxDiscount.Value);
         if (input.PointCost < 0 || input.MinLevel is < 1 or > 10 || input.PointCost > 0 && input.PerUserLimit != 1) throw new BusinessException("Quy tắc điểm và level của voucher không hợp lệ");
-        if (input.DiscountType is not ("FIXED" or "PERCENT") || input.DiscountType == "PERCENT" && input.DiscountValue > 100 || input.DiscountValue <= 0 || input.PerUserLimit < 1 || input.UsageLimit < 1 || input.ExpiresAt <= input.StartsAt || input.Targets is null || input.Targets.Any(x => x is null) || input.Targets.Count > 100) throw new BusinessException("Quy tắc voucher không hợp lệ");
+        if (input.DiscountType is not ("FIXED" or "PERCENT" or "SHIPPING") || input.DiscountType == "PERCENT" && input.DiscountValue > 100 || input.DiscountValue <= 0 || input.PerUserLimit < 1 || input.UsageLimit < 1 || input.ExpiresAt <= input.StartsAt || input.Targets is null || input.Targets.Any(x => x is null) || input.Targets.Count > 100) throw new BusinessException("Quy tắc voucher không hợp lệ");
         await using var tx = await store.BeginTransactionAsync(ct);
         var voucher = id is null ? new Voucher() : await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy voucher", 404);
         if (id is not null && (await store.Set<VoucherUsage>().AnyAsync(x => x.VoucherId == id, ct) || await store.Set<UserVoucher>().AnyAsync(x => x.VoucherId == id, ct))) throw new BusinessException("Voucher đã được nhận hoặc sử dụng. Vui lòng tạo mã mới", 409);
@@ -172,7 +172,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         voucher.MinOrderAmount = input.MinOrderAmount; voucher.PerUserLimit = input.PerUserLimit; voucher.UsageLimit = input.UsageLimit; voucher.StartsAt = input.StartsAt.ToUniversalTime(); voucher.ExpiresAt = input.ExpiresAt.ToUniversalTime(); voucher.Status = input.IsActive ? "ACTIVE" : "INACTIVE";
         voucher.PointCost = input.PointCost; voucher.MinLevel = input.MinLevel; voucher.IsFlashSale = input.IsFlashSale;
         // Older releases only recognize ACTIVE and cannot enforce point/level restrictions.
-        if (input.IsActive && (input.PointCost > 0 || input.MinLevel > 1)) voucher.Status = "MEMBER_OFFER";
+        if (input.IsActive && (input.PointCost > 0 || input.MinLevel > 1 || input.DiscountType == "SHIPPING")) voucher.Status = "MEMBER_OFFER";
         if (id is null) store.Set<Voucher>().Add(voucher);
         store.Set<VoucherTarget>().RemoveRange(await store.Set<VoucherTarget>().Where(x => x.VoucherId == voucher.Id).ToListAsync(ct));
         foreach (var target in input.Targets)

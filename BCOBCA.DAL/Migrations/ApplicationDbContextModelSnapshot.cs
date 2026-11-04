@@ -1381,6 +1381,11 @@ namespace BCOBCA.DAL.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<decimal>("ShippingDiscountAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<decimal>("ShippingFee")
                         .HasColumnType("numeric(18,2)");
 
@@ -1411,7 +1416,10 @@ namespace BCOBCA.DAL.Migrations
                     b.HasIndex("UserId", "IdempotencyKey")
                         .IsUnique();
 
-                    b.ToTable("Orders", (string)null);
+                    b.ToTable("Orders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Orders_ShippingDiscount", "\"ShippingDiscountAmount\" >= 0 AND \"ShippingDiscountAmount\" <= \"ShippingFee\"");
+                        });
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.OrderItem", b =>

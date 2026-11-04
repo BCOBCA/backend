@@ -42,7 +42,7 @@ public sealed class VoucherRedemptionFlowTests
             Assert.Equal(500, catalog.Items.Single(x => x.Id == redeem.Id).PointCost);
             Assert.Equal(3, catalog.Items.Single(x => x.Id == levelOffer.Id).MinLevel);
             var publicCatalog = await members.VouchersAsync(null, new CatalogQuery { PageSize = 100 }, default);
-            Assert.Equal(6, publicCatalog.Items.Count); Assert.All(publicCatalog.Items, x => Assert.False(x.Claimed));
+            Assert.Equal(8, publicCatalog.Items.Count); Assert.All(publicCatalog.Items, x => Assert.False(x.Claimed));
             Assert.Equal("MEMBER_OFFER", redeem.Status);
             Assert.Equal("MEMBER_OFFER", levelOffer.Status);
             await Assert.ThrowsAsync<BusinessException>(() => members.ClaimAsync(poor.User.Id, redeem.Id, default));

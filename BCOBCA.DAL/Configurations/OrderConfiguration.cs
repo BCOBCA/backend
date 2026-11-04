@@ -19,6 +19,8 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(x => x.Subtotal).HasColumnType("numeric(18,2)").IsRequired();
         builder.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)").IsRequired();
         builder.Property(x => x.ShippingFee).HasColumnType("numeric(18,2)").IsRequired();
+        builder.Property(x => x.ShippingDiscountAmount).HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+        builder.ToTable(t => t.HasCheckConstraint("CK_Orders_ShippingDiscount", "\"ShippingDiscountAmount\" >= 0 AND \"ShippingDiscountAmount\" <= \"ShippingFee\""));
         builder.Property(x => x.TotalAmount).HasColumnType("numeric(18,2)").IsRequired();
         builder.Property(x => x.RecipientName).HasColumnType("varchar(150)").IsRequired();
         builder.Property(x => x.RecipientPhone).HasColumnType("varchar(20)").IsRequired();

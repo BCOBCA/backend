@@ -58,7 +58,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     public async Task<PageResult<VoucherDto>> VouchersAsync(Guid? userId, CatalogQuery query, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
-        return await PageAsync(store.Set<Voucher>().AsNoTracking().Where(x => (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1)) && x.StartsAt <= now && x.ExpiresAt > now
+        return await PageAsync(store.Set<Voucher>().AsNoTracking().Where(x => (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1 || x.DiscountType == "SHIPPING")) && x.StartsAt <= now && x.ExpiresAt > now
                 && (x.UsageLimit == null || (x.PointCost > 0 ? store.Set<UserVoucher>().Count(v => v.VoucherId == x.Id) : store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.Status == "APPLIED")) < x.UsageLimit || store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id))
                 && store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.UserId == userId && u.Status == "APPLIED") < x.PerUserLimit)
             .OrderBy(x => x.ExpiresAt).ThenBy(x => x.Id).Select(x => new VoucherDto(x.Id, x.Code, x.Name, x.Description, x.DiscountType, x.DiscountValue, x.MaxDiscount, x.MinOrderAmount, x.ExpiresAt,
@@ -69,7 +69,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     {
         await using var tx = await store.BeginTransactionAsync(ct);
         var now = DateTimeOffset.UtcNow;
-        var voucher = await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Id == voucherId && (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1)) && x.StartsAt <= now && x.ExpiresAt > now, ct) ?? throw new BusinessException("Voucher không khả dụng", 404);
+        var voucher = await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Id == voucherId && (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1 || x.DiscountType == "SHIPPING")) && x.StartsAt <= now && x.ExpiresAt > now, ct) ?? throw new BusinessException("Voucher không khả dụng", 404);
         if (await store.Set<UserVoucher>().AnyAsync(x => x.UserId == userId && x.VoucherId == voucherId, ct)) return;
         await VoucherEligibility.RequireLevelAsync(store, userId, voucher.MinLevel, ct);
         var usages = store.Set<VoucherUsage>().Where(x => x.VoucherId == voucherId && x.Status == "APPLIED");

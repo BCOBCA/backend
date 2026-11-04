@@ -182,8 +182,7 @@ public sealed class PostgresFlowTests
                 await using var raceDb = new ApplicationDbContext(raceOptions);
                 try { await new AdminCatalogService(new CommerceStore(raceDb)).SetRoleAsync(actor, new AccountRoleInput(target, "SuperAdmin", false), default); return true; }
                 catch (BCOBCA.BLL.Common.BusinessException ex) when (ex.StatusCode is 403 or 409) { return false; }
-                catch (PostgresException ex) when (ex.SqlState is "40001" or "40P01") { return false; }
-                catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "40001" }) { return false; }
+                catch (Exception ex) when (BCOBCA.BLL.Common.DatabaseConflicts.IsConcurrency(ex)) { return false; }
             }
             var roleRace = await Task.WhenAll(RevokePeer(created.User.AccountId, second.User.AccountId), RevokePeer(second.User.AccountId, created.User.AccountId));
             Assert.Equal(2, barrier.Hits); Assert.Single(roleRace, success => success);

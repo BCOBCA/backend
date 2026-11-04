@@ -1,5 +1,7 @@
 # Promotions and point redemption — 2026-11-04
 
+Later extension: shipping vouchers are implemented separately in `shipping-vouchers.md` with migration `20261104170000_AddShippingVouchers`; the original six-offer definitions below remain unchanged.
+
 ## Delivered
 - Existing Voucher/UserVoucher/VoucherUsage/PointTransaction entities and claim endpoint are reused. New voucher metadata: `PointCost` (long, default0), `MinLevel` (1..10, default1), `IsFlashSale` (defaultfalse).
 - Admin VoucherInput adds these optional fields; negative costs, invalid levels and point offers with PerUserLimit other than1 are rejected. Issued/used voucher rules cannot be rewritten; create a new code to change terms.

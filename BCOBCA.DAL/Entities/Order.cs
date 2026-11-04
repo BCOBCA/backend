@@ -10,6 +10,7 @@ public sealed class Order
     public decimal Subtotal { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal ShippingFee { get; set; }
+    public decimal ShippingDiscountAmount { get; set; }
     public decimal TotalAmount { get; set; }
     public string RecipientName { get; set; } = "";
     public string RecipientPhone { get; set; } = "";
