@@ -20,7 +20,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     public async Task<MembershipDto> MembershipAsync(Guid userId, CancellationToken ct)
     {
         var member = await store.Set<UserMembership>().AsNoTracking().SingleAsync(x => x.UserId == userId, ct);
-        var level = MembershipLevelRules.Calculate(member.AvailablePoints, await LoyaltyQueries.MembershipLevelsAsync(store, ct));
+        var level = MembershipLevelRules.Calculate(member.LifetimeEarnedPoints, await LoyaltyQueries.MembershipLevelsAsync(store, ct));
         var orders = store.Set<Order>().Where(x => x.UserId == userId);
         var counts = await orders.GroupBy(x => x.Status).Select(x => new { Status = x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Status, x => x.Count, ct);
         var total = await orders.Where(x => x.Status == "COMPLETED").SumAsync(x => x.TotalAmount, ct);

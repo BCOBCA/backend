@@ -24,7 +24,7 @@ public static class LoyaltyQueries
 
     public static async Task RefreshMembershipAsync(ICommerceStore store, UserMembership membership, CancellationToken ct)
     {
-        var level = MembershipLevelRules.Calculate(membership.AvailablePoints, await MembershipLevelsAsync(store, ct)).Level;
+        var level = MembershipLevelRules.Calculate(membership.LifetimeEarnedPoints, await MembershipLevelsAsync(store, ct)).Level;
         membership.TierId = await store.Set<MembershipTier>().Where(x => x.IsActive && x.SortOrder == level - 1).Select(x => x.Id).SingleAsync(ct);
     }
 

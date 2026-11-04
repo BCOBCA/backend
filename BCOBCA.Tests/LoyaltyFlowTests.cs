@@ -42,20 +42,53 @@ public sealed class LoyaltyFlowTests
             var denied = await Assert.ThrowsAsync<BusinessException>(() => loyalty.UpdateMembershipLevelsAsync(owner.User.AccountId, new(levels), default));
             Assert.Equal(403, denied.StatusCode);
             var membership = await db.UserMemberships.SingleAsync(x => x.UserId == owner.User.Id);
-            membership.AvailablePoints = 99; membership.LifetimeEarnedPoints = 50000;
+            membership.AvailablePoints = 99; membership.LifetimeEarnedPoints = 99;
             await db.SaveChangesAsync();
             Assert.Equal(1, (await memberService.MembershipAsync(owner.User.Id, default)).LevelInfo!.Level);
             await memberService.CheckInAsync(owner.User.Id, default);
             Assert.Equal(2, (await memberService.MembershipAsync(owner.User.Id, default)).LevelInfo!.Level);
             membership.AvailablePoints = 99; await db.SaveChangesAsync();
-            Assert.Equal(1, (await memberService.MembershipAsync(owner.User.Id, default)).LevelInfo!.Level);
+            Assert.Equal(2, (await memberService.MembershipAsync(owner.User.Id, default)).LevelInfo!.Level);
+            membership.AvailablePoints = 0; membership.LifetimeEarnedPoints = 50000; await db.SaveChangesAsync();
+            Assert.Equal(10, (await memberService.MembershipAsync(owner.User.Id, default)).LevelInfo!.Level);
             db.AccountRoles.Add(new AccountRole { AccountId = owner.User.AccountId, Role = "Admin" }); await db.SaveChangesAsync();
             var changedLevels = levels.Select(x => x.Level == 1 ? x with { Benefits = new[] { "Ưu đãi riêng" } } : x.Level == 2 ? x with { MinPoints = 200 } : x).ToArray();
             await loyalty.UpdateMembershipLevelsAsync(owner.User.AccountId, new(changedLevels), default);
-            membership.AvailablePoints = 150; await db.SaveChangesAsync();
+            membership.AvailablePoints = 150; membership.LifetimeEarnedPoints = 150; await db.SaveChangesAsync();
             var updated = await memberService.MembershipAsync(owner.User.Id, default);
             Assert.Equal(1, updated.LevelInfo!.Level); Assert.Equal(50, updated.LevelInfo.PointsToNextLevel); Assert.Single(updated.LevelInfo.Benefits);
             Assert.Equal(0.02m, (await memberService.AffiliateAsync(owner.User.Id, default)).RankInfo!.CommissionRate);
+
+            var rewardsConfig = new ConfigurationBuilder().AddConfiguration(config).AddInMemoryCollection(new Dictionary<string, string?> { ["Membership:SpendPerPoint"] = "10000" }).Build();
+            var finance = new FinanceService(store, rewardsConfig);
+            foreach (var sample in new (decimal Subtotal, decimal Discount, long Points)[] { (100000m, 0m, 10L), (95000m, 0m, 9L), (100000m, 5000m, 9L), (9999m, 0m, 0L) })
+            {
+                var purchase = new Order { UserId = owner.User.Id, OrderCode = "POINT-" + Guid.NewGuid().ToString("N"), IdempotencyKey = Guid.NewGuid().ToString("N"), Status = "COMPLETED", PaymentStatus = "PAID", Subtotal = sample.Subtotal, DiscountAmount = sample.Discount, ShippingFee = 50000, TotalAmount = sample.Subtotal - sample.Discount + 50000, CreatedAt = DateTimeOffset.UtcNow };
+                db.Orders.Add(purchase); await db.SaveChangesAsync();
+                var beforeAvailable = membership.AvailablePoints; var beforeEarned = membership.LifetimeEarnedPoints;
+                await using (var tx = await store.BeginTransactionAsync(default))
+                {
+                    await finance.AccrueOrderAsync(purchase.Id, default);
+                    await finance.AccrueOrderAsync(purchase.Id, default);
+                    await tx.CommitAsync(default);
+                }
+                Assert.Equal(beforeAvailable + sample.Points, membership.AvailablePoints);
+                Assert.Equal(beforeEarned + sample.Points, membership.LifetimeEarnedPoints);
+                Assert.Single(await db.PointTransactions.Where(x => x.Type == "ORDER_EARN" && x.ReferenceId == purchase.Id).ToListAsync());
+            }
+            // Future authorized game rewards use the same ledger and increase both balances.
+            await using (var tx = await store.BeginTransactionAsync(default))
+            {
+                RewardLedger.Earn(store, membership, 400, "MINIGAME", "Game", Guid.NewGuid(), "Test reward");
+                await LoyaltyQueries.RefreshMembershipAsync(store, membership, default);
+                await store.SaveChangesAsync(); await tx.CommitAsync(default);
+            }
+            membership.AvailablePoints = 0; await db.SaveChangesAsync();
+            var afterSpending = await memberService.MembershipAsync(owner.User.Id, default);
+            Assert.Equal(578, afterSpending.LifetimeEarnedPoints); Assert.Equal(0, afterSpending.AvailablePoints); Assert.Equal(3, afterSpending.LevelInfo!.Level);
+            RewardLedger.Reverse(store, membership, 400, Guid.NewGuid());
+            await LoyaltyQueries.RefreshMembershipAsync(store, membership, default); await db.SaveChangesAsync();
+            Assert.Equal(1, (await memberService.MembershipAsync(owner.User.Id, default)).LevelInfo!.Level);
 
             var referred = new List<Guid>();
             for (var index = 0; index < 10; index++)

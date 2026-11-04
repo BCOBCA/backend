@@ -40,7 +40,7 @@ public sealed class MembershipLevelTests
     }
 
     [Fact]
-    public void SpendingOrRefundingPointsCanLowerTheLevel()
+    public void ReversingEarnedPointsCanLowerTheLevel()
     {
         Assert.Equal(6, MembershipLevelRules.Calculate(1600, Levels).Level);
         Assert.Equal(5, MembershipLevelRules.Calculate(1500, Levels).Level);
