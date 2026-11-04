@@ -200,9 +200,25 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<Guid>("OrderItemId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("PaidAmount")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("Rank")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RankName")
+                        .IsRequired()
+                        .HasColumnType("varchar(100)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("varchar(20)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 
@@ -214,6 +230,8 @@ namespace BCOBCA.DAL.Migrations
                     b.ToTable("AffiliateCommissions", null, t =>
                         {
                             t.HasCheckConstraint("CK_AffiliateCommissions_Amounts", "\"CommissionRate\" BETWEEN 0 AND 1 AND \"BaseAmount\" >= 0 AND \"CommissionAmount\" >= 0");
+
+                            t.HasCheckConstraint("CK_AffiliateCommissions_Paid", "\"PaidAmount\" >= 0 AND \"PaidAmount\" <= \"CommissionAmount\"");
                         });
                 });
 
@@ -337,7 +355,7 @@ namespace BCOBCA.DAL.Migrations
                         {
                             Id = new Guid("a704b6f3-5664-4428-93d1-668522026204"),
                             CommissionRate = 0.07m,
-                            MinSuccessfulReferrals = 70,
+                            MinSuccessfulReferrals = 60,
                             Name = "Bạch kim",
                             Rank = 4
                         },
@@ -345,7 +363,7 @@ namespace BCOBCA.DAL.Migrations
                         {
                             Id = new Guid("a704b6f3-5664-4428-93d1-668522026205"),
                             CommissionRate = 0.10m,
-                            MinSuccessfulReferrals = 150,
+                            MinSuccessfulReferrals = 100,
                             Name = "Kim cương",
                             Rank = 5
                         });
@@ -385,6 +403,42 @@ namespace BCOBCA.DAL.Migrations
                     b.HasIndex("ReferrerUserId");
 
                     b.ToTable("AffiliateReferrals", (string)null);
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateVisit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AffiliateLinkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("AffiliateLinkId", "CreatedAt");
+
+                    b.ToTable("AffiliateVisits", (string)null);
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateWallet", b =>
@@ -1646,6 +1700,17 @@ namespace BCOBCA.DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal?>("AffiliateBudget")
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("AffiliateEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<decimal?>("AffiliateMaxRate")
+                        .HasColumnType("numeric(7,4)");
+
                     b.Property<decimal>("BasePrice")
                         .HasColumnType("numeric(18,2)");
 
@@ -1702,7 +1767,10 @@ namespace BCOBCA.DAL.Migrations
 
                     b.HasIndex("CategoryId");
 
-                    b.ToTable("Products", (string)null);
+                    b.ToTable("Products", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Products_AffiliatePolicy", "(\"AffiliateMaxRate\" IS NULL OR \"AffiliateMaxRate\" BETWEEN 0 AND 1) AND (\"AffiliateBudget\" IS NULL OR \"AffiliateBudget\" >= 0)");
+                        });
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.ProductFavorite", b =>
@@ -2762,6 +2830,20 @@ namespace BCOBCA.DAL.Migrations
                         .HasForeignKey("ReferrerUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateVisit", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.AffiliateLink", null)
+                        .WithMany()
+                        .HasForeignKey("AffiliateLinkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BCOBCA.DAL.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateWallet", b =>

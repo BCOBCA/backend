@@ -19,7 +19,12 @@ public sealed class OrdersController(IOrderService orders, IAuthService auth) : 
     [HttpDelete("cart/items/{id:guid}")]
     public async Task<IActionResult> Remove(Guid id, CancellationToken ct) { await orders.RemoveAsync(await UserId(ct), id, ct); return Ok(ApiResponse<object>.Ok(new { })); }
     [HttpPost("orders")]
-    public async Task<IActionResult> Checkout(CheckoutRequest input, CancellationToken ct) => StatusCode(201, ApiResponse<OrderDto>.Ok(await orders.CheckoutAsync(await UserId(ct), Request.Headers["Idempotency-Key"].ToString(), input, ct)));
+    public async Task<IActionResult> Checkout(CheckoutRequest input, CancellationToken ct)
+    {
+        var source = Request.Headers["X-Client-Platform"] == "native" ? input.AffiliateVisitToken : Request.Cookies["bcobca_affiliate"];
+        var request = Request.Headers["X-Client-Platform"] == "native" ? input : input with { AffiliateVisitToken = null };
+        return StatusCode(201, ApiResponse<OrderDto>.Ok(await orders.CheckoutAsync(await UserId(ct), Request.Headers["Idempotency-Key"].ToString(), request, ct, source ?? "")));
+    }
     [HttpPost("orders/preview")]
     public async Task<IActionResult> Preview(CheckoutPreviewRequest input, CancellationToken ct) => Ok(ApiResponse<CheckoutPreviewDto>.Ok(await orders.PreviewAsync(await UserId(ct), input, ct)));
     [HttpGet("orders")]

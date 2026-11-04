@@ -13,9 +13,9 @@ public sealed class AffiliateRankTests
     [Theory]
     [InlineData(0, 1, "0.02")] [InlineData(9, 1, "0.02")]
     [InlineData(10, 2, "0.03")] [InlineData(29, 2, "0.03")]
-    [InlineData(30, 3, "0.05")] [InlineData(69, 3, "0.05")]
-    [InlineData(70, 4, "0.07")] [InlineData(149, 4, "0.07")]
-    [InlineData(150, 5, "0.10")] [InlineData(1000, 5, "0.10")]
+    [InlineData(30, 3, "0.05")] [InlineData(59, 3, "0.05")]
+    [InlineData(60, 4, "0.07")] [InlineData(99, 4, "0.07")]
+    [InlineData(100, 5, "0.10")] [InlineData(1000, 5, "0.10")]
     public void SuccessfulReferralCountSelectsTheFinalRate(int referrals, int rank, string rate)
     {
         var result = AffiliateRankRules.Calculate(referrals, Ranks);
@@ -29,7 +29,7 @@ public sealed class AffiliateRankTests
         var current = AffiliateRankRules.Calculate(9, Ranks);
         Assert.Equal("Bạc", current.NextRank);
         Assert.Equal(1, current.ReferralsToNextRank);
-        Assert.Null(AffiliateRankRules.Calculate(150, Ranks).NextRank);
+        Assert.Null(AffiliateRankRules.Calculate(100, Ranks).NextRank);
     }
 
     [Fact]

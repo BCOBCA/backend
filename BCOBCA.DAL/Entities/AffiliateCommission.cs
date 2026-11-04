@@ -11,4 +11,8 @@ public sealed class AffiliateCommission
     public string Status { get; set; } = "";
     public DateTimeOffset? ApprovedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public string RankName { get; set; } = "";
+    public int? Rank { get; set; }
+    public decimal PaidAmount { get; set; }
+    public uint Version { get; set; }
 }

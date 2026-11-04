@@ -9,7 +9,7 @@ public interface IOrderService
     Task AddAsync(Guid userId, CartItemRequest input, CancellationToken ct);
     Task UpdateAsync(Guid userId, Guid itemId, UpdateCartRequest input, CancellationToken ct);
     Task RemoveAsync(Guid userId, Guid itemId, CancellationToken ct);
-    Task<OrderDto> CheckoutAsync(Guid userId, string idempotencyKey, CheckoutRequest input, CancellationToken ct);
+    Task<OrderDto> CheckoutAsync(Guid userId, string idempotencyKey, CheckoutRequest input, CancellationToken ct, string? affiliateVisitToken = null);
     Task<CheckoutPreviewDto> PreviewAsync(Guid userId, CheckoutPreviewRequest input, CancellationToken ct);
     Task<PageResult<OrderSummaryDto>> OrdersAsync(Guid userId, CatalogQuery query, CancellationToken ct);
     Task<OrderDto> OrderAsync(Guid userId, Guid id, CancellationToken ct);

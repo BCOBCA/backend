@@ -14,7 +14,7 @@ public static class LoyaltyDefaults
     public static AffiliateRank[] AffiliateRanks()
     {
         var names = new[] { "Đồng", "Bạc", "Vàng", "Bạch kim", "Kim cương" };
-        var counts = new[] { 0, 10, 30, 70, 150 };
+        var counts = new[] { 0, 10, 30, 60, 100 };
         var rates = new[] { 0.02m, 0.03m, 0.05m, 0.07m, 0.10m };
         return names.Select((name, index) => new AffiliateRank
         {

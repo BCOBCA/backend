@@ -61,8 +61,9 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         store.Set<CartItem>().Remove(await OwnedItem(userId, itemId, ct)); await store.SaveChangesAsync(ct);
     }
 
-    public async Task<OrderDto> CheckoutAsync(Guid userId, string idempotencyKey, CheckoutRequest input, CancellationToken ct)
+    public async Task<OrderDto> CheckoutAsync(Guid userId, string idempotencyKey, CheckoutRequest input, CancellationToken ct, string? affiliateVisitToken = null)
     {
+        if (input.AffiliateVisitToken is not null && input.AffiliateVisitToken.Length != 96) throw new BusinessException("Nguồn Affiliate không hợp lệ");
         if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 100 || input.Note.Length > 2000 || input.VoucherCode?.Length > 50 || input.ExpectedCartHash?.Length > 64) throw new BusinessException("Mã yêu cầu, voucher hoặc ghi chú không hợp lệ", 400);
         if (input.PaymentMethod != "COD") throw new BusinessException("Phương thức thanh toán chưa được cấu hình", 409);
         var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(input))));
@@ -110,6 +111,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         order.TotalAmount = order.Subtotal - order.DiscountAmount + order.ShippingFee;
         if (input.ExpectedTotal is not null && input.ExpectedTotal != order.TotalAmount) throw new BusinessException("Tổng tiền đã thay đổi. Vui lòng xem lại trước khi đặt hàng", 409);
         store.Set<Order>().Add(order); store.Set<OrderItem>().AddRange(lines);
+        await AffiliateSources.CaptureAsync(store, order, lines, affiliateVisitToken ?? input.AffiliateVisitToken, ct);
         foreach (var group in lines.GroupBy(x => x.BrandId)) store.Set<SellerOrder>().Add(new SellerOrder { OrderId = order.Id, BrandId = group.Key, Status = "PENDING", Subtotal = group.Sum(x => x.UnitPrice * x.Quantity), DiscountAmount = group.Sum(x => x.DiscountAmount), TotalAmount = group.Sum(x => x.TotalPrice), CreatedAt = now });
         store.Set<Payment>().Add(new Payment { OrderId = order.Id, PaymentMethod = "COD", Amount = order.TotalAmount, Currency = "VND", Status = "PENDING", CreatedAt = now });
         store.Set<OrderStatusHistory>().Add(new OrderStatusHistory { OrderId = order.Id, OldStatus = "", NewStatus = "PENDING", Note = "Tạo đơn hàng", CreatedAt = now });

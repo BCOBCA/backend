@@ -21,7 +21,7 @@ public sealed class LoyaltyConfigurationController(ILoyaltyConfigurationService 
         return Ok(ApiResponse<object>.Ok(new { }));
     }
 
-    [HttpGet("affiliate/ranks")]
+    [AllowAnonymous, HttpGet("affiliate/ranks")]
     public async Task<IActionResult> AffiliateRanks(CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<AffiliateRankDto>>.Ok(await loyalty.AffiliateRanksAsync(ct)));
 
     [Authorize(Roles = "Admin,SuperAdmin"), HttpPut("admin/affiliate/ranks")]

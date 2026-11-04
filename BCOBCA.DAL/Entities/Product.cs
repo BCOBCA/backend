@@ -18,4 +18,7 @@ public sealed class Product
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
+    public bool AffiliateEnabled { get; set; } = true;
+    public decimal? AffiliateMaxRate { get; set; }
+    public decimal? AffiliateBudget { get; set; }
 }

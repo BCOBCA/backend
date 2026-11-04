@@ -58,6 +58,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
     public DbSet<AffiliateLink> AffiliateLinks => Set<AffiliateLink>();
+    public DbSet<AffiliateVisit> AffiliateVisits => Set<AffiliateVisit>();
     public DbSet<AffiliateAttribution> AffiliateAttributions => Set<AffiliateAttribution>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();

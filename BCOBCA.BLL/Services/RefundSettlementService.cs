@@ -93,11 +93,11 @@ public sealed class RefundSettlementService(ICommerceStore store, IConfiguration
             member.TotalQualifiedSpend -= order.Subtotal - order.DiscountAmount; RewardLedger.Reverse(store, member, earned.Points, refundId);
             await LoyaltyQueries.RefreshMembershipAsync(store, member, ct);
         }
-        var commissions = await (from commission in store.Set<AffiliateCommission>() join item in store.Set<OrderItem>() on commission.OrderItemId equals item.Id where item.OrderId == order.Id && (commission.Status == "PENDING" || commission.Status == "APPROVED") select commission).ToListAsync(ct);
+        var commissions = await (from commission in store.Set<AffiliateCommission>() join item in store.Set<OrderItem>() on commission.OrderItemId equals item.Id where item.OrderId == order.Id && (commission.Status == "PENDING" || commission.Status == "APPROVED" || commission.Status == "PAID") select commission).ToListAsync(ct);
         foreach (var group in commissions.GroupBy(x => x.AffiliateProfileId))
         {
             var wallet = await store.Set<AffiliateWallet>().SingleAsync(x => x.AffiliateProfileId == group.Key, ct);
-            var pending = group.Where(x => x.Status == "PENDING").Sum(x => x.CommissionAmount); var approved = group.Where(x => x.Status == "APPROVED").Sum(x => x.CommissionAmount);
+            var pending = group.Where(x => x.Status == "PENDING").Sum(x => x.CommissionAmount); var approved = group.Where(x => x.Status is "APPROVED" or "PAID").Sum(x => x.CommissionAmount);
             if (wallet.PendingBalance < pending) throw new BusinessException("Sổ cái hoa hồng chờ duyệt không khớp", 409);
             wallet.PendingBalance -= pending; WalletLedger.Entry(store, wallet, "PENDING_DEBIT", -pending, wallet.PendingBalance, "Refund", refundId);
             var available = Math.Min(wallet.AvailableBalance, approved); wallet.AvailableBalance -= available;

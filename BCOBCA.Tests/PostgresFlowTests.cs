@@ -32,7 +32,7 @@ public sealed class PostgresFlowTests
             var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).Options;
             await using var db = new ApplicationDbContext(options);
             await db.Database.MigrateAsync();
-            Assert.Equal(61, db.Model.GetEntityTypes().Count());
+            Assert.Equal(62, db.Model.GetEntityTypes().Count());
             var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
             var store = new CommerceStore(db);
             var catalog = new CatalogService(store);
@@ -142,9 +142,8 @@ public sealed class PostgresFlowTests
                 await using var concurrent = new ApplicationDbContext(options);
                 try { await new MemberService(new CommerceStore(concurrent)).CheckInAsync(second.User.Id, default); return true; }
                 catch (BCOBCA.BLL.Common.BusinessException ex) when (ex.StatusCode == 409) { return false; }
-                catch (DbUpdateConcurrencyException) { return false; }
-                catch (PostgresException ex) when (ex.SqlState is "40001" or "40P01") { return false; }
-                catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "40001" or "23505" }) { return false; }
+                catch (Exception ex) when (BCOBCA.BLL.Common.DatabaseConflicts.IsConcurrency(ex)) { return false; }
+                catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" }) { return false; }
             }
             var races = await Task.WhenAll(AttemptCheckIn(), AttemptCheckIn());
             Assert.Single(races, success => success);

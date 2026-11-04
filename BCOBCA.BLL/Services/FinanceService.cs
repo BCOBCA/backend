@@ -48,22 +48,38 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
         {
             var referral = await store.Set<AffiliateReferral>().SingleOrDefaultAsync(x => x.ReferredUserId == order.UserId, ct);
             if (referral is not null) { referral.Status = "QUALIFIED"; referral.QualifiedAt ??= DateTimeOffset.UtcNow; }
-            var profile = await store.Set<AffiliateProfile>().SingleOrDefaultAsync(x => x.UserId == referredBy && x.Status == "ACTIVE", ct);
-            if (profile is not null)
+        }
+        var attribution = await store.Set<AffiliateAttribution>().SingleOrDefaultAsync(x => x.OrderId == orderId, ct);
+        var source = attribution is null
+            ? store.Set<AffiliateProfile>().Where(x => x.UserId == referredBy)
+            : store.Set<AffiliateProfile>().Where(x => x.Id == attribution.AffiliateProfileId);
+        var profile = await (from candidate in source join owner in store.Set<User>() on candidate.UserId equals owner.Id join account in store.Set<Account>() on owner.AccountId equals account.Id
+            where candidate.Status == "ACTIVE" && candidate.UserId != order.UserId && account.Status == 1 select candidate).SingleOrDefaultAsync(ct);
+        if (profile is not null)
+        {
+            var rank = await LoyaltyQueries.AffiliateRankAsync(store, profile.UserId, ct);
+            var linkedProduct = attribution?.AffiliateLinkId is Guid linkId ? await store.Set<AffiliateLink>().Where(x => x.Id == linkId).Select(x => x.ProductId).SingleAsync(ct) : null;
+            var wallet = await store.Set<AffiliateWallet>().SingleAsync(x => x.AffiliateProfileId == profile.Id, ct);
+            if (attribution is null) store.Set<AffiliateAttribution>().Add(new AffiliateAttribution { AffiliateProfileId = profile.Id, OrderId = orderId, CreatedAt = DateTimeOffset.UtcNow });
+            var lines = await store.Set<OrderItem>().Where(x => x.OrderId == orderId && (linkedProduct == null || x.ProductId == linkedProduct)).OrderBy(x => x.Id).ToListAsync(ct);
+            var productIds = lines.Select(x => x.ProductId).Distinct().ToArray();
+            var products = await store.Set<Product>().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
+            var spentByProduct = await (from previous in store.Set<AffiliateCommission>() join item in store.Set<OrderItem>() on previous.OrderItemId equals item.Id
+                where productIds.Contains(item.ProductId) && previous.Status != "REVERSED" group previous by item.ProductId into totals
+                select new { ProductId = totals.Key, Amount = totals.Sum(x => x.CommissionAmount) }).ToDictionaryAsync(x => x.ProductId, x => x.Amount, ct);
+            foreach (var line in lines)
             {
-                var rate = (await LoyaltyQueries.AffiliateRankAsync(store, referredBy.Value, ct)).CommissionRate;
-                var wallet = await store.Set<AffiliateWallet>().SingleAsync(x => x.AffiliateProfileId == profile.Id, ct);
-                if (!await store.Set<AffiliateAttribution>().AnyAsync(x => x.OrderId == orderId, ct)) store.Set<AffiliateAttribution>().Add(new AffiliateAttribution { AffiliateProfileId = profile.Id, OrderId = orderId, CreatedAt = DateTimeOffset.UtcNow });
-                foreach (var line in await store.Set<OrderItem>().Where(x => x.OrderId == orderId).OrderBy(x => x.Id).ToListAsync(ct))
-                {
-                    var amount = decimal.Round(line.TotalPrice * rate, 2, MidpointRounding.AwayFromZero);
-                    if (amount == 0) continue;
-                    var commission = new AffiliateCommission { AffiliateProfileId = profile.Id, OrderItemId = line.Id, CommissionRate = rate, BaseAmount = line.TotalPrice, CommissionAmount = amount, Status = "PENDING", CreatedAt = DateTimeOffset.UtcNow };
-                    store.Set<AffiliateCommission>().Add(commission); wallet.PendingBalance += amount;
-                    Ledger(wallet, "PENDING_CREDIT", amount, wallet.PendingBalance, "Commission", commission.Id);
-                }
-                wallet.UpdatedAt = DateTimeOffset.UtcNow;
+                if (!products.TryGetValue(line.ProductId, out var product) || !product.AffiliateEnabled) continue;
+                var rate = Math.Min(rank.CommissionRate, product.AffiliateMaxRate ?? 1m);
+                var amount = decimal.Round(line.TotalPrice * rate, 2, MidpointRounding.AwayFromZero);
+                if (product.AffiliateBudget is decimal budget) amount = Math.Min(amount, Math.Max(0, budget - spentByProduct.GetValueOrDefault(product.Id)));
+                if (amount == 0) continue;
+                spentByProduct[product.Id] = spentByProduct.GetValueOrDefault(product.Id) + amount;
+                var commission = new AffiliateCommission { AffiliateProfileId = profile.Id, OrderItemId = line.Id, CommissionRate = rate, BaseAmount = line.TotalPrice, CommissionAmount = amount, Rank = rank.Rank, RankName = rank.Name, Status = "PENDING", CreatedAt = DateTimeOffset.UtcNow };
+                store.Set<AffiliateCommission>().Add(commission); wallet.PendingBalance += amount;
+                Ledger(wallet, "PENDING_CREDIT", amount, wallet.PendingBalance, "Commission", commission.Id);
             }
+            wallet.UpdatedAt = DateTimeOffset.UtcNow;
         }
         var feeRate = config.GetValue<decimal>("Settlement:PlatformFeeRate");
         if (feeRate < 0 || feeRate > 1 || decimal.Round(feeRate, 4) != feeRate) throw new InvalidOperationException("Settlement platform fee rate is invalid.");
@@ -130,8 +146,9 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
     public async Task<PageResult<CommissionDto>> CommissionsAsync(Guid userId, CatalogQuery query, CancellationToken ct)
     {
         var profileId = await store.Set<AffiliateProfile>().Where(x => x.UserId == userId).Select(x => x.Id).SingleAsync(ct);
-        return await Page(store.Set<AffiliateCommission>().AsNoTracking().Where(x => x.AffiliateProfileId == profileId).OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)
-            .Select(x => new CommissionDto(x.Id, x.OrderItemId, x.BaseAmount, x.CommissionRate, x.CommissionAmount, x.Status, x.CreatedAt, x.ApprovedAt)), query, ct);
+        return await Page((from commission in store.Set<AffiliateCommission>().AsNoTracking() join item in store.Set<OrderItem>() on commission.OrderItemId equals item.Id join order in store.Set<Order>() on item.OrderId equals order.Id
+            where commission.AffiliateProfileId == profileId orderby commission.CreatedAt descending, commission.Id
+            select new CommissionDto(commission.Id, commission.OrderItemId, commission.BaseAmount, commission.CommissionRate, commission.CommissionAmount, commission.Status, commission.CreatedAt, commission.ApprovedAt, order.Id, order.OrderCode, item.ProductId, item.ProductName, commission.RankName, commission.Rank, commission.PaidAmount)), query, ct);
     }
     public async Task<PageResult<LeaderboardDto>> LeaderboardAsync(CatalogQuery query, CancellationToken ct)
     {
@@ -147,7 +164,7 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
     {
         await using var tx = await store.BeginTransactionAsync(ct); await RequireAdmin(accountId, ct);
         var commission = await store.Set<AffiliateCommission>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy hoa hồng", 404);
-        if (commission.Status == "APPROVED") return;
+        if (commission.Status is "APPROVED" or "PAID") return;
         var orderId = await store.Set<OrderItem>().Where(x => x.Id == commission.OrderItemId).Select(x => x.OrderId).SingleAsync(ct);
         if (!await store.Set<Order>().AnyAsync(x => x.Id == orderId && x.Status == "COMPLETED" && x.PaymentStatus == "PAID", ct)
             || await (from refund in store.Set<Refund>() join payment in store.Set<Payment>() on refund.PaymentId equals payment.Id where payment.OrderId == orderId && (refund.Status == "PENDING" || refund.Status == "APPROVED") select refund.Id).AnyAsync(ct)) throw new BusinessException("Đơn hàng đang hoàn tiền hoặc chưa đủ điều kiện duyệt hoa hồng", 409);
@@ -174,6 +191,14 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
             var payoutWallet = await store.Set<AffiliateWallet>().SingleAsync(x => x.Id == withdrawal.WalletId, ct);
             if (payoutWallet.DebtBalance > 0) throw new BusinessException("Cần đối soát hoa hồng bị thu hồi trước khi xác nhận chi", 409);
             if (string.IsNullOrWhiteSpace(input.TransactionReference) || input.TransactionReference.Length > 150) throw new BusinessException("Cần mã xác nhận chuyển tiền thực tế");
+            var remaining = withdrawal.Amount;
+            foreach (var commission in await store.Set<AffiliateCommission>().Where(x => x.AffiliateProfileId == payoutWallet.AffiliateProfileId && x.Status == "APPROVED" && x.PaidAmount < x.CommissionAmount).OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(ct))
+            {
+                var portion = Math.Min(remaining, commission.CommissionAmount - commission.PaidAmount);
+                commission.PaidAmount += portion; remaining -= portion;
+                if (commission.PaidAmount == commission.CommissionAmount) commission.Status = "PAID";
+                if (remaining == 0) break;
+            }
             withdrawal.Status = "PAID"; withdrawal.TransactionReference = input.TransactionReference; withdrawal.ProcessedAt = DateTimeOffset.UtcNow;
         }
         else if (input.Status == "REJECTED" && withdrawal.Status is "PENDING" or "APPROVED")

@@ -22,5 +22,10 @@ public sealed class AffiliateCommissionConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.ApprovedAt).HasColumnType("timestamptz");
         builder.Property(x => x.CreatedAt).HasColumnType("timestamptz").IsRequired();
         builder.HasIndex(x => new { x.AffiliateProfileId, x.OrderItemId }).IsUnique();
+        builder.Property(x => x.RankName).HasColumnType("varchar(100)").IsRequired();
+        builder.Property(x => x.Rank).HasColumnType("int");
+        builder.Property(x => x.PaidAmount).HasColumnType("numeric(18,2)");
+        builder.Property(x => x.Version).IsRowVersion();
+        builder.ToTable(t => t.HasCheckConstraint("CK_AffiliateCommissions_Paid", "\"PaidAmount\" >= 0 AND \"PaidAmount\" <= \"CommissionAmount\""));
     }
 }

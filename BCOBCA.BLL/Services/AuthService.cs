@@ -37,7 +37,8 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
         if (!string.IsNullOrWhiteSpace(input.ReferralCode))
         {
             var code = input.ReferralCode.Trim().ToUpperInvariant();
-            var referrer = await store.Set<User>().SingleOrDefaultAsync(x => x.ReferralCode == code, ct)
+            var referrer = await (from candidate in store.Set<User>() join profile in store.Set<AffiliateProfile>() on candidate.Id equals profile.UserId join owner in store.Set<Account>() on candidate.AccountId equals owner.Id
+                where candidate.ReferralCode == code && profile.Status == "ACTIVE" && owner.Status == 1 && (email == "" || owner.Email != email) && (input.Phone == "" || owner.Phone != input.Phone) select candidate).SingleOrDefaultAsync(ct)
                 ?? throw new BusinessException("Mã giới thiệu không hợp lệ");
             user.ReferredByUserId = referrer.Id;
             store.Set<AffiliateReferral>().Add(new AffiliateReferral { ReferrerUserId = referrer.Id, ReferredUserId = user.Id, ReferralCode = code, Status = "PENDING", CreatedAt = now });

@@ -28,5 +28,9 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.UpdatedAt).HasColumnType("timestamptz").IsRequired();
         builder.Property(x => x.IsDeleted).HasColumnType("boolean").IsRequired();
         builder.HasQueryFilter(x => !x.IsDeleted);
+        builder.Property(x => x.AffiliateEnabled).HasDefaultValue(true);
+        builder.Property(x => x.AffiliateMaxRate).HasColumnType("numeric(7,4)");
+        builder.Property(x => x.AffiliateBudget).HasColumnType("numeric(18,2)");
+        builder.ToTable(t => t.HasCheckConstraint("CK_Products_AffiliatePolicy", "(\"AffiliateMaxRate\" IS NULL OR \"AffiliateMaxRate\" BETWEEN 0 AND 1) AND (\"AffiliateBudget\" IS NULL OR \"AffiliateBudget\" >= 0)"));
     }
 }
