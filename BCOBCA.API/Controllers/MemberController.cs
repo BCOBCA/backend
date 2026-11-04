@@ -18,8 +18,8 @@ public sealed class MemberController(IMemberService member, IAuthService auth) :
     public async Task<IActionResult> CheckIn(CancellationToken ct) => Ok(ApiResponse<CheckInDto>.Ok(await member.CheckInAsync(await UserId(ct), ct)));
     [HttpGet("membership/points")]
     public async Task<IActionResult> Points([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<PointDto>>.Ok(await member.PointsAsync(await UserId(ct), query, ct)));
-    [HttpGet("vouchers")]
-    public async Task<IActionResult> Vouchers([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<VoucherDto>>.Ok(await member.VouchersAsync(await UserId(ct), query, ct)));
+    [AllowAnonymous, HttpGet("vouchers")]
+    public async Task<IActionResult> Vouchers([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<VoucherDto>>.Ok(await member.VouchersAsync(User.Identity?.IsAuthenticated == true ? await UserId(ct) : null, query, ct)));
     [HttpPost("vouchers/{id:guid}/claim")]
     public async Task<IActionResult> Claim(Guid id, CancellationToken ct) { await member.ClaimAsync(await UserId(ct), id, ct); return Ok(ApiResponse<object>.Ok(new { })); }
     [HttpGet("favorites")]

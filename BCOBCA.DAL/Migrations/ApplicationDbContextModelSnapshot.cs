@@ -2636,8 +2636,18 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamptz");
 
+                    b.Property<bool>("IsFlashSale")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<decimal?>("MaxDiscount")
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("MinLevel")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
 
                     b.Property<decimal>("MinOrderAmount")
                         .HasColumnType("numeric(18,2)");
@@ -2648,6 +2658,11 @@ namespace BCOBCA.DAL.Migrations
 
                     b.Property<int>("PerUserLimit")
                         .HasColumnType("int");
+
+                    b.Property<long>("PointCost")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
 
                     b.Property<DateTimeOffset>("StartsAt")
                         .HasColumnType("timestamptz");
@@ -2670,7 +2685,10 @@ namespace BCOBCA.DAL.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Vouchers", (string)null);
+                    b.ToTable("Vouchers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Vouchers_Membership", "\"PointCost\" >= 0 AND \"MinLevel\" BETWEEN 1 AND 10 AND (\"PointCost\" = 0 OR \"PerUserLimit\" = 1)");
+                        });
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.VoucherTarget", b =>

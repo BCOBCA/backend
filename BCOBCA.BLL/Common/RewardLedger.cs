@@ -35,4 +35,14 @@ public static class RewardLedger
             Entry(store, member, "DEBT_CREDIT", points - removed, member.PointDebt, "Refund", refundId, "Điểm cần cấn trừ từ lần thưởng sau");
         }
     }
+
+    public static void RedeemVoucher(ICommerceStore store, UserMembership member, long points, Guid claimId)
+    {
+        if (!store.HasTransaction) throw new InvalidOperationException("Point redemption requires a transaction.");
+        if (points <= 0) throw new BusinessException("Số điểm đổi ưu đãi không hợp lệ");
+        if (member.PointDebt > 0) throw new BusinessException("Cần cấn trừ điểm đã thu hồi trước khi đổi ưu đãi", 409);
+        if (member.AvailablePoints < points) throw new BusinessException("Điểm có thể sử dụng không đủ để đổi ưu đãi", 409);
+        member.AvailablePoints -= points;
+        Entry(store, member, "VOUCHER_REDEEM", -points, member.AvailablePoints, "UserVoucher", claimId, "Đổi điểm lấy voucher");
+    }
 }

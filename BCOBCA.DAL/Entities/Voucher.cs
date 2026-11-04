@@ -15,5 +15,8 @@ public sealed class Voucher
     public DateTimeOffset StartsAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
     public string Status { get; set; } = "";
+    public long PointCost { get; set; }
+    public int MinLevel { get; set; } = 1;
+    public bool IsFlashSale { get; set; }
     public uint Version { get; set; }
 }

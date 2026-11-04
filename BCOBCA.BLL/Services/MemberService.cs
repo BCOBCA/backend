@@ -55,25 +55,33 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
             .Select(x => new PointDto(x.Id, x.Type, x.Points, x.BalanceAfter, x.Description, x.CreatedAt)), query, ct);
     }
 
-    public async Task<PageResult<VoucherDto>> VouchersAsync(Guid userId, CatalogQuery query, CancellationToken ct)
+    public async Task<PageResult<VoucherDto>> VouchersAsync(Guid? userId, CatalogQuery query, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
-        return await PageAsync(store.Set<Voucher>().AsNoTracking().Where(x => x.Status == "ACTIVE" && x.StartsAt <= now && x.ExpiresAt > now
-                && (x.UsageLimit == null || store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.Status == "APPLIED") < x.UsageLimit)
+        return await PageAsync(store.Set<Voucher>().AsNoTracking().Where(x => (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1)) && x.StartsAt <= now && x.ExpiresAt > now
+                && (x.UsageLimit == null || (x.PointCost > 0 ? store.Set<UserVoucher>().Count(v => v.VoucherId == x.Id) : store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.Status == "APPLIED")) < x.UsageLimit || store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id))
                 && store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.UserId == userId && u.Status == "APPLIED") < x.PerUserLimit)
             .OrderBy(x => x.ExpiresAt).ThenBy(x => x.Id).Select(x => new VoucherDto(x.Id, x.Code, x.Name, x.Description, x.DiscountType, x.DiscountValue, x.MaxDiscount, x.MinOrderAmount, x.ExpiresAt,
-                store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id))), query, ct);
+                store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id), x.PointCost, x.MinLevel, x.IsFlashSale)), query, ct);
     }
 
     public async Task ClaimAsync(Guid userId, Guid voucherId, CancellationToken ct)
     {
         await using var tx = await store.BeginTransactionAsync(ct);
         var now = DateTimeOffset.UtcNow;
-        var voucher = await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Id == voucherId && x.Status == "ACTIVE" && x.StartsAt <= now && x.ExpiresAt > now, ct) ?? throw new BusinessException("Voucher không khả dụng", 404);
+        var voucher = await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Id == voucherId && (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1)) && x.StartsAt <= now && x.ExpiresAt > now, ct) ?? throw new BusinessException("Voucher không khả dụng", 404);
+        if (await store.Set<UserVoucher>().AnyAsync(x => x.UserId == userId && x.VoucherId == voucherId, ct)) return;
+        await VoucherEligibility.RequireLevelAsync(store, userId, voucher.MinLevel, ct);
         var usages = store.Set<VoucherUsage>().Where(x => x.VoucherId == voucherId && x.Status == "APPLIED");
         if (voucher.UsageLimit is not null && await usages.CountAsync(ct) >= voucher.UsageLimit || await usages.CountAsync(x => x.UserId == userId, ct) >= voucher.PerUserLimit) throw new BusinessException("Voucher đã hết lượt sử dụng", 409);
-        if (await store.Set<UserVoucher>().AnyAsync(x => x.UserId == userId && x.VoucherId == voucherId, ct)) return;
-        store.Set<UserVoucher>().Add(new UserVoucher { UserId = userId, VoucherId = voucherId, Status = "AVAILABLE", ClaimedAt = now });
+        if (voucher.PointCost > 0 && voucher.UsageLimit is not null && await store.Set<UserVoucher>().CountAsync(x => x.VoucherId == voucherId, ct) >= voucher.UsageLimit) throw new BusinessException("Ưu đãi đổi điểm đã hết lượt", 409);
+        var claim = new UserVoucher { UserId = userId, VoucherId = voucherId, Status = "AVAILABLE", ClaimedAt = now };
+        if (voucher.PointCost > 0)
+        {
+            var membership = await store.Set<UserMembership>().SingleAsync(x => x.UserId == userId, ct);
+            RewardLedger.RedeemVoucher(store, membership, voucher.PointCost, claim.Id);
+        }
+        store.Set<UserVoucher>().Add(claim);
         await store.SaveChangesAsync(ct); await tx.CommitAsync(ct);
     }
 

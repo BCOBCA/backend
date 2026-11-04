@@ -139,7 +139,9 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
     private async Task<Voucher> ApplyVoucherAsync(Order order, List<OrderItem> lines, string code, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
-        var voucher = await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Code == code && x.Status == "ACTIVE" && x.StartsAt <= now && x.ExpiresAt > now, ct) ?? throw new BusinessException("Voucher không khả dụng");
+        var voucher = await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Code == code && (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1)) && x.StartsAt <= now && x.ExpiresAt > now, ct) ?? throw new BusinessException("Voucher không khả dụng");
+        await VoucherEligibility.RequireLevelAsync(store, order.UserId, voucher.MinLevel, ct);
+        if (voucher.PointCost > 0 && !await store.Set<UserVoucher>().AnyAsync(x => x.UserId == order.UserId && x.VoucherId == voucher.Id && x.Status == "AVAILABLE", ct)) throw new BusinessException("Cần đổi điểm nhận voucher trước khi sử dụng", 409);
         var usage = store.Set<VoucherUsage>().Where(x => x.VoucherId == voucher.Id && x.Status == "APPLIED");
         if (voucher.UsageLimit is not null && await usage.CountAsync(ct) >= voucher.UsageLimit || await usage.CountAsync(x => x.UserId == order.UserId, ct) >= voucher.PerUserLimit) throw new BusinessException("Voucher đã hết lượt sử dụng", 409);
         var targets = await store.Set<VoucherTarget>().Where(x => x.VoucherId == voucher.Id).ToListAsync(ct);
