@@ -32,6 +32,10 @@ public sealed class PostgresFlowTests
             var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).Options;
             await using var db = new ApplicationDbContext(options);
             await db.Database.MigrateAsync();
+            var categoryColumns = await db.Database.SqlQueryRaw<string>("SELECT column_name AS \"Value\" FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Categories'").ToListAsync();
+            Assert.DoesNotContain("IconUrl", categoryColumns);
+            Assert.Contains("ImageUrl", categoryColumns);
+            Assert.Equal(7, categoryColumns.Count);
             Assert.Equal(62, db.Model.GetEntityTypes().Count());
             var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
             var store = new CommerceStore(db);

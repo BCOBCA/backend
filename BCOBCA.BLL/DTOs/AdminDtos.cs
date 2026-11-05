@@ -2,7 +2,7 @@ namespace BCOBCA.BLL.DTOs;
 
 public sealed record ResourceIdDto(Guid Id);
 public sealed record BrandInput(string Name, string Slug, string Description = "", string LogoUrl = "", string CoverUrl = "", string Website = "", string ContactEmail = "", string Phone = "", string Address = "", bool IsActive = true, Guid? OwnerAccountId = null);
-public sealed record CategoryInput(string Name, string Slug, Guid? ParentId = null, string IconUrl = "", string ImageUrl = "", int SortOrder = 0, bool IsActive = true);
+public sealed record CategoryInput(string Name, string Slug, Guid? ParentId = null, string ImageUrl = "", int SortOrder = 0, bool IsActive = true);
 public sealed record VariantInput(Guid? Id, string SKU, string VariantName, decimal Price, int StockQuantity, decimal? SalePrice = null, string Attributes = "{}", bool IsActive = true);
 public sealed record ProductInput(Guid BrandId, Guid CategoryId, string Name, string Slug, string SKU, decimal BasePrice, IReadOnlyList<VariantInput> Variants, IReadOnlyList<string> ImageUrls, string Description = "", string ShortDescription = "", decimal? SalePrice = null, bool IsActive = true, bool IsFeatured = false);
 public sealed record ServiceInput(Guid BrandId, string Name, string Slug, string Description, string ThumbnailUrl = "", decimal? PriceFrom = null, string PricingType = "CONSULTATION", bool IsActive = true);

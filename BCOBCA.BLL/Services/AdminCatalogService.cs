@@ -70,7 +70,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
 
     public async Task<Guid> SaveCategoryAsync(Guid accountId, Guid? id, CategoryInput input, CancellationToken ct)
     {
-        await RequireAdmin(accountId, ct); Text(input.Name, "Tên danh mục", 150); Slug(input.Slug, 180); Url(input.IconUrl); Url(input.ImageUrl);
+        await RequireAdmin(accountId, ct); Text(input.Name, "Tên danh mục", 150); Slug(input.Slug, 180); Url(input.ImageUrl);
         await using var tx = await store.BeginTransactionAsync(ct);
         var parent = input.ParentId;
         for (var depth = 0; parent is not null; depth++)
@@ -79,7 +79,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
             var ancestor = await store.Set<Category>().SingleOrDefaultAsync(x => x.Id == parent, ct) ?? throw new BusinessException("Danh mục cha không tồn tại"); parent = ancestor.ParentId;
         }
         var category = id is null ? new Category() : await store.Set<Category>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy danh mục", 404);
-        category.Name = input.Name.Trim(); category.Slug = input.Slug; category.ParentId = input.ParentId; category.IconUrl = input.IconUrl; category.ImageUrl = input.ImageUrl; category.SortOrder = input.SortOrder; category.IsActive = input.IsActive;
+        category.Name = input.Name.Trim(); category.Slug = input.Slug; category.ParentId = input.ParentId; category.ImageUrl = input.ImageUrl; category.SortOrder = input.SortOrder; category.IsActive = input.IsActive;
         if (id is null) store.Set<Category>().Add(category);
         await Audit(accountId, id is null ? "CREATE" : "UPDATE", "Category", category.Id, ct); await tx.CommitAsync(ct); return category.Id;
     }

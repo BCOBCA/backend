@@ -11,7 +11,7 @@
 | Brands | 16 | Word |
 | BrandMembers | 6 | Word |
 | BrandCategories | 6 | Word |
-| Categories | 8 | Word |
+| Categories | 7 | Word; IconUrl removed by migration |
 | Products | 16 | Word |
 | ProductImages | 5 | Word |
 | ProductVariants | 10 | Word |

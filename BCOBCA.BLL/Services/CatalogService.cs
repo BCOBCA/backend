@@ -37,7 +37,7 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
 
     public async Task<PageResult<CategoryDto>> CategoriesAsync(CatalogQuery query, CancellationToken ct)
         => await PageAsync(store.Set<Category>().AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
-            .Select(x => new CategoryDto(x.Id, x.ParentId, x.Name, x.Slug, x.IconUrl, x.ImageUrl)), query, ct);
+            .Select(x => new CategoryDto(x.Id, x.ParentId, x.Name, x.Slug, x.ImageUrl)), query, ct);
 
     private IQueryable<Product> ProductQuery() => store.Set<Product>().AsNoTracking()
         .Where(p => p.Status == 1 && store.Set<Brand>().Any(b => b.Id == p.BrandId && b.Status == 1));

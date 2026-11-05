@@ -14,7 +14,6 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.HasOne<Category>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.Name).HasColumnType("varchar(150)").IsRequired();
         builder.Property(x => x.Slug).HasColumnType("varchar(180)").IsRequired();
-        builder.Property(x => x.IconUrl).HasColumnType("text").IsRequired();
         builder.Property(x => x.ImageUrl).HasColumnType("text").IsRequired();
         builder.Property(x => x.SortOrder).HasColumnType("int").IsRequired();
         builder.Property(x => x.IsActive).HasColumnType("boolean").IsRequired();
