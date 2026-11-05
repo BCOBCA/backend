@@ -1,6 +1,7 @@
 namespace BCOBCA.BLL.DTOs;
 
-public sealed record MembershipDto(string MemberCode, string Tier, long AvailablePoints, long LifetimeEarnedPoints, int OrderCount, decimal TotalSpend, bool CheckedInToday, decimal AffiliateBalance, IReadOnlyDictionary<string, int> OrderCounts, long PointDebt = 0, MembershipProgressDto? LevelInfo = null);
+public sealed record MembershipDto(string MemberCode, string Tier, long AvailablePoints, long LifetimeEarnedPoints, int OrderCount, decimal TotalSpend, bool CheckedInToday, decimal AffiliateBalance, IReadOnlyDictionary<string, int> OrderCounts, long PointDebt = 0, MembershipProgressDto? LevelInfo = null, int CheckInStreakDays = 0);
+public sealed record CheckInProgramDto(int RewardPoints, bool IsActive);
 public sealed record MembershipLevelDto(int Level, int MinPoints, IReadOnlyList<string> Benefits);
 public sealed record MembershipProgressDto(int Level, int MinPoints, int? NextLevel, int? NextLevelMinPoints, long PointsToNextLevel, decimal ProgressPercent, IReadOnlyList<string> Benefits);
 public sealed record UpdateMembershipLevelsRequest(IReadOnlyList<MembershipLevelDto> Levels);

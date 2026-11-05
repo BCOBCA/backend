@@ -25,9 +25,16 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
         var counts = await orders.GroupBy(x => x.Status).Select(x => new { Status = x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Status, x => x.Count, ct);
         var total = await orders.Where(x => x.Status == "COMPLETED").SumAsync(x => x.TotalAmount, ct);
         var today = CommerceRules.VietnamDate(DateTimeOffset.UtcNow);
-        var checkedIn = await store.Set<DailyCheckIn>().AnyAsync(x => x.UserId == userId && x.CheckInDate == today, ct);
+        var latestCheckIn = await store.Set<DailyCheckIn>().AsNoTracking().Where(x => x.UserId == userId && x.CheckInDate >= today.AddDays(-1) && x.CheckInDate <= today).OrderByDescending(x => x.CheckInDate).FirstOrDefaultAsync(ct);
+        var checkedIn = latestCheckIn?.CheckInDate == today;
         var wallet = await (from p in store.Set<AffiliateProfile>() join w in store.Set<AffiliateWallet>() on p.Id equals w.AffiliateProfileId where p.UserId == userId select w.AvailableBalance).SingleAsync(ct);
-        return new(member.MemberCode, $"Lv.{level.Level}", member.AvailablePoints, member.LifetimeEarnedPoints, counts.Values.Sum(), total, checkedIn, wallet, counts, member.PointDebt, level);
+        return new(member.MemberCode, $"Lv.{level.Level}", member.AvailablePoints, member.LifetimeEarnedPoints, counts.Values.Sum(), total, checkedIn, wallet, counts, member.PointDebt, level, latestCheckIn?.StreakDays ?? 0);
+    }
+
+    public async Task<CheckInProgramDto> CheckInProgramAsync(CancellationToken ct)
+    {
+        var rule = await store.Set<CheckInRule>().AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Id).FirstOrDefaultAsync(ct);
+        return new(rule?.RewardPoints ?? 0, rule is not null);
     }
 
     public async Task<CheckInDto> CheckInAsync(Guid userId, CancellationToken ct)

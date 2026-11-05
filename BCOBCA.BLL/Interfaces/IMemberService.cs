@@ -7,6 +7,7 @@ public interface IMemberService
 {
     Task<MembershipDto> MembershipAsync(Guid userId, CancellationToken ct);
     Task<CheckInDto> CheckInAsync(Guid userId, CancellationToken ct);
+    Task<CheckInProgramDto> CheckInProgramAsync(CancellationToken ct);
     Task<PageResult<PointDto>> PointsAsync(Guid userId, CatalogQuery query, CancellationToken ct);
     Task<PageResult<VoucherDto>> VouchersAsync(Guid? userId, CatalogQuery query, CancellationToken ct);
     Task ClaimAsync(Guid userId, Guid voucherId, CancellationToken ct);

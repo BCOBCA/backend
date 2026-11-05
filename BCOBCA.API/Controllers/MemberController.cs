@@ -16,6 +16,8 @@ public sealed class MemberController(IMemberService member, IAuthService auth) :
     public async Task<IActionResult> Membership(CancellationToken ct) => Ok(ApiResponse<MembershipDto>.Ok(await member.MembershipAsync(await UserId(ct), ct)));
     [HttpPost("membership/check-ins")]
     public async Task<IActionResult> CheckIn(CancellationToken ct) => Ok(ApiResponse<CheckInDto>.Ok(await member.CheckInAsync(await UserId(ct), ct)));
+    [AllowAnonymous, HttpGet("membership/check-in-program")]
+    public async Task<IActionResult> CheckInProgram(CancellationToken ct) => Ok(ApiResponse<CheckInProgramDto>.Ok(await member.CheckInProgramAsync(ct)));
     [HttpGet("membership/points")]
     public async Task<IActionResult> Points([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<PointDto>>.Ok(await member.PointsAsync(await UserId(ct), query, ct)));
     [AllowAnonymous, HttpGet("vouchers")]

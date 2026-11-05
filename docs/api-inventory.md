@@ -80,6 +80,7 @@ Sinh từ OpenAPI runtime sau verification ngày 2026-11-02. Xem `/swagger` đ�
 | GET | `/api/health` |
 | GET | `/api/membership` |
 | POST | `/api/membership/check-ins` |
+| GET | `/api/membership/check-in-program` (public reward configuration) |
 | GET | `/api/membership/points` |
 | GET | `/api/notifications` |
 | PUT | `/api/notifications/{id}/read` |
