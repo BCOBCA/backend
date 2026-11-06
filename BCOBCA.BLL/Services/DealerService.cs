@@ -19,8 +19,8 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
     private IQueryable<DealerDto> Project(IQueryable<Store> source, Guid? accountId) => source.Select(x => new DealerDto(
         x.Id, x.Name, x.Slug, x.LogoUrl, x.CoverUrl, x.Description, x.IsVerified,
         store.Set<StoreFollower>().Count(f => f.StoreId == x.Id),
-        PublicBranches().Where(b => b.StoreId == x.Id && b.ProvinceCode != "")
-            .OrderByDescending(b => b.IsMain).ThenBy(b => b.Id).Select(b => b.ProvinceCode).FirstOrDefault() ?? "Chưa công bố khu vực",
+        PublicBranches().Where(b => b.StoreId == x.Id && b.Address.Trim() != "")
+            .OrderByDescending(b => b.IsMain).ThenBy(b => b.Id).Select(b => b.Address).FirstOrDefault() ?? "Chưa công bố địa chỉ",
         store.Set<StoreBranch>().Count(b => b.StoreId == x.Id && b.IsActive),
         accountId != null && store.Set<StoreFollower>().Any(f => f.StoreId == x.Id && f.AccountId == accountId)));
 

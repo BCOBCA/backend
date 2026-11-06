@@ -39,13 +39,24 @@ public sealed class DealerFlowTests
             db.StoreSettings.Add(new StoreSettings { StoreId = dealer.Id, ShowBranches = true, ShowPhone = true, ShowEmail = false, UpdatedAt = now });
             db.StoreBranches.AddRange(
                 new StoreBranch { StoreId = dealer.Id, Name = "Chi nhánh chính", Address = "Địa chỉ thật", ProvinceCode = "79", IsMain = true, IsActive = true, CreatedAt = now, UpdatedAt = now },
-                new StoreBranch { StoreId = dealer.Id, Name = "Đã đóng", ProvinceCode = "01", IsActive = false, CreatedAt = now, UpdatedAt = now });
+                new StoreBranch { StoreId = dealer.Id, Name = "Đã đóng", Address = "Địa chỉ đã đóng", ProvinceCode = "01", IsActive = false, CreatedAt = now, UpdatedAt = now });
             await db.SaveChangesAsync();
             Assert.Single(await db.StoreBranches.Where(x => x.StoreId == personal.Id && x.IsMain).ToListAsync());
             var service = new DealerService(new CommerceStore(db));
             var page = await service.ListAsync(new DealerQuery(), null, default);
             Assert.Equal(2, page.TotalItems);
             Assert.All(page.Items, x => Assert.False(x.IsFollowing));
+            Assert.Equal("Địa chỉ thật", page.Items.Single(x => x.Id == dealer.Id).LocationLabel);
+            var mainBranch = db.StoreBranches.Local.Single(x => x.StoreId == dealer.Id && x.IsMain);
+            mainBranch.Address = " ";
+            await db.SaveChangesAsync();
+            Assert.Equal("Chưa công bố địa chỉ", (await service.ListAsync(new DealerQuery(Search: "Đại"), null, default)).Items[0].LocationLabel);
+            db.StoreBranches.Add(new StoreBranch { StoreId = dealer.Id, Name = "Chi nhánh phụ", Address = "Địa chỉ chi nhánh phụ", ProvinceCode = "79", IsActive = true });
+            await db.SaveChangesAsync();
+            Assert.Equal("Địa chỉ chi nhánh phụ", (await service.ListAsync(new DealerQuery(Search: "Đại"), null, default)).Items[0].LocationLabel);
+            mainBranch.Address = "Địa chỉ thật";
+            await db.SaveChangesAsync();
+            Assert.Equal("Địa chỉ thật", (await service.ListAsync(new DealerQuery(Search: "Đại"), null, default)).Items[0].LocationLabel);
             Assert.Single((await service.ListAsync(new DealerQuery(Search: "ĐẠI LÝ", ProvinceCode: "79", VerifiedOnly: true), null, default)).Items);
             Assert.Empty((await service.ListAsync(new DealerQuery(ProvinceCode: "01"), null, default)).Items);
             Assert.Equal(second.Id, (await service.ListAsync(new DealerQuery(SortBy: "newest", PageSize: 1), null, default)).Items[0].Id);
@@ -71,13 +82,13 @@ public sealed class DealerFlowTests
             Assert.True(detail.Dealer.IsFollowing);
             Assert.Null(detail.Email);
             Assert.Equal(dealer.Phone, detail.Phone);
-            Assert.Single(detail.Branches);
+            Assert.Equal(2, detail.Branches.Count);
             Assert.Equal(new[] { "79" }, await service.RegionsAsync(default));
             var settings = await db.StoreSettings.SingleAsync();
             settings.ShowBranches = false;
             await db.SaveChangesAsync();
             Assert.Empty((await service.DetailAsync(dealer.Slug, null, default)).Branches);
-            Assert.Equal("Chưa công bố khu vực", (await service.ListAsync(new DealerQuery(Search: "Đại"), null, default)).Items[0].LocationLabel);
+            Assert.Equal("Chưa công bố địa chỉ", (await service.ListAsync(new DealerQuery(Search: "Đại"), null, default)).Items[0].LocationLabel);
             Assert.Empty(await service.RegionsAsync(default));
             Assert.False((await service.FollowAsync(dealer.Id, account.Id, false, default)).IsFollowing);
             Assert.Equal(0, (await service.FollowAsync(dealer.Id, account.Id, false, default)).FollowerCount);
