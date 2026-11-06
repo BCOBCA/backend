@@ -5,6 +5,34 @@ namespace BCOBCA.DAL.Context;
 
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
+    public DbSet<Store> Stores => Set<Store>();
+    public DbSet<StoreBranch> StoreBranches => Set<StoreBranch>();
+    public DbSet<StoreVerification> StoreVerifications => Set<StoreVerification>();
+    public DbSet<StoreFollower> StoreFollowers => Set<StoreFollower>();
+    public DbSet<StoreSettings> StoreSettings => Set<StoreSettings>();
+
+    private void SoftDeleteStores()
+    {
+        foreach (var entry in ChangeTracker.Entries<Store>().Where(x => x.State == EntityState.Deleted))
+        {
+            entry.State = EntityState.Unchanged;
+            entry.Entity.DeletedAt = DateTimeOffset.UtcNow;
+            entry.Entity.UpdatedAt = entry.Entity.DeletedAt.Value;
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        SoftDeleteStores();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        SoftDeleteStores();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
     public DbSet<AccountActionToken> AccountActionTokens => Set<AccountActionToken>();
     public DbSet<SellerSettlementAdjustment> SellerSettlementAdjustments => Set<SellerSettlementAdjustment>();
     public DbSet<SellerSettlementRecovery> SellerSettlementRecoveries => Set<SellerSettlementRecovery>();

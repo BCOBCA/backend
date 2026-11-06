@@ -36,7 +36,7 @@ public sealed class PostgresFlowTests
             Assert.DoesNotContain("IconUrl", categoryColumns);
             Assert.Contains("ImageUrl", categoryColumns);
             Assert.Equal(7, categoryColumns.Count);
-            Assert.Equal(62, db.Model.GetEntityTypes().Count());
+            Assert.Equal(67, db.Model.GetEntityTypes().Count());
             var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
             var store = new CommerceStore(db);
             var catalog = new CatalogService(store);
