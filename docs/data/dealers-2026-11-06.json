@@ -1,0 +1,462 @@
+{
+  "collectedAt": "2026-11-06",
+  "note": "Public directory information; not platform verification or confirmed merchant ownership. Selected published locations, not a complete national network. Unknown ward codes and coordinates are intentionally omitted.",
+  "dealers": [
+    {
+      "slug": "fpt-shop",
+      "name": "FPT Shop",
+      "description": "Hệ thống bán lẻ điện thoại, laptop, thiết bị số và điện gia dụng.",
+      "website": "https://fptshop.com.vn/",
+      "email": "fptshop@fpt.com",
+      "phone": "18006601",
+      "logoSource": "https://fptshop.com.vn/favicon.ico",
+      "coverSource": "https://cdn2.fptshop.com.vn/unsafe/1920x0/filters:format(webp):quality(75)/2023_1_31_638107723221240651_cua-hang-fpt-shop-149-cach-mang-thang-tam.jpg",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở chính & FPT Shop Khánh Hội",
+          "address": "261–263 Khánh Hội, Phường Vĩnh Hội, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "02873023456",
+          "isMain": true,
+          "source": "https://fptshop.com.vn/cua-hang"
+        },
+        {
+          "name": "FPT Shop Nguyễn Văn Nghi",
+          "address": "418 Nguyễn Văn Nghi, Phường Hạnh Thông, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "18006601",
+          "isMain": false,
+          "source": "https://fptshop.com.vn/cua-hang"
+        },
+        {
+          "name": "FPT Shop Cách Mạng Tháng Tám",
+          "address": "149 Cách Mạng Tháng Tám, Phường Bàn Cờ, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "18006601",
+          "isMain": false,
+          "source": "https://fptshop.com.vn/cua-hang"
+        }
+      ],
+      "sources": [
+        "https://fptshop.com.vn/cua-hang",
+        "https://fptshop.com.vn/"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_white,w_320,h_320,q_auto/v1793936636/bcobca/dealers/fpt-shop/avatar-20261106-3a203dc4.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936134/bcobca/dealers/fpt-shop/cover-20261106.webp"
+    },
+    {
+      "slug": "the-gioi-di-dong",
+      "name": "Thế Giới Di Động",
+      "description": "Hệ thống bán lẻ điện thoại, laptop, máy tính bảng và phụ kiện công nghệ.",
+      "website": "https://www.thegioididong.com/",
+      "email": "cskh@thegioididong.com",
+      "phone": "1900232460",
+      "logoSource": "https://cdnv2.tgdd.vn/webmwg/2024/ContentMwg/images/homev2/desk/iconnew-min.png?v=4",
+      "coverSource": "https://cdn.tgdd.vn/Files/2014/08/08/558688/thegioididong-nguyen-thai-hoc-600x400.jpg",
+      "logoBackground": "FFD400",
+      "branches": [
+        {
+          "name": "Trụ sở đăng ký Thế Giới Di Động",
+          "address": "128 Trần Quang Khải, Phường Tân Định, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "02838125960",
+          "isMain": true,
+          "source": "https://www.thegioididong.com/lien-he"
+        },
+        {
+          "name": "Thế Giới Di Động Nguyễn Thái Học",
+          "address": "136 Nguyễn Thái Học, Phường Bến Thành, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "1900232460",
+          "isMain": false,
+          "source": "https://www.thegioididong.com/sieu-thi-the-gioi-di-dong/thanh-pho-ho-chi-minh/phuong-ben-thanh"
+        },
+        {
+          "name": "Thế Giới Di Động Cộng Hòa",
+          "address": "330–332 Cộng Hòa, Phường Tân Bình, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "1900232460",
+          "isMain": false,
+          "source": "https://www.dienmayxanh.com/he-thong-sieu-thi-dien-may/thanh-pho-ho-chi-minh"
+        }
+      ],
+      "sources": [
+        "https://www.thegioididong.com/lien-he",
+        "https://www.dienmayxanh.com/he-thong-sieu-thi-dien-may/thanh-pho-ho-chi-minh"
+      ],
+      "logoCrop": {
+        "x": 0,
+        "y": 352,
+        "width": 80,
+        "height": 80
+      },
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_crop,x_0,y_352,w_80,h_80/c_pad,b_rgb:FFD400,w_320,h_320,q_auto/v1793936187/bcobca/dealers/the-gioi-di-dong/logo-20261106-25770d53.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936190/bcobca/dealers/the-gioi-di-dong/cover-20261106-a1d5e08c.jpg"
+    },
+    {
+      "slug": "phong-vu",
+      "name": "Phong Vũ",
+      "description": "Máy tính, thiết bị văn phòng, linh kiện và thiết bị điện tử.",
+      "website": "https://phongvu.vn/",
+      "email": "cskh@phongvu.vn",
+      "phone": "18006867",
+      "logoSource": "https://shopfront-cdn.tekoapis.com/static/phongvu/Logo-PV.png",
+      "coverSource": "https://phongvu.vn/cong-nghe/wp-content/uploads/2021/07/01-1024x768.jpg",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở chính Phong Vũ",
+          "address": "Tầng 5, 117–119–121 Nguyễn Du, Phường Bến Thành, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "18006867",
+          "isMain": true,
+          "source": "https://phongvu.vn/p/chinh-sach-va-dieu-khoan-app"
+        },
+        {
+          "name": "Phong Vũ Cách Mạng Tháng Tám",
+          "address": "262A–262B–264–264A–264B Nguyễn Thị Minh Khai, 26–26/2A–28/4–26/3 Cách Mạng Tháng Tám, Phường Xuân Hòa, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "18006867",
+          "isMain": false,
+          "source": "https://phongvu.vn/p/he-thong-showroom-phong-vu/"
+        },
+        {
+          "name": "Phong Vũ Nguyễn Văn Linh",
+          "address": "14–16–18 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng",
+          "provinceCode": "48",
+          "wardCode": "",
+          "phone": "18006867",
+          "isMain": false,
+          "source": "https://phongvu.vn/p/he-thong-showroom-phong-vu/"
+        }
+      ],
+      "sources": [
+        "https://phongvu.vn/p/he-thong-showroom-phong-vu/",
+        "https://phongvu.vn/p/chinh-sach-va-dieu-khoan-app"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_rgb:FFFFFF,w_320,h_320,q_auto/v1793936193/bcobca/dealers/phong-vu/logo-20261106-a2dde457.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936196/bcobca/dealers/phong-vu/cover-20261106-8cec6032.jpg"
+    },
+    {
+      "slug": "dien-may-xanh",
+      "name": "Điện Máy Xanh",
+      "description": "Điện tử, điện lạnh, đồ gia dụng và thiết bị công nghệ cho gia đình.",
+      "website": "https://www.dienmayxanh.com/",
+      "email": "hotrotmdt@thegioididong.com",
+      "phone": "1900232461",
+      "logoSource": "https://cdnv2-tmdt.tgdd.vn/webmwg/production-fe/tmdt-dmx/public/static/icons/favicon.ico",
+      "coverSource": "https://cdn.thegioididong.com/mdm/../Files/2019/11/04/1215297/sieu-thi-dien-may-xanh-le-van-tho-go-vap-ho-chi-minh-2.JPG",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở đăng ký Điện Máy Xanh",
+          "address": "128 Trần Quang Khải, Phường Tân Định, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "02838125960",
+          "isMain": true,
+          "source": "https://www.dienmayxanh.com/he-thong-sieu-thi-dien-may/thanh-pho-ho-chi-minh"
+        },
+        {
+          "name": "Điện Máy Xanh Lê Văn Thọ",
+          "address": "330 Lê Văn Thọ, Phường Thông Tây Hội, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "1900232461",
+          "isMain": false,
+          "source": "https://www.dienmayxanh.com/he-thong-sieu-thi-dien-may/thanh-pho-ho-chi-minh"
+        },
+        {
+          "name": "Điện Máy Xanh Quốc lộ 13",
+          "address": "137 Quốc lộ 13, Phường Hiệp Bình, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "1900232461",
+          "isMain": false,
+          "source": "https://www.dienmayxanh.com/he-thong-sieu-thi-dien-may/thanh-pho-ho-chi-minh"
+        }
+      ],
+      "sources": [
+        "https://www.dienmayxanh.com/he-thong-sieu-thi-dien-may/thanh-pho-ho-chi-minh"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_rgb:FFFFFF,w_320,h_320,q_auto/v1793936198/bcobca/dealers/dien-may-xanh/logo-20261106-0f781bbe.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936201/bcobca/dealers/dien-may-xanh/cover-20261106-ac0432f2.jpg"
+    },
+    {
+      "slug": "cellphones",
+      "name": "CellphoneS",
+      "description": "Điện thoại, laptop, máy tính bảng và phụ kiện công nghệ.",
+      "website": "https://cellphones.com.vn/",
+      "email": "cskh@cellphones.com.vn",
+      "phone": "18002097",
+      "logoSource": "https://cdn2.cellphones.com.vn/200x/media/favicon/default/logo-cps.png",
+      "coverSource": "https://cdn2.cellphones.com.vn/insecure/rs:fit:1400:0/q:90/plain/https://cellphones.com.vn/media/wysiwyg/cellphones-3.jpg",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở chính CellphoneS",
+          "address": "350–352 Võ Văn Kiệt, Phường Cầu Ông Lãnh, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "18002097",
+          "isMain": true,
+          "source": "https://cellphones.com.vn/tos?part=privacy-policy"
+        },
+        {
+          "name": "CellphoneS Trần Quang Khải",
+          "address": "55B Trần Quang Khải, Phường Tân Định, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "18002097",
+          "isMain": false,
+          "source": "https://cellphones.com.vn/dia-chi-cua-hang/ho-chi-minh"
+        },
+        {
+          "name": "CellphoneS Thái Hà",
+          "address": "21 Thái Hà, Đống Đa, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "02471066119",
+          "isMain": false,
+          "source": "https://cellphones.com.vn/dia-chi-cua-hang/ha-noi"
+        }
+      ],
+      "sources": [
+        "https://cellphones.com.vn/dia-chi-cua-hang",
+        "https://cellphones.com.vn/tos?part=privacy-policy",
+        "https://cellphones.com.vn/dia-chi-cua-hang/ha-noi"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_rgb:FFFFFF,w_320,h_320,q_auto/v1793936203/bcobca/dealers/cellphones/logo-20261106-9205a687.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936206/bcobca/dealers/cellphones/cover-20261106-d2d7e828.jpg"
+    },
+    {
+      "slug": "hoang-ha-mobile",
+      "name": "Hoàng Hà Mobile",
+      "description": "Điện thoại, laptop, thiết bị thông minh và phụ kiện.",
+      "website": "https://hoanghamobile.com/",
+      "email": "online@hoanghamobile.com",
+      "phone": "19002091",
+      "logoSource": "https://hoanghamobile.com/favicon.png",
+      "coverSource": "https://i.hoanghamobile.vn/Uploads/2024/08/21/whatsapp-image-2024-08-21-at-09-34-24.jpeg",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở chính & Hoàng Hà Mobile Tam Trinh",
+          "address": "89 Tam Trinh, Phường Vĩnh Tuy, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "0815867989",
+          "isMain": true,
+          "source": "https://hoanghamobile.com/tos"
+        },
+        {
+          "name": "Hoàng Hà Mobile Thái Hà",
+          "address": "122 Thái Hà, Phường Đống Đa, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "0973790122",
+          "isMain": false,
+          "source": "https://hoanghamobile.com/122-thai-ha-ha-noi"
+        },
+        {
+          "name": "Hoàng Hà Mobile Phố Huế",
+          "address": "126 Phố Huế, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "0968668995",
+          "isMain": false,
+          "source": "https://hoanghamobile.com/he-thong-cua-hang"
+        }
+      ],
+      "sources": [
+        "https://hoanghamobile.com/he-thong-cua-hang",
+        "https://hoanghamobile.com/tos"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_white,w_320,h_320,q_auto/v1793936638/bcobca/dealers/hoang-ha-mobile/avatar-20261106-fba8d805.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936214/bcobca/dealers/hoang-ha-mobile/cover-20261106-64c677d3.jpg"
+    },
+    {
+      "slug": "an-khang-computer",
+      "name": "An Khang Computer",
+      "description": "Laptop, PC, linh kiện và thiết bị văn phòng.",
+      "website": "https://www.ankhang.vn/",
+      "email": "sales@ankhang.vn",
+      "phone": "19002655",
+      "logoSource": "https://cdn.ankhang.vn/media/banner/logo_ankhang.png",
+      "coverSource": "https://cdn.ankhang.vn/media/news/0311_Hinh-anh-showroom-An-Khang-Computer-105-Me-Tri-Thuong-1.jpg",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở chính & An Khang Mễ Trì",
+          "address": "105 Mễ Trì Thượng, Phường Từ Liêm, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "0862999688",
+          "isMain": true,
+          "source": "https://www.ankhang.vn/lien-he"
+        },
+        {
+          "name": "An Khang Vũ Tông Phan",
+          "address": "565 Vũ Tông Phan, Phường Khương Đình, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "0336999688",
+          "isMain": false,
+          "source": "https://www.ankhang.vn/lien-he"
+        }
+      ],
+      "sources": [
+        "https://www.ankhang.vn/lien-he",
+        "https://www.ankhang.vn/chinh-sach-bao-mat"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_rgb:FFFFFF,w_320,h_320,q_auto/v1793936216/bcobca/dealers/an-khang-computer/logo-20261106-660616b9.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936218/bcobca/dealers/an-khang-computer/cover-20261106-aeb9d84b.jpg"
+    },
+    {
+      "slug": "gearvn",
+      "name": "GearVN",
+      "description": "PC gaming, laptop, linh kiện máy tính và thiết bị chơi game.",
+      "website": "https://gearvn.com/",
+      "email": "cskh@gearvn.com",
+      "phone": "19005301",
+      "logoSource": "https://gearvn.com/favicon.ico",
+      "coverSource": "https://pub-r2.assets.gearvn.com/website/2026/10/01a16293-a3ec-7861-96cf-1f3e84a61d83-ai_image-20220323094209.jpg",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở chính & showroom Hoàng Hoa Thám",
+          "address": "78–80–82 Hoàng Hoa Thám, Phường Bảy Hiền, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "19005301",
+          "isMain": true,
+          "source": "https://gearvn.com/pages/he-thong-showroom-gearvn"
+        },
+        {
+          "name": "GearVN Nguyễn Cửu Vân",
+          "address": "63 Nguyễn Cửu Vân, Phường Gia Định, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "19005301",
+          "isMain": false,
+          "source": "https://gearvn.com/pages/he-thong-showroom-gearvn"
+        },
+        {
+          "name": "GearVN Thái Hà",
+          "address": "30–32 Thái Hà, Đống Đa, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "19005301",
+          "isMain": false,
+          "source": "https://gearvn.com/pages/he-thong-showroom-gearvn"
+        }
+      ],
+      "sources": [
+        "https://gearvn.com/pages/he-thong-showroom-gearvn"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_white,w_320,h_320,q_auto/v1793936640/bcobca/dealers/gearvn/avatar-20261106-8d4cd2e4.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936225/bcobca/dealers/gearvn/cover-20261106-57bf5e16.jpg"
+    },
+    {
+      "slug": "hacom",
+      "name": "HACOM",
+      "description": "Máy tính, laptop, linh kiện, thiết bị gaming và văn phòng.",
+      "website": "https://hacom.vn/",
+      "email": "info@hacom.vn",
+      "phone": "19001903",
+      "logoSource": "https://hanoicomputercdn.com/media/lib/20-07-2024/512.png",
+      "coverSource": "https://cdn-transformations.hacom.vn/insecure/f:webp/q:75/rt:fit/w:3840/aHR0cHM6Ly93LmxhZGljZG4uY29tL3MyNTAweDk1MC81ZDNjMTNhY2RjMDkwNjNmZDE5MTgwNDUvaW1nX2hlYWRlci0yMDIzMDgxMjA0MTgzNC16bHZ1OS5wbmc.webp",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở chính & HACOM Lê Thanh Nghị",
+          "address": "129–131 Lê Thanh Nghị, Phường Bạch Mai, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "19001903",
+          "isMain": true,
+          "source": "https://hacom.vn/showroom"
+        },
+        {
+          "name": "HACOM Thái Hà",
+          "address": "284 Thái Hà, Phường Ô Chợ Dừa, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "02435380088",
+          "isMain": false,
+          "source": "https://hacom.vn/showroom"
+        },
+        {
+          "name": "HACOM Nguyễn Văn Huyên",
+          "address": "79 Nguyễn Văn Huyên, Phường Nghĩa Đô, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "02438610088",
+          "isMain": false,
+          "source": "https://hacom.vn/showroom"
+        }
+      ],
+      "sources": [
+        "https://hacom.vn/showroom"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_rgb:FFFFFF,w_320,h_320,q_auto/v1793936226/bcobca/dealers/hacom/logo-20261106-d5786d73.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936229/bcobca/dealers/hacom/cover-20261106-83f94f18.webp"
+    },
+    {
+      "slug": "nguyen-kim",
+      "name": "Nguyễn Kim",
+      "description": "Hệ thống bán lẻ điện máy, điện tử, điện lạnh và đồ gia dụng.",
+      "website": "https://www.nguyenkim.com/",
+      "email": "",
+      "phone": "18006800",
+      "logoSource": "https://cdn.nguyenkimmall.com/images/logo_webnk1.svg",
+      "coverSource": "https://cdn.nguyenkimmall.com/./images/companies/_1/Content/tin-tuc/herobanner__banner.png",
+      "logoBackground": "FFFFFF",
+      "branches": [
+        {
+          "name": "Trụ sở chính & Nguyễn Kim Trần Hưng Đạo",
+          "address": "63–65–67 Trần Hưng Đạo, Phường Bến Thành, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "18006800",
+          "isMain": true,
+          "source": "https://www.nguyenkim.com/"
+        },
+        {
+          "name": "Nguyễn Kim Phan Đăng Lưu",
+          "address": "216 Phan Đăng Lưu, Phú Nhuận, TP. Hồ Chí Minh",
+          "provinceCode": "79",
+          "wardCode": "",
+          "phone": "18006800",
+          "isMain": false,
+          "source": "https://www-cdn.fecredit.com.vn/media/wzml5npl/danh-s%C3%A1ch-c%E1%BB%ADa-h%C3%A0ng-nguy%E1%BB%85n-kim.pdf"
+        },
+        {
+          "name": "Nguyễn Kim Tràng Thi",
+          "address": "10B Tràng Thi, Hoàn Kiếm, Hà Nội",
+          "provinceCode": "01",
+          "wardCode": "",
+          "phone": "18006800",
+          "isMain": false,
+          "source": "https://www.nguyenkim.com/khai-truong-nguyen-kim-trang-thi-NKJT2353.b"
+        }
+      ],
+      "sources": [
+        "https://www.nguyenkim.com/",
+        "https://www-cdn.fecredit.com.vn/media/wzml5npl/danh-s%C3%A1ch-c%E1%BB%ADa-h%C3%A0ng-nguy%E1%BB%85n-kim.pdf",
+        "https://www.nguyenkim.com/khai-truong-nguyen-kim-trang-thi-NKJT2353.b"
+      ],
+      "logoUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_pad,b_rgb:FFFFFF,w_320,h_320,q_auto/v1793936231/bcobca/dealers/nguyen-kim/logo-20261106-1f0a2544.png",
+      "coverUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/c_fill,g_auto,w_1400,h_560,q_auto/v1793936236/bcobca/dealers/nguyen-kim/cover-20261106-d501d395.png"
+    }
+  ]
+}
