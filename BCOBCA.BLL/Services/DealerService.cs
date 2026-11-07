@@ -25,7 +25,34 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
 
     public async Task<IReadOnlyList<DealerProfileDto>> OwnedAsync(Guid accountId, CancellationToken ct)
         => await store.Set<Store>().AsNoTracking().Where(x => x.OwnerAccountId == accountId && x.StoreType == 1 && x.DeletedAt == null)
-            .OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new DealerProfileDto(x.Id, x.Name, x.Provinces)).ToListAsync(ct);
+            .OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new DealerProfileDto(x.Id, x.Name, x.Provinces,
+                store.Set<StoreCategory>().Where(link => link.StoreId == x.Id && store.Set<Category>().Any(c => c.Id == link.CategoryId && c.IsActive))
+                    .OrderBy(link => link.CategoryId).Select(link => link.CategoryId).ToArray())).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<DealerCategoryDto>> CategoriesAsync(CancellationToken ct)
+        => await store.Set<Category>().AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
+            .Select(x => new DealerCategoryDto(x.Id, x.Name)).ToListAsync(ct);
+
+    public async Task<DealerProfileDto> UpdateCategoriesAsync(Guid id, Guid accountId, DealerCategoriesInput input, CancellationToken ct)
+    {
+        if (input.CategoryIds is null || input.CategoryIds.Length > 100)
+            throw new BusinessException("Danh sách ngành nghề không hợp lệ");
+        var ids = input.CategoryIds.Distinct().OrderBy(x => x).ToArray();
+        await using var transaction = await store.BeginTransactionAsync(ct);
+        // Lock the owned store row so concurrent category replacements cannot merge their selections.
+        var affected = await store.Set<Store>().Where(x => x.Id == id && x.OwnerAccountId == accountId && x.StoreType == 1 && x.DeletedAt == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), ct);
+        if (affected != 1) throw new BusinessException("Không tìm thấy đại lý thuộc tài khoản của bạn", 404);
+        if (await store.Set<Category>().CountAsync(x => ids.Contains(x.Id) && x.IsActive, ct) != ids.Length)
+            throw new BusinessException("Vui lòng chọn ngành nghề trong danh mục đang hoạt động");
+        var dealer = await store.Set<Store>().AsNoTracking().SingleAsync(x => x.Id == id, ct);
+        var existing = await store.Set<StoreCategory>().Where(x => x.StoreId == id).ToListAsync(ct);
+        store.Set<StoreCategory>().RemoveRange(existing.Where(x => !ids.Contains(x.CategoryId)));
+        store.Set<StoreCategory>().AddRange(ids.Except(existing.Select(x => x.CategoryId)).Select(categoryId => new StoreCategory { StoreId = id, CategoryId = categoryId }));
+        await store.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return new(dealer.Id, dealer.Name, dealer.Provinces, ids);
+    }
 
     public async Task<DealerProfileDto> UpdateProvincesAsync(Guid id, Guid accountId, DealerProvincesInput input, CancellationToken ct)
     {
@@ -34,7 +61,9 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
         dealer.Provinces = DealerProvinces.Normalize(input.Provinces);
         dealer.UpdatedAt = DateTimeOffset.UtcNow;
         await store.SaveChangesAsync(ct);
-        return new(dealer.Id, dealer.Name, dealer.Provinces);
+        var categoryIds = await store.Set<StoreCategory>().Where(x => x.StoreId == id && store.Set<Category>().Any(c => c.Id == x.CategoryId && c.IsActive))
+            .OrderBy(x => x.CategoryId).Select(x => x.CategoryId).ToArrayAsync(ct);
+        return new(dealer.Id, dealer.Name, dealer.Provinces, categoryIds);
     }
 
     public async Task<PageResult<DealerDto>> ListAsync(DealerQuery query, Guid? accountId, CancellationToken ct)
@@ -47,13 +76,18 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
             var search = query.Search.Trim().ToLower();
             source = source.Where(x => x.Name.ToLower().Contains(search));
         }
-        if (!string.IsNullOrWhiteSpace(query.ProvinceCode))
+        if (query.ProvinceCode?.Trim() == DealerProvinces.Nationwide)
+            source = source.Where(x => x.Provinces == DealerProvinces.Nationwide);
+        else if (!string.IsNullOrWhiteSpace(query.ProvinceCode))
         {
             var province = DealerProvinces.Resolve(query.ProvinceCode.Trim());
             source = source.Where(x => x.Provinces == DealerProvinces.Nationwide ||
                 (x.Provinces != null && (", " + x.Provinces + ", ").Contains(", " + province + ", ")));
         }
         if (query.VerifiedOnly) source = source.Where(x => x.IsVerified);
+        if (query.CategoryId is { } categoryId)
+            source = source.Where(x => store.Set<StoreCategory>().Any(link => link.StoreId == x.Id && link.CategoryId == categoryId &&
+                store.Set<Category>().Any(c => c.Id == categoryId && c.IsActive)));
         var total = await source.CountAsync(ct);
         var sorted = query.SortBy switch
         {

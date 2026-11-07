@@ -22,6 +22,12 @@ public sealed class DealersController(IDealerService dealers) : ControllerBase
     [HttpGet("regions")]
     public async Task<IActionResult> Regions(CancellationToken ct)
         => Ok(ApiResponse<IReadOnlyList<string>>.Ok(await dealers.RegionsAsync(ct)));
+    [HttpGet("categories")]
+    public async Task<IActionResult> Categories(CancellationToken ct)
+        => Ok(ApiResponse<IReadOnlyList<DealerCategoryDto>>.Ok(await dealers.CategoriesAsync(ct)));
+    [Authorize, HttpPut("{id:guid}/categories")]
+    public async Task<IActionResult> UpdateCategories(Guid id, DealerCategoriesInput input, CancellationToken ct)
+        => AccountId is { } accountId ? Ok(ApiResponse<DealerProfileDto>.Ok(await dealers.UpdateCategoriesAsync(id, accountId, input, ct))) : Unauthorized();
     [HttpGet("{slug}")]
     public async Task<IActionResult> Detail(string slug, CancellationToken ct)
         => Ok(ApiResponse<DealerDetailDto>.Ok(await dealers.DetailAsync(slug, AccountId, ct)));

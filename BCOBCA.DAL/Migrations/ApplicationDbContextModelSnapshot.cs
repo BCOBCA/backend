@@ -2582,6 +2582,21 @@ namespace BCOBCA.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BCOBCA.DAL.Entities.StoreCategory", b =>
+                {
+                    b.Property<Guid>("StoreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("StoreId", "CategoryId");
+
+                    b.HasIndex("CategoryId", "StoreId");
+
+                    b.ToTable("StoreCategories", (string)null);
+                });
+
             modelBuilder.Entity("BCOBCA.DAL.Entities.StoreFollower", b =>
                 {
                     b.Property<Guid>("StoreId")
@@ -3642,6 +3657,21 @@ namespace BCOBCA.DAL.Migrations
                         .WithMany()
                         .HasForeignKey("ManagerAccountId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BCOBCA.DAL.Entities.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.StoreCategory", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.Category", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("BCOBCA.DAL.Entities.Store", null)
                         .WithMany()
