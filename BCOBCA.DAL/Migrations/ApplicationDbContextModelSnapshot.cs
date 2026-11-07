@@ -2615,6 +2615,21 @@ namespace BCOBCA.DAL.Migrations
                     b.ToTable("StoreFollowers", (string)null);
                 });
 
+            modelBuilder.Entity("BCOBCA.DAL.Entities.StoreProduct", b =>
+                {
+                    b.Property<Guid>("StoreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("StoreId", "ProductId");
+
+                    b.HasIndex("ProductId", "StoreId");
+
+                    b.ToTable("StoreProducts", (string)null);
+                });
+
             modelBuilder.Entity("BCOBCA.DAL.Entities.StoreSettings", b =>
                 {
                     b.Property<Guid>("StoreId")
@@ -3685,6 +3700,21 @@ namespace BCOBCA.DAL.Migrations
                     b.HasOne("BCOBCA.DAL.Entities.Account", null)
                         .WithMany()
                         .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BCOBCA.DAL.Entities.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.StoreProduct", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

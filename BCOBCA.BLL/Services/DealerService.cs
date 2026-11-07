@@ -30,8 +30,8 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
                     .OrderBy(link => link.CategoryId).Select(link => link.CategoryId).ToArray())).ToListAsync(ct);
 
     public async Task<IReadOnlyList<DealerCategoryDto>> CategoriesAsync(CancellationToken ct)
-        => await store.Set<Category>().AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
-            .Select(x => new DealerCategoryDto(x.Id, x.Name)).ToListAsync(ct);
+        => CategoryTree.Active(await store.Set<Category>().AsNoTracking().ToListAsync(ct)).OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
+            .Select(x => new DealerCategoryDto(x.Id, x.Name)).ToArray();
 
     public async Task<DealerProfileDto> UpdateCategoriesAsync(Guid id, Guid accountId, DealerCategoriesInput input, CancellationToken ct)
     {
@@ -43,7 +43,8 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
         var affected = await store.Set<Store>().Where(x => x.Id == id && x.OwnerAccountId == accountId && x.StoreType == 1 && x.DeletedAt == null)
             .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow), ct);
         if (affected != 1) throw new BusinessException("Không tìm thấy đại lý thuộc tài khoản của bạn", 404);
-        if (await store.Set<Category>().CountAsync(x => ids.Contains(x.Id) && x.IsActive, ct) != ids.Length)
+        var activeCategories = CategoryTree.Active(await store.Set<Category>().AsNoTracking().ToListAsync(ct)).Select(x => x.Id).ToHashSet();
+        if (ids.Any(id => !activeCategories.Contains(id)))
             throw new BusinessException("Vui lòng chọn ngành nghề trong danh mục đang hoạt động");
         var dealer = await store.Set<Store>().AsNoTracking().SingleAsync(x => x.Id == id, ct);
         var existing = await store.Set<StoreCategory>().Where(x => x.StoreId == id).ToListAsync(ct);
@@ -86,8 +87,10 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
         }
         if (query.VerifiedOnly) source = source.Where(x => x.IsVerified);
         if (query.CategoryId is { } categoryId)
-            source = source.Where(x => store.Set<StoreCategory>().Any(link => link.StoreId == x.Id && link.CategoryId == categoryId &&
-                store.Set<Category>().Any(c => c.Id == categoryId && c.IsActive)));
+        {
+            var categoryIds = CategoryTree.Descendants(categoryId, CategoryTree.Active(await store.Set<Category>().AsNoTracking().ToListAsync(ct)));
+            source = source.Where(x => store.Set<StoreCategory>().Any(link => link.StoreId == x.Id && categoryIds.Contains(link.CategoryId)));
+        }
         var total = await source.CountAsync(ct);
         var sorted = query.SortBy switch
         {

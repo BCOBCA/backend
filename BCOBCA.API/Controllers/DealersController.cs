@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BCOBCA.API.Controllers;
 
 [ApiController, Route("api/dealers")]
-public sealed class DealersController(IDealerService dealers) : ControllerBase
+public sealed class DealersController(IDealerService dealers, IDealerCatalogService catalog) : ControllerBase
 {
     private Guid? AccountId => User.Identity?.IsAuthenticated == true && Guid.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
     [Authorize, HttpGet("mine")]
@@ -25,6 +25,12 @@ public sealed class DealersController(IDealerService dealers) : ControllerBase
     [HttpGet("categories")]
     public async Task<IActionResult> Categories(CancellationToken ct)
         => Ok(ApiResponse<IReadOnlyList<DealerCategoryDto>>.Ok(await dealers.CategoriesAsync(ct)));
+    [HttpGet("{id:guid}/products")]
+    public async Task<IActionResult> Products(Guid id, [FromQuery] DealerProductQuery query, CancellationToken ct)
+        => Ok(ApiResponse<PageResult<DealerProductDto>>.Ok(await catalog.ProductsAsync(id, query, ct)));
+    [HttpGet("{id:guid}/product-categories")]
+    public async Task<IActionResult> ProductCategories(Guid id, CancellationToken ct)
+        => Ok(ApiResponse<IReadOnlyList<DealerProductCategoryDto>>.Ok(await catalog.CategoriesAsync(id, ct)));
     [Authorize, HttpPut("{id:guid}/categories")]
     public async Task<IActionResult> UpdateCategories(Guid id, DealerCategoriesInput input, CancellationToken ct)
         => AccountId is { } accountId ? Ok(ApiResponse<DealerProfileDto>.Ok(await dealers.UpdateCategoriesAsync(id, accountId, input, ct))) : Unauthorized();

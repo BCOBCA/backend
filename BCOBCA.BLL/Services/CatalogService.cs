@@ -54,7 +54,11 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
     {
         var source = ProductQuery();
         if (query.BrandId is not null) source = source.Where(x => x.BrandId == query.BrandId);
-        if (query.CategoryId is not null) source = source.Where(x => x.CategoryId == query.CategoryId);
+        if (query.CategoryId is { } categoryId)
+        {
+            var ids = CategoryTree.Descendants(categoryId, CategoryTree.Active(await store.Set<Category>().AsNoTracking().ToListAsync(ct)));
+            source = source.Where(x => ids.Contains(x.CategoryId));
+        }
         if (!string.IsNullOrWhiteSpace(query.Search)) source = source.Where(x => x.Name.ToLower().Contains(query.Search.ToLower()));
         var priced = source.Select(p => new { Product = p, EffectivePrice =
             store.Set<ProductVariant>().Where(v => v.ProductId == p.Id && v.IsActive && v.StockQuantity > v.ReservedQuantity).Select(v => (decimal?)(v.SalePrice ?? v.Price)).Min()

@@ -2,6 +2,8 @@
 
 Sinh từ OpenAPI runtime sau verification ngày 2026-11-02. Xem `/swagger` để xem DTO, tham số và quyền yêu cầu. Endpoint moderation bắt buộc nhận `expectedRevision` từ bản đánh giá nhân viên đã đọc.
 
+Bổ sung storefront đại lý ngày 2026-11-07: hai endpoint công khai bên dưới lấy dữ liệu theo `StoreProducts`. Bộ lọc `categoryId` lấy cả danh mục con; lọc giá dùng giá của biến thể đang hiển thị.
+
 | Method | Route |
 |---|---|
 | GET | `/api/addresses` |
@@ -72,6 +74,8 @@ Sinh từ OpenAPI runtime sau verification ngày 2026-11-02. Xem `/swagger` đ�
 | PUT | `/api/cart/items/{id}` |
 | DELETE | `/api/cart/items/{id}` |
 | GET | `/api/categories` |
+| GET | `/api/dealers/{id}/products` |
+| GET | `/api/dealers/{id}/product-categories` |
 | GET | `/api/favorites` |
 | PUT | `/api/favorites/{id}` |
 | DELETE | `/api/favorites/{id}` |

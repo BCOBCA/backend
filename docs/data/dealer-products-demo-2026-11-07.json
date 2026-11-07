@@ -1,0 +1,315 @@
+{
+  "description": "Catalog mẫu cho giao diện đại lý. Giá, khuyến mại và tồn kho minh họa; không phải báo giá hay tình trạng bán hàng thực tế. Không tạo đánh giá hoặc lượt bán giả.",
+  "imageSource": "https://dummyjson.com/products",
+  "categories": [
+    {
+      "slug": "dien-thoai",
+      "name": "Điện thoại",
+      "parent": "dien-thoai-phu-kien"
+    },
+    {
+      "slug": "laptop",
+      "name": "Laptop",
+      "parent": "may-tinh-thiet-bi-van-phong"
+    },
+    {
+      "slug": "may-tinh-bang",
+      "name": "Máy tính bảng",
+      "parent": "dien-thoai-phu-kien"
+    },
+    {
+      "slug": "thiet-bi-deo-thong-minh",
+      "name": "Thiết bị đeo thông minh",
+      "parent": "dien-thoai-phu-kien"
+    },
+    {
+      "slug": "phu-kien-dien-thoai",
+      "name": "Phụ kiện",
+      "parent": "dien-thoai-phu-kien"
+    },
+    {
+      "slug": "may-tinh-de-ban",
+      "name": "Máy tính để bàn",
+      "parent": "may-tinh-thiet-bi-van-phong"
+    },
+    {
+      "slug": "man-hinh",
+      "name": "Màn hình",
+      "parent": "may-tinh-thiet-bi-van-phong"
+    },
+    {
+      "slug": "tai-nghe",
+      "name": "Tai nghe",
+      "parent": "dien-tu-am-thanh"
+    },
+    {
+      "slug": "loa-am-thanh",
+      "name": "Loa & âm thanh",
+      "parent": "dien-tu-am-thanh"
+    },
+    {
+      "slug": "thiet-bi-nha-bep",
+      "name": "Thiết bị nhà bếp",
+      "parent": "dien-gia-dung"
+    },
+    {
+      "slug": "phu-kien-gaming",
+      "name": "Phụ kiện gaming",
+      "parent": "gaming-giai-tri"
+    }
+  ],
+  "products": [
+    {
+      "sourceId": 123,
+      "slug": "demo-iphone-13-pro",
+      "name": "Điện thoại iPhone 13 Pro",
+      "brand": "apple",
+      "category": "dien-thoai",
+      "price": 27990000,
+      "salePrice": 21990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039359/bcobca/demo-products-v2/demo-iphone-13-pro.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/smartphones/iphone-13-pro/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/123"
+    },
+    {
+      "sourceId": 133,
+      "slug": "demo-samsung-galaxy-s10",
+      "name": "Điện thoại Samsung Galaxy S10",
+      "brand": "samsung",
+      "category": "dien-thoai",
+      "price": 11990000,
+      "salePrice": 8990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039360/bcobca/demo-products-v2/demo-samsung-galaxy-s10.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/smartphones/samsung-galaxy-s10/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/133"
+    },
+    {
+      "sourceId": 124,
+      "slug": "demo-iphone-x",
+      "name": "Điện thoại iPhone X",
+      "brand": "apple",
+      "category": "dien-thoai",
+      "price": 10990000,
+      "salePrice": 7990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039361/bcobca/demo-products-v2/demo-iphone-x.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/smartphones/iphone-x/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/124"
+    },
+    {
+      "sourceId": 78,
+      "slug": "demo-macbook-pro-14",
+      "name": "Laptop Apple MacBook Pro 14 inch",
+      "brand": "apple",
+      "category": "laptop",
+      "price": 44990000,
+      "salePrice": 39990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039362/bcobca/demo-products-v2/demo-macbook-pro-14.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/laptops/apple-macbook-pro-14-inch-space-grey/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/78"
+    },
+    {
+      "sourceId": 79,
+      "slug": "demo-asus-zenbook-pro-duo",
+      "name": "Laptop ASUS Zenbook Pro Duo",
+      "brand": "asus",
+      "category": "laptop",
+      "price": 37990000,
+      "salePrice": 32990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039364/bcobca/demo-products-v2/demo-asus-zenbook-pro-duo.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/laptops/asus-zenbook-pro-dual-screen-laptop/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/79"
+    },
+    {
+      "sourceId": 81,
+      "slug": "demo-lenovo-yoga-920",
+      "name": "Laptop Lenovo Yoga 920",
+      "brand": "lenovo",
+      "category": "laptop",
+      "price": 21990000,
+      "salePrice": 18990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039366/bcobca/demo-products-v2/demo-lenovo-yoga-920.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/laptops/lenovo-yoga-920/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/81"
+    },
+    {
+      "sourceId": 82,
+      "slug": "demo-dell-xps-13",
+      "name": "Laptop Dell XPS 13 9300",
+      "brand": "dell",
+      "category": "laptop",
+      "price": 35990000,
+      "salePrice": 31990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039367/bcobca/demo-products-v2/demo-dell-xps-13.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/laptops/new-dell-xps-13-9300-laptop/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/82"
+    },
+    {
+      "sourceId": 100,
+      "slug": "demo-apple-airpods",
+      "name": "Tai nghe không dây Apple AirPods",
+      "brand": "apple",
+      "category": "tai-nghe",
+      "price": 3990000,
+      "salePrice": 2990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039369/bcobca/demo-products-v2/demo-apple-airpods.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/100"
+    },
+    {
+      "sourceId": 101,
+      "slug": "demo-apple-airpods-max",
+      "name": "Tai nghe Apple AirPods Max Silver",
+      "brand": "apple",
+      "category": "tai-nghe",
+      "price": 13990000,
+      "salePrice": 11990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039370/bcobca/demo-products-v2/demo-apple-airpods-max.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-airpods-max-silver/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/101"
+    },
+    {
+      "sourceId": 103,
+      "slug": "demo-apple-homepod-mini",
+      "name": "Loa thông minh Apple HomePod mini",
+      "brand": "apple",
+      "category": "loa-am-thanh",
+      "price": 3290000,
+      "salePrice": 2790000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039372/bcobca/demo-products-v2/demo-apple-homepod-mini.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-homepod-mini-cosmic-grey/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/103"
+    },
+    {
+      "sourceId": 104,
+      "slug": "demo-apple-iphone-charger",
+      "name": "Bộ sạc Apple iPhone",
+      "brand": "apple",
+      "category": "phu-kien-dien-thoai",
+      "price": 690000,
+      "salePrice": 490000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039374/bcobca/demo-products-v2/demo-apple-iphone-charger.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-iphone-charger/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/104"
+    },
+    {
+      "sourceId": 105,
+      "slug": "demo-apple-magsafe-battery",
+      "name": "Pin dự phòng Apple MagSafe",
+      "brand": "apple",
+      "category": "phu-kien-dien-thoai",
+      "price": 2290000,
+      "salePrice": 1990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039375/bcobca/demo-products-v2/demo-apple-magsafe-battery.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-magsafe-battery-pack/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/105"
+    },
+    {
+      "sourceId": 108,
+      "slug": "demo-iphone-12-case",
+      "name": "Ốp lưng iPhone 12 Silicone MagSafe",
+      "brand": "apple",
+      "category": "phu-kien-dien-thoai",
+      "price": 990000,
+      "salePrice": 690000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039377/bcobca/demo-products-v2/demo-iphone-12-case.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/mobile-accessories/iphone-12-silicone-case-with-magsafe-plum/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/108"
+    },
+    {
+      "sourceId": 106,
+      "slug": "demo-apple-watch-series-4",
+      "name": "Đồng hồ Apple Watch Series 4 Gold",
+      "brand": "apple",
+      "category": "thiet-bi-deo-thong-minh",
+      "price": 5990000,
+      "salePrice": 4990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039378/bcobca/demo-products-v2/demo-apple-watch-series-4.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/mobile-accessories/apple-watch-series-4-gold/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/106"
+    },
+    {
+      "sourceId": 159,
+      "slug": "demo-ipad-mini-2021",
+      "name": "Máy tính bảng iPad mini 2021 Starlight",
+      "brand": "apple",
+      "category": "may-tinh-bang",
+      "price": 15990000,
+      "salePrice": 13990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039380/bcobca/demo-products-v2/demo-ipad-mini-2021.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/tablets/ipad-mini-2021-starlight/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/159"
+    },
+    {
+      "sourceId": 160,
+      "slug": "demo-samsung-galaxy-tab-s8-plus",
+      "name": "Máy tính bảng Samsung Galaxy Tab S8 Plus",
+      "brand": "samsung",
+      "category": "may-tinh-bang",
+      "price": 19990000,
+      "salePrice": 17990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039382/bcobca/demo-products-v2/demo-samsung-galaxy-tab-s8-plus.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-s8-plus-grey/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/160"
+    },
+    {
+      "sourceId": 161,
+      "slug": "demo-samsung-galaxy-tab-white",
+      "name": "Máy tính bảng Samsung Galaxy Tab White",
+      "brand": "samsung",
+      "category": "may-tinh-bang",
+      "price": 5990000,
+      "salePrice": 4990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039383/bcobca/demo-products-v2/demo-samsung-galaxy-tab-white.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/tablets/samsung-galaxy-tab-white/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/161"
+    },
+    {
+      "sourceId": 51,
+      "slug": "demo-may-xay-sinh-to",
+      "name": "Máy xay sinh tố - Mẫu",
+      "brand": "gia-dung-mau",
+      "category": "thiet-bi-nha-bep",
+      "price": 890000,
+      "salePrice": 690000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039385/bcobca/demo-products-v2/demo-may-xay-sinh-to.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/kitchen-accessories/boxed-blender/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/51"
+    },
+    {
+      "sourceId": 56,
+      "slug": "demo-bep-dien",
+      "name": "Bếp điện - Mẫu",
+      "brand": "gia-dung-mau",
+      "category": "thiet-bi-nha-bep",
+      "price": 1990000,
+      "salePrice": 1490000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039386/bcobca/demo-products-v2/demo-bep-dien.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/kitchen-accessories/electric-stove/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/56"
+    },
+    {
+      "sourceId": 61,
+      "slug": "demo-may-xay-cam-tay",
+      "name": "Máy xay cầm tay - Mẫu",
+      "brand": "gia-dung-mau",
+      "category": "thiet-bi-nha-bep",
+      "price": 1290000,
+      "salePrice": 990000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039388/bcobca/demo-products-v2/demo-may-xay-cam-tay.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/kitchen-accessories/hand-blender/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/61"
+    },
+    {
+      "sourceId": 66,
+      "slug": "demo-lo-vi-song",
+      "name": "Lò vi sóng - Mẫu",
+      "brand": "gia-dung-mau",
+      "category": "thiet-bi-nha-bep",
+      "price": 2990000,
+      "salePrice": 2490000,
+      "imageUrl": "https://res.cloudinary.com/xxgrbmfg/image/upload/v1794039390/bcobca/demo-products-v2/demo-lo-vi-song.webp",
+      "imageSourceUrl": "https://cdn.dummyjson.com/product-images/kitchen-accessories/microwave-oven/1.webp",
+      "sourceUrl": "https://dummyjson.com/products/66"
+    }
+  ]
+}
