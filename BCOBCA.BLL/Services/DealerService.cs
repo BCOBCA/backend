@@ -19,14 +19,27 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
     private IQueryable<DealerDto> Project(IQueryable<Store> source, Guid? accountId) => source.Select(x => new DealerDto(
         x.Id, x.Name, x.Slug, x.LogoUrl, x.CoverUrl, x.Description, x.IsVerified,
         store.Set<StoreFollower>().Count(f => f.StoreId == x.Id),
-        PublicBranches().Where(b => b.StoreId == x.Id && b.Address.Trim() != "")
-            .OrderByDescending(b => b.IsMain).ThenBy(b => b.Id).Select(b => b.Address).FirstOrDefault() ?? "Chưa công bố địa chỉ",
+        x.Provinces ?? "Chưa thiết lập phạm vi",
         store.Set<StoreBranch>().Count(b => b.StoreId == x.Id && b.IsActive),
-        accountId != null && store.Set<StoreFollower>().Any(f => f.StoreId == x.Id && f.AccountId == accountId)));
+        accountId != null && store.Set<StoreFollower>().Any(f => f.StoreId == x.Id && f.AccountId == accountId), x.Provinces));
+
+    public async Task<IReadOnlyList<DealerProfileDto>> OwnedAsync(Guid accountId, CancellationToken ct)
+        => await store.Set<Store>().AsNoTracking().Where(x => x.OwnerAccountId == accountId && x.StoreType == 1 && x.DeletedAt == null)
+            .OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new DealerProfileDto(x.Id, x.Name, x.Provinces)).ToListAsync(ct);
+
+    public async Task<DealerProfileDto> UpdateProvincesAsync(Guid id, Guid accountId, DealerProvincesInput input, CancellationToken ct)
+    {
+        var dealer = await store.Set<Store>().SingleOrDefaultAsync(x => x.Id == id && x.OwnerAccountId == accountId && x.StoreType == 1 && x.DeletedAt == null, ct)
+            ?? throw new BusinessException("Không tìm thấy đại lý thuộc tài khoản của bạn", 404);
+        dealer.Provinces = DealerProvinces.Normalize(input.Provinces);
+        dealer.UpdatedAt = DateTimeOffset.UtcNow;
+        await store.SaveChangesAsync(ct);
+        return new(dealer.Id, dealer.Name, dealer.Provinces);
+    }
 
     public async Task<PageResult<DealerDto>> ListAsync(DealerQuery query, Guid? accountId, CancellationToken ct)
     {
-        if (query.Page is < 1 or > 100000 || query.PageSize is < 1 or > 50 || query.Search?.Length > 200 || query.ProvinceCode?.Length > 20 || query.SortBy is not ("popular" or "newest" or "name"))
+        if (query.Page is < 1 or > 100000 || query.PageSize is < 1 or > 50 || query.Search?.Length > 200 || query.ProvinceCode?.Length > 50 || query.SortBy is not ("popular" or "newest" or "name"))
             throw new BusinessException("Tham số tìm kiếm đại lý không hợp lệ", 400);
         var source = PublicDealers();
         if (!string.IsNullOrWhiteSpace(query.Search))
@@ -34,7 +47,12 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
             var search = query.Search.Trim().ToLower();
             source = source.Where(x => x.Name.ToLower().Contains(search));
         }
-        if (!string.IsNullOrWhiteSpace(query.ProvinceCode)) source = source.Where(x => PublicBranches().Any(b => b.StoreId == x.Id && b.ProvinceCode == query.ProvinceCode));
+        if (!string.IsNullOrWhiteSpace(query.ProvinceCode))
+        {
+            var province = DealerProvinces.Resolve(query.ProvinceCode.Trim());
+            source = source.Where(x => x.Provinces == DealerProvinces.Nationwide ||
+                (x.Provinces != null && (", " + x.Provinces + ", ").Contains(", " + province + ", ")));
+        }
         if (query.VerifiedOnly) source = source.Where(x => x.IsVerified);
         var total = await source.CountAsync(ct);
         var sorted = query.SortBy switch
@@ -64,9 +82,7 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
         return new(dealer, contact.Phone, contact.Email, contact.Website, branches);
     }
 
-    public async Task<IReadOnlyList<string>> RegionsAsync(CancellationToken ct) => await PublicBranches()
-        .Where(b => b.ProvinceCode != "" && PublicDealers().Any(s => s.Id == b.StoreId))
-        .Select(b => b.ProvinceCode).Distinct().OrderBy(x => x).ToListAsync(ct);
+    public Task<IReadOnlyList<string>> RegionsAsync(CancellationToken ct) => Task.FromResult(DealerProvinces.Names);
 
     public async Task<DealerFollowDto> FollowAsync(Guid id, Guid accountId, bool following, CancellationToken ct)
     {

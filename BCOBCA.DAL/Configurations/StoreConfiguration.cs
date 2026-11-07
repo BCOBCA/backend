@@ -23,6 +23,7 @@ public sealed class StoreConfiguration : IEntityTypeConfiguration<Store>
         b.Property(x => x.LogoUrl).HasColumnType("text").IsRequired();
         b.Property(x => x.CoverUrl).HasColumnType("text").IsRequired();
         b.Property(x => x.Description).HasColumnType("text").IsRequired();
+        b.Property(x => x.Provinces).HasColumnType("text");
         b.HasIndex(x => x.Slug).IsUnique();
         b.HasIndex(x => new { x.StoreType, x.Status, x.CreatedAt });
         b.HasQueryFilter(x => x.DeletedAt == null);

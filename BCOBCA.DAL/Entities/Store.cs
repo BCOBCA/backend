@@ -10,6 +10,7 @@ public sealed class Store
     public string LogoUrl { get; set; } = "";
     public string CoverUrl { get; set; } = "";
     public string Description { get; set; } = "";
+    public string? Provinces { get; set; }
     public string Email { get; set; } = "";
     public string Phone { get; set; } = "";
     public string Website { get; set; } = "";

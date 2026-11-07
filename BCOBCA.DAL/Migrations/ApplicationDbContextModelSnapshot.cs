@@ -2463,6 +2463,9 @@ namespace BCOBCA.DAL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("Provinces")
+                        .HasColumnType("text");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(220)

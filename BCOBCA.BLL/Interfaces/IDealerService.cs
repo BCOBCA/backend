@@ -5,6 +5,8 @@ namespace BCOBCA.BLL.Interfaces;
 
 public interface IDealerService
 {
+    Task<IReadOnlyList<DealerProfileDto>> OwnedAsync(Guid accountId, CancellationToken ct);
+    Task<DealerProfileDto> UpdateProvincesAsync(Guid id, Guid accountId, DealerProvincesInput input, CancellationToken ct);
     Task<PageResult<DealerDto>> ListAsync(DealerQuery query, Guid? accountId, CancellationToken ct);
     Task<DealerDetailDto> DetailAsync(string slug, Guid? accountId, CancellationToken ct);
     Task<IReadOnlyList<string>> RegionsAsync(CancellationToken ct);
