@@ -79,10 +79,10 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
         var variantRows = await store.Set<ProductVariant>().AsNoTracking().Where(x => x.ProductId == id && x.IsActive).OrderBy(x => x.Price).ThenBy(x => x.Id).ToListAsync(ct);
         var variants = variantRows.Select(CatalogVariantMapper.ToDto).ToArray();
         var images = await store.Set<ProductImage>().AsNoTracking().Where(x => x.ProductId == id).OrderByDescending(x => x.IsPrimary).ThenBy(x => x.SortOrder).Select(x => x.ImageUrl).ToListAsync(ct);
-        var metadata = await store.Set<Product>().AsNoTracking().Where(p => p.Id == id).Select(p => new { p.CategoryId, p.Specifications }).SingleAsync(ct);
+        var metadata = await store.Set<Product>().AsNoTracking().Where(p => p.Id == id).Select(p => new { p.CategoryId, p.Specifications, p.SKU }).SingleAsync(ct);
         var definitions = await ProductSpecificationRules.ResolveDefinitionsAsync(store, metadata.CategoryId, ct);
         var specifications = ProductSpecificationRules.BuildGroups(ProductSpecificationRules.ParseValues(metadata.Specifications), definitions);
-        return product with { Variants = variants, ImageUrls = images, Specifications = specifications };
+        return product with { Variants = variants, ImageUrls = images, Specifications = specifications, SKU = metadata.SKU };
     }
 
     private IQueryable<Service> ServiceQuery() => store.Set<Service>().AsNoTracking()

@@ -9,6 +9,7 @@ Implemented 2026-11-09. Online database changes are **pending explicit approval*
 - Common properties use scope `product`; purchasable color/storage/RAM/size remain in existing `ProductVariant.Attributes`, scope `variant`. IDs, SKU, price and stock contracts stay intact.
 - Category admin input accepts optional `attributeDefinitions`; product admin input accepts optional `specifications`. Omission preserves existing metadata; `{}` explicitly clears optional product values. Required fields, JSON types, select options and unknown configured keys are validated. Existing variant objects remain compatible where no variant schema exists.
 - `GET /api/categories/{id}/attributes`: inherited definitions for an active category. Product detail `specifications`: grouped `{ name, items: [{ key, label, value, unit }] }`. Listings keep this optional field empty.
+- Product detail also returns `sku` from `Product.SKU`. The “Mã sản phẩm” row uses this value and remains unchanged when switching variants; variant `sku` remains available for variant-level operations. Older API responses without product `sku` omit the row rather than substituting a variant code. Regression tests cover both data mapping and display.
 - Current scope implements backend admin write contracts and customer-facing rendering. A visual category/schema editor is not included.
 
 Example clothing definitions and values:

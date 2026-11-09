@@ -51,6 +51,8 @@ public sealed class ProductSpecificationsFlowTests
             await Assert.ThrowsAsync<BusinessException>(() => admin.SaveProductAsync(Guid.NewGuid(), null, input, default));
             var id = await admin.SaveProductAsync(account.Id, null, input, default);
             var item = await catalog.ProductAsync(id, default);
+            Assert.Equal("PHONE-SPECS", item.SKU);
+            Assert.NotEqual(item.Variants!.Single().SKU, item.SKU);
             Assert.Equal(4, item.Specifications!.Count);
             Assert.Equal(3400, item.Specifications.Single(g => g.Name == "Pin").Items.Single().Value.GetInt32());
             Assert.DoesNotContain(item.Variants!.Single().Attributes!, p => p.Key == "chipset");
