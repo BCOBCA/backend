@@ -42,7 +42,7 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
     private IQueryable<Product> ProductQuery() => store.Set<Product>().AsNoTracking()
         .Where(p => p.Status == 1 && store.Set<Brand>().Any(b => b.Id == p.BrandId && b.Status == 1));
 
-    private IQueryable<CatalogItemDto> ProjectProducts(IQueryable<Product> source, Guid? userId = null) => source.Select(p => new CatalogItemDto(p.Id, p.BrandId, p.Name, p.Slug, p.Description,
+    internal IQueryable<CatalogItemDto> ProjectProducts(IQueryable<Product> source, Guid? userId = null) => source.Select(p => new CatalogItemDto(p.Id, p.BrandId, p.Name, p.Slug, p.Description,
             store.Set<ProductImage>().Where(i => i.ProductId == p.Id).OrderByDescending(i => i.IsPrimary).ThenBy(i => i.SortOrder).Select(i => i.ImageUrl).FirstOrDefault() ?? "",
             store.Set<ProductVariant>().Where(v => v.ProductId == p.Id && v.IsActive).OrderByDescending(v => v.StockQuantity > v.ReservedQuantity).ThenBy(v => v.SalePrice ?? v.Price).ThenBy(v => v.Id).Select(v => (decimal?)v.Price).FirstOrDefault() ?? p.BasePrice,
             store.Set<ProductVariant>().Where(v => v.ProductId == p.Id && v.IsActive).OrderByDescending(v => v.StockQuantity > v.ReservedQuantity).ThenBy(v => v.SalePrice ?? v.Price).ThenBy(v => v.Id).Select(v => v.SalePrice).FirstOrDefault(), false,
@@ -70,7 +70,8 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
     public async Task<CatalogItemDto> ProductAsync(Guid id, CancellationToken ct, Guid? userId = null)
     {
         var product = await ProjectProducts(ProductQuery().Where(x => x.Id == id), userId).SingleOrDefaultAsync(ct) ?? throw new BusinessException("Không tìm thấy sản phẩm", 404);
-        var variants = await store.Set<ProductVariant>().AsNoTracking().Where(x => x.ProductId == id && x.IsActive).OrderBy(x => x.Price).ThenBy(x => x.Id).Select(x => new VariantDto(x.Id, x.VariantName, x.SKU, x.Price, x.SalePrice, x.StockQuantity - x.ReservedQuantity)).ToListAsync(ct);
+        var variantRows = await store.Set<ProductVariant>().AsNoTracking().Where(x => x.ProductId == id && x.IsActive).OrderBy(x => x.Price).ThenBy(x => x.Id).ToListAsync(ct);
+        var variants = variantRows.Select(CatalogVariantMapper.ToDto).ToArray();
         var images = await store.Set<ProductImage>().AsNoTracking().Where(x => x.ProductId == id).OrderByDescending(x => x.IsPrimary).ThenBy(x => x.SortOrder).Select(x => x.ImageUrl).ToListAsync(ct);
         return product with { Variants = variants, ImageUrls = images };
     }

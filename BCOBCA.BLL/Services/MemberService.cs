@@ -102,10 +102,13 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     }
 
     public async Task<PageResult<CatalogItemDto>> FavoritesAsync(Guid userId, CatalogQuery query, CancellationToken ct)
-        => await PageAsync((from f in store.Set<ProductFavorite>().AsNoTracking()
+    {
+        var products = from f in store.Set<ProductFavorite>().AsNoTracking()
             join p in store.Set<Product>() on f.ProductId equals p.Id where f.UserId == userId && p.Status == 1
             orderby f.CreatedAt descending, f.Id
-            select new CatalogItemDto(p.Id, p.BrandId, p.Name, p.Slug, p.Description, store.Set<ProductImage>().Where(i => i.ProductId == p.Id && i.IsPrimary).Select(i => i.ImageUrl).FirstOrDefault() ?? "", p.BasePrice, p.SalePrice, false, null, 0, true)), query, ct);
+            select p;
+        return await PageAsync(new CatalogService(store).ProjectProducts(products, userId), query, ct);
+    }
 
     public async Task<IReadOnlyList<AddressDto>> AddressesAsync(Guid userId, CancellationToken ct)
         => await store.Set<UserAddress>().AsNoTracking().Where(x => x.UserId == userId).OrderByDescending(x => x.IsDefault).ThenBy(x => x.CreatedAt).Take(50)
