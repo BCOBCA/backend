@@ -10,6 +10,7 @@ public sealed class SellerOrderConfiguration : IEntityTypeConfiguration<SellerOr
     {
         builder.ToTable("SellerOrders");
         builder.HasKey(x => x.Id);
+        builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.OrderId).HasColumnType("uuid").IsRequired();
         builder.HasOne<Order>().WithMany().HasForeignKey(x => x.OrderId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.BrandId).HasColumnType("uuid").IsRequired();
@@ -19,6 +20,7 @@ public sealed class SellerOrderConfiguration : IEntityTypeConfiguration<SellerOr
         builder.Property(x => x.DiscountAmount).HasColumnType("numeric(18,2)").IsRequired();
         builder.Property(x => x.TotalAmount).HasColumnType("numeric(18,2)").IsRequired();
         builder.Property(x => x.CreatedAt).HasColumnType("timestamptz").IsRequired();
-        builder.HasIndex(x => new { x.OrderId, x.BrandId }).IsUnique();
+        builder.HasIndex(x => new { x.OrderId, x.BrandId }).IsUnique().HasFilter("\"StoreId\" IS NULL");
+        builder.HasIndex(x => new { x.OrderId, x.StoreId, x.BrandId }).IsUnique().HasFilter("\"StoreId\" IS NOT NULL");
     }
 }

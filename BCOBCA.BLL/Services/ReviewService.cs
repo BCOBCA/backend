@@ -26,7 +26,7 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
 
     public async Task<PageResult<ReviewDto>> ReviewsAsync(Guid productId, CatalogQuery query, CancellationToken ct)
     {
-        if (!await store.Set<Product>().AnyAsync(x => x.Id == productId && x.Status == 1 && store.Set<Brand>().Any(b => b.Id == x.BrandId && b.Status == 1), ct)) throw new BusinessException("Không tìm thấy sản phẩm", 404);
+        if (!await ProductCatalogScope.Available(store).AnyAsync(x => x.Id == productId, ct)) throw new BusinessException("Không tìm thấy sản phẩm", 404);
         return await Page(Project(store.Set<ProductReview>().AsNoTracking().Where(x => x.ProductId == productId && x.Status == 1).OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)), query, ct);
     }
     public async Task<ReviewDto?> MyReviewAsync(Guid userId, Guid orderItemId, CancellationToken ct)

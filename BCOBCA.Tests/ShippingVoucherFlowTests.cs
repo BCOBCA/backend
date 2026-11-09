@@ -35,7 +35,7 @@ public sealed class ShippingVoucherFlowTests
             var member = await db.UserMemberships.SingleAsync(x => x.UserId == buyer.User.Id); member.AvailablePoints = 2000; member.LifetimeEarnedPoints = 2000;
             var category = new Category { Name = "Shipping test", Slug = "shipping-test", IsActive = true };
             var brand = new Brand { Name = "Shipping test", Slug = "shipping-test", OwnerAccountId = owner.User.AccountId, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
-            var product = new Product { Name = "Shipping test", Slug = "shipping-test", SKU = "SHIP-P", BrandId = brand.Id, CategoryId = category.Id, BasePrice = 500000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+            var product = new Product { StoreId = TestStores.Own(db, brand), Name = "Shipping test", Slug = "shipping-test", SKU = "SHIP-P", BrandId = brand.Id, CategoryId = category.Id, BasePrice = 500000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
             var variant = new ProductVariant { ProductId = product.Id, SKU = "SHIP-V", VariantName = "Default", Price = 500000, StockQuantity = 5, IsActive = true };
             db.Categories.Add(category); db.Brands.Add(brand); db.Products.Add(product); db.ProductVariants.Add(variant); await db.SaveChangesAsync();
             var members = new MemberService(store); var finance = new FinanceService(store, config); var orders = new OrderService(store, config, finance);

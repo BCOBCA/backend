@@ -86,7 +86,7 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
         foreach (var sellerOrder in await store.Set<SellerOrder>().Where(x => x.OrderId == orderId).ToListAsync(ct))
         {
             var fee = decimal.Round(sellerOrder.TotalAmount * feeRate, 2, MidpointRounding.AwayFromZero);
-            store.Set<SellerSettlement>().Add(new SellerSettlement { BrandId = sellerOrder.BrandId, SellerOrderId = sellerOrder.Id, GrossAmount = sellerOrder.TotalAmount, FeeAmount = fee, NetAmount = sellerOrder.TotalAmount - fee, Status = "PENDING", CreatedAt = DateTimeOffset.UtcNow });
+            store.Set<SellerSettlement>().Add(new SellerSettlement { BrandId = sellerOrder.BrandId, StoreId = sellerOrder.StoreId, SellerOrderId = sellerOrder.Id, GrossAmount = sellerOrder.TotalAmount, FeeAmount = fee, NetAmount = sellerOrder.TotalAmount - fee, Status = "PENDING", CreatedAt = DateTimeOffset.UtcNow });
         }
         await store.SaveChangesAsync(ct);
     }

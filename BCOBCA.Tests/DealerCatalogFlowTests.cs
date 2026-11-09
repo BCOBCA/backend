@@ -45,8 +45,9 @@ public sealed class DealerCatalogFlowTests
             var phoneVariant = new ProductVariant { ProductId = phone.Id, SKU = "PHONE-V1", VariantName = "Default", Price = 1000, SalePrice = 800, StockQuantity = 5, IsActive = true };
             var tabletVariant = new ProductVariant { ProductId = tablet.Id, SKU = "TABLET-V2", VariantName = "Available", Price = 3000, SalePrice = 2500, StockQuantity = 1, IsActive = true };
             db.AddRange(phoneVariant, tabletVariant, new ProductVariant { ProductId = tablet.Id, SKU = "TABLET-V1", VariantName = "Reserved", Price = 500, StockQuantity = 3, ReservedQuantity = 3, IsActive = true });
-            db.AddRange(new StoreCategory { StoreId = dealer.Id, CategoryId = root.Id }, new StoreProduct { StoreId = other.Id, ProductId = otherProduct.Id });
-            foreach (var product in new[] { phone, tablet, noVariant, privateProduct }) db.Add(new StoreProduct { StoreId = dealer.Id, ProductId = product.Id });
+            db.Add(new StoreCategory { StoreId = dealer.Id, CategoryId = root.Id });
+            otherProduct.StoreId = other.Id;
+            foreach (var product in new[] { phone, tablet, noVariant, privateProduct }) product.StoreId = dealer.Id;
             await db.SaveChangesAsync();
             var service = new DealerCatalogService(new CommerceStore(db));
             var page = await service.ProductsAsync(dealer.Id, new DealerProductQuery(Sort: "price-asc"), default);

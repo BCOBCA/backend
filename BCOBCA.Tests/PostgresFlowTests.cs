@@ -37,7 +37,7 @@ public sealed class PostgresFlowTests
             Assert.Contains("ImageUrl", categoryColumns);
             Assert.Contains("AttributeDefinitions", categoryColumns);
             Assert.Equal(8, categoryColumns.Count);
-            Assert.Equal(69, db.Model.GetEntityTypes().Count());
+            Assert.Equal(68, db.Model.GetEntityTypes().Count());
             var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
             var store = new CommerceStore(db);
             var catalog = new CatalogService(store);
@@ -80,7 +80,7 @@ public sealed class PostgresFlowTests
             for (var index = 0; index < 2; index++)
             {
                 var brand = new Brand { OwnerAccountId = created.User.AccountId, Name = "Test brand " + index, Slug = "test-brand-" + index, Status = 1, CreatedAt = now, UpdatedAt = now };
-                var product = new Product { BrandId = brand.Id, CategoryId = category.Id, Name = "Test product " + index, Slug = "test-product-" + index, SKU = "TEST-" + index, BasePrice = 100000, Status = 1, CreatedAt = now, UpdatedAt = now };
+                var product = new Product { StoreId = TestStores.Own(db, brand), BrandId = brand.Id, CategoryId = category.Id, Name = "Test product " + index, Slug = "test-product-" + index, SKU = "TEST-" + index, BasePrice = 100000, Status = 1, CreatedAt = now, UpdatedAt = now };
                 var variant = new ProductVariant { ProductId = product.Id, SKU = "TEST-V-" + index, VariantName = "Default", Price = 100000, StockQuantity = 2, IsActive = true };
                 db.Brands.Add(brand); db.Products.Add(product); db.ProductVariants.Add(variant); variantIds.Add(variant.Id);
             }
@@ -181,7 +181,7 @@ public sealed class PostgresFlowTests
             await db.SaveChangesAsync();
             var ownedBrandId = await adminCatalog.SaveBrandAsync(created.User.AccountId, null, new BrandInput("Test owned brand", "test-owned-brand"), default);
             var adminProductInput = new ProductInput(ownedBrandId, category.Id, "Admin-created test product", "admin-created-test-product", "ADMIN-TEST", 1000,
-                [new VariantInput(null, "ADMIN-TEST-V1", "Standard", 1000, 5)], []);
+                [new VariantInput(null, "ADMIN-TEST-V1", "Standard", 1000, 5)], [], StoreId: await db.Stores.Where(s => s.OwnerAccountId == created.User.AccountId).Select(s => s.Id).FirstAsync());
             var adminProductId = await adminCatalog.SaveProductAsync(created.User.AccountId, null, adminProductInput, default);
             var crossBrand = await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => adminCatalog.SaveProductAsync(second.User.AccountId, adminProductId, adminProductInput, default));
             Assert.Equal(403, crossBrand.StatusCode);

@@ -47,9 +47,6 @@ public sealed class ProductSpecificationsFlowTests
             var phone = await admin.SaveCategoryAsync(account.Id, null, phoneInput, default);
             Assert.Equal(6, (await catalog.CategoryAttributesAsync(phone, default)).Count);
             var variant = new VariantInput(null, "PHONE-SPECS-DEFAULT", "Đen / 128 GB", 1000, 5, 800, "{\"color\":\"Đen\",\"storage\":\"128 GB\"}");
-            var input = new ProductInput(brand.Id, phone, "Phone", "specs-phone", "PHONE-SPECS", 1000, new[] { variant }, new[] { "https://example.test/photo.webp" }, Specifications: Values("{\"chipset\":\"Example chip\",\"battery\":3400,\"stereo\":true,\"weight\":150}"));
-            await Assert.ThrowsAsync<BusinessException>(() => admin.SaveProductAsync(Guid.NewGuid(), null, input, default));
-            var id = await admin.SaveProductAsync(account.Id, null, input, default);
             var seller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 1, Name = "Seller A", Slug = "seller-a", Phone = "0900000001" };
             var privatePhoneSeller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 1, Name = "Seller B", Slug = "seller-b", Phone = "0900000002" };
             var hiddenSeller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 0, Name = "Hidden seller", Slug = "seller-hidden" };
@@ -57,16 +54,21 @@ public sealed class ProductSpecificationsFlowTests
             var unrelatedSeller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 1, Name = "Unrelated seller", Slug = "seller-unrelated" };
             db.AddRange(seller, privatePhoneSeller, hiddenSeller, deletedSeller, unrelatedSeller);
             db.AddRange(new StoreSettings { StoreId = seller.Id, ShowPhone = true }, new StoreSettings { StoreId = privatePhoneSeller.Id, ShowPhone = false });
-            foreach (var linkedSeller in new[] { seller, privatePhoneSeller, hiddenSeller, deletedSeller })
-                db.Add(new StoreProduct { StoreId = linkedSeller.Id, ProductId = id });
             await db.SaveChangesAsync();
+            var input = new ProductInput(brand.Id, phone, "Phone", "specs-phone", "PHONE-SPECS", 1000, new[] { variant }, new[] { "https://example.test/photo.webp" }, Specifications: Values("{\"chipset\":\"Example chip\",\"battery\":3400,\"stereo\":true,\"weight\":150}"), StoreId: seller.Id);
+            await Assert.ThrowsAsync<BusinessException>(() => admin.SaveProductAsync(Guid.NewGuid(), null, input, default));
+            var id = await admin.SaveProductAsync(account.Id, null, input, default);
             var item = await catalog.ProductAsync(id, default);
             var sellers = Assert.IsAssignableFrom<IReadOnlyList<ProductSellerDto>>(item.Sellers);
-            Assert.Equal(new[] { seller.Id, privatePhoneSeller.Id }, sellers.Select(s => s.Id));
+            Assert.Equal(seller.Id, Assert.Single(sellers).Id);
             Assert.Equal("Seller A", sellers[0].Name);
             Assert.Equal("seller-a", sellers[0].Slug);
             Assert.Equal("0900000001", sellers[0].Phone);
-            Assert.Null(sellers[1].Phone);
+            seller.Phone = "0900000003";
+            var settings = await db.StoreSettings.SingleAsync(s => s.StoreId == seller.Id);
+            settings.ShowPhone = false;
+            await db.SaveChangesAsync();
+            Assert.Null(Assert.Single((await catalog.ProductAsync(id, default)).Sellers!).Phone);
             Assert.DoesNotContain(sellers, s => s.Name == brand.Name);
             Assert.Equal("PHONE-SPECS", item.SKU);
             Assert.NotEqual(item.Variants!.Single().SKU, item.SKU);

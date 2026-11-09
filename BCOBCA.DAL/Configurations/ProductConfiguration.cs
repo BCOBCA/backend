@@ -10,6 +10,8 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
     {
         builder.ToTable("Products");
         builder.HasKey(x => x.Id);
+        builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
+        builder.ToTable(t => t.HasCheckConstraint("CK_Products_OwningStore", "\"StoreId\" IS NOT NULL OR \"IsDeleted\""));
         builder.Property(x => x.BrandId).HasColumnType("uuid").IsRequired();
         builder.HasOne<Brand>().WithMany().HasForeignKey(x => x.BrandId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.CategoryId).HasColumnType("uuid").IsRequired();

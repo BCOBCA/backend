@@ -7,6 +7,7 @@ public sealed class SellerSettlement
     public uint Version { get; set; }
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid BrandId { get; set; }
+    public Guid? StoreId { get; set; }
     public Guid SellerOrderId { get; set; }
     public decimal GrossAmount { get; set; }
     public decimal FeeAmount { get; set; }

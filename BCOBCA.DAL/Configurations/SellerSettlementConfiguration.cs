@@ -10,6 +10,7 @@ public sealed class SellerSettlementConfiguration : IEntityTypeConfiguration<Sel
     {
         builder.ToTable("SellerSettlements");
         builder.HasKey(x => x.Id);
+        builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.PaidAmount).HasPrecision(18, 2);
         builder.Property(x => x.TransactionReference).HasMaxLength(150).IsRequired();
         builder.Property(x => x.Version).IsRowVersion();

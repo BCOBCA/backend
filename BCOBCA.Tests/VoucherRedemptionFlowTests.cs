@@ -51,7 +51,7 @@ public sealed class VoucherRedemptionFlowTests
 
             var category = new Category { Name = "Test", Slug = "voucher-test", IsActive = true };
             var brand = new Brand { Name = "Test", Slug = "voucher-test", OwnerAccountId = buyer.User.AccountId, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
-            var product = new Product { Name = "Voucher product", Slug = "voucher-product", SKU = "VOUCHER-P", BrandId = brand.Id, CategoryId = category.Id, BasePrice = 500000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+            var product = new Product { StoreId = TestStores.Own(db, brand), Name = "Voucher product", Slug = "voucher-product", SKU = "VOUCHER-P", BrandId = brand.Id, CategoryId = category.Id, BasePrice = 500000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
             var variant = new ProductVariant { ProductId = product.Id, SKU = "VOUCHER-V", VariantName = "Default", Price = 500000, StockQuantity = 10, IsActive = true };
             db.Categories.Add(category); db.Brands.Add(brand); db.Products.Add(product); db.ProductVariants.Add(variant); await db.SaveChangesAsync();
             var orders = new OrderService(store, config, new FinanceService(store, config));

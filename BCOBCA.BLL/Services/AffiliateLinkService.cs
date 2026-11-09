@@ -33,7 +33,7 @@ public sealed class AffiliateLinkService(ICommerceStore store, IConfiguration co
     {
         await using var tx = await store.BeginTransactionAsync(ct);
         var profile = await Profile(userId, ct);
-        if (!await store.Set<Product>().AnyAsync(x => x.Id == productId && x.Status == 1 && x.AffiliateEnabled, ct)) throw new BusinessException("Sản phẩm không hỗ trợ Affiliate", 404);
+        if (!await ProductCatalogScope.Available(store).AnyAsync(x => x.Id == productId && x.AffiliateEnabled, ct)) throw new BusinessException("Sản phẩm không hỗ trợ Affiliate", 404);
         var link = await store.Set<AffiliateLink>().Where(x => x.AffiliateProfileId == profile.Id && x.ProductId == productId).OrderBy(x => x.CreatedAt).FirstOrDefaultAsync(ct);
         if (link is null)
         {

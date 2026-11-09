@@ -33,6 +33,12 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
     {
         if (!await Admin(accountId, ct)) throw new BusinessException("Không có quyền quản trị", 403);
     }
+    private async Task StoreAccess(Guid accountId, Guid storeId, CancellationToken ct)
+    {
+        var owner = await store.Set<Store>().Where(s => s.Id == storeId && s.StoreType == 1 && s.DeletedAt == null).Select(s => (Guid?)s.OwnerAccountId).SingleOrDefaultAsync(ct)
+            ?? throw new BusinessException("Không tìm thấy cửa hàng", 404);
+        if (owner != accountId && !await Admin(accountId, ct)) throw new BusinessException("Không có quyền quản lý sản phẩm của cửa hàng này", 403);
+    }
     private async Task BrandAccess(Guid accountId, Guid brandId, CancellationToken ct)
     {
         if (await Admin(accountId, ct)) return;
@@ -105,10 +111,13 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
             catch (JsonException) { throw new BusinessException("Thuộc tính biến thể phải là JSON object"); }
         }
         await using var tx = await store.BeginTransactionAsync(ct);
-        await BrandAccess(accountId, input.BrandId, ct);
         if (!await store.Set<Brand>().AnyAsync(x => x.Id == input.BrandId, ct) || !await store.Set<Category>().AnyAsync(x => x.Id == input.CategoryId, ct)) throw new BusinessException("Thương hiệu hoặc danh mục không tồn tại");
         var product = id is null ? new Product { BrandId = input.BrandId, CreatedAt = DateTimeOffset.UtcNow } : await store.Set<Product>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy sản phẩm", 404);
-        if (id is not null) { await BrandAccess(accountId, product.BrandId, ct); if (product.BrandId != input.BrandId) throw new BusinessException("Không chuyển sản phẩm sang thương hiệu khác"); }
+        var owningStore = product.StoreId ?? input.StoreId ?? throw new BusinessException("Cần chọn cửa hàng đăng bán sản phẩm");
+        await StoreAccess(accountId, owningStore, ct);
+        if (input.StoreId is not null && input.StoreId != owningStore) throw new BusinessException("Không chuyển sản phẩm sang cửa hàng khác", 409);
+        if (id is not null && product.BrandId != input.BrandId) throw new BusinessException("Không chuyển sản phẩm sang thương hiệu khác");
+        product.StoreId = owningStore;
         var definitions = await ProductSpecificationRules.ResolveDefinitionsAsync(store, input.CategoryId, ct);
         if (id is null || input.Specifications is not null || product.CategoryId != input.CategoryId)
             ProductSpecificationRules.ValidateValues(input.Specifications ?? ProductSpecificationRules.ParseValues(product.Specifications), definitions, "product");
@@ -208,7 +217,8 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
 
     public async Task ArchiveProductAsync(Guid accountId, Guid id, CancellationToken ct)
     {
-        var product = await store.Set<Product>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy sản phẩm", 404); await BrandAccess(accountId, product.BrandId, ct);
+        var product = await store.Set<Product>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy sản phẩm", 404);
+        await StoreAccess(accountId, product.StoreId ?? throw new BusinessException("Sản phẩm chưa có cửa hàng sở hữu", 409), ct);
         product.IsDeleted = true; product.UpdatedAt = DateTimeOffset.UtcNow; await Audit(accountId, "ARCHIVE", "Product", id, ct);
     }
 

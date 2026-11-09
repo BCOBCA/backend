@@ -4,6 +4,7 @@ public sealed class Product
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid BrandId { get; set; }
+    public Guid? StoreId { get; set; }
     public Guid CategoryId { get; set; }
     public string Name { get; set; } = "";
     public string Slug { get; set; } = "";

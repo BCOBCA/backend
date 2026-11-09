@@ -29,7 +29,7 @@ public sealed class FavoriteCatalogFlowTests
             var user = new User { AccountId = account.Id, ReferralCode = "FAVORITE-QA", DateOfBirth = new DateOnly(2000, 1, 1) };
             var brand = new Brand { OwnerAccountId = account.Id, Name = "Brand", Slug = "favorite-brand", Status = 1 };
             var category = new Category { Name = "Category", Slug = "favorite-category", IsActive = true };
-            var product = new Product { BrandId = brand.Id, CategoryId = category.Id, Name = "Favorite", Slug = "favorite", SKU = "FAVORITE", BasePrice = 500, Status = 1 };
+            var product = new Product { StoreId = TestStores.Own(db, brand), BrandId = brand.Id, CategoryId = category.Id, Name = "Favorite", Slug = "favorite", SKU = "FAVORITE", BasePrice = 500, Status = 1 };
             var available = new ProductVariant { ProductId = product.Id, SKU = "AVAILABLE", VariantName = "Available", Price = 1000, SalePrice = 800, StockQuantity = 5, ReservedQuantity = 2, IsActive = true };
             db.AddRange(account, user, brand, category, product, available,
                 new ProductVariant { ProductId = product.Id, SKU = "RESERVED", Price = 100, StockQuantity = 2, ReservedQuantity = 2, IsActive = true },

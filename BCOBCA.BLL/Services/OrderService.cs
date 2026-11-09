@@ -23,7 +23,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
             orderby i.CreatedAt, i.Id
             select new CartItemDto(i.Id, p.Id, v.Id, b.Id, b.Name, p.Name, v.VariantName,
                 store.Set<ProductImage>().Where(x => x.ProductId == p.Id && x.IsPrimary).Select(x => x.ImageUrl).FirstOrDefault() ?? "",
-                v.SalePrice ?? v.Price, i.Quantity, v.StockQuantity - v.ReservedQuantity, i.IsSelected, !p.IsDeleted && p.Status == 1 && !b.IsDeleted && b.Status == 1 && v.IsActive)).ToListAsync(ct);
+                v.SalePrice ?? v.Price, i.Quantity, v.StockQuantity - v.ReservedQuantity, i.IsSelected, !p.IsDeleted && p.Status == 1 && !b.IsDeleted && b.Status == 1 && v.IsActive && store.Set<Store>().Any(s => s.Id == p.StoreId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null), p.StoreId, store.Set<Store>().Where(s => s.Id == p.StoreId).Select(s => s.Name).FirstOrDefault())).ToListAsync(ct);
         return new(items, items.Where(x => x.IsSelected).Sum(x => x.UnitPrice * x.Quantity), items.Where(x => x.IsSelected).Sum(x => x.Quantity));
     }
 
@@ -33,7 +33,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         await using var tx = await store.BeginTransactionAsync(ct);
         var cart = await store.Set<Cart>().SingleAsync(x => x.UserId == userId, ct);
         var variant = await store.Set<ProductVariant>().SingleOrDefaultAsync(x => x.Id == input.VariantId && x.ProductId == input.ProductId && x.IsActive, ct) ?? throw new BusinessException("Phân loại không khả dụng", 404);
-        if (!await store.Set<Product>().AnyAsync(x => x.Id == input.ProductId && x.Status == 1 && store.Set<Brand>().Any(b => b.Id == x.BrandId && b.Status == 1), ct)) throw new BusinessException("Sản phẩm không khả dụng", 404);
+        if (!await ProductCatalogScope.Available(store).AnyAsync(x => x.Id == input.ProductId, ct)) throw new BusinessException("Sản phẩm không khả dụng", 404);
         var item = await store.Set<CartItem>().SingleOrDefaultAsync(x => x.CartId == cart.Id && x.VariantId == variant.Id, ct);
         var quantity = input.Quantity + (item?.Quantity ?? 0);
         if (quantity > 999 || quantity > variant.StockQuantity - variant.ReservedQuantity) throw new BusinessException("Không đủ tồn kho", 409);
@@ -87,12 +87,13 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         {
             var product = await store.Set<Product>().SingleOrDefaultAsync(x => x.Id == item.ProductId && x.Status == 1, ct) ?? throw new BusinessException("Sản phẩm không còn khả dụng", 409);
             if (!await store.Set<Brand>().AnyAsync(x => x.Id == product.BrandId && x.Status == 1, ct)) throw new BusinessException("Thương hiệu không khả dụng", 409);
+            if (!await store.Set<Store>().AnyAsync(s => s.Id == product.StoreId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null, ct)) throw new BusinessException("Cửa hàng không còn khả dụng", 409);
             var variant = await store.Set<ProductVariant>().SingleOrDefaultAsync(x => x.Id == item.VariantId && x.ProductId == product.Id && x.IsActive, ct) ?? throw new BusinessException("Phân loại không khả dụng", 409);
             if (item.Quantity > variant.StockQuantity - variant.ReservedQuantity) throw new BusinessException("Không đủ tồn kho", 409);
             var unitPrice = variant.SalePrice ?? variant.Price;
             if (unitPrice < 0) throw new BusinessException("Giá sản phẩm không hợp lệ", 409);
             variant.ReservedQuantity += item.Quantity;
-            lines.Add(new OrderItem { OrderId = order.Id, ProductId = product.Id, VariantId = variant.Id, BrandId = product.BrandId, ProductName = product.Name, SKU = variant.SKU, Quantity = item.Quantity, UnitPrice = unitPrice, TotalPrice = unitPrice * item.Quantity });
+            lines.Add(new OrderItem { OrderId = order.Id, ProductId = product.Id, VariantId = variant.Id, BrandId = product.BrandId, StoreId = product.StoreId, ProductName = product.Name, SKU = variant.SKU, Quantity = item.Quantity, UnitPrice = unitPrice, TotalPrice = unitPrice * item.Quantity });
             store.Set<InventoryReservation>().Add(new InventoryReservation { OrderId = order.Id, VariantId = variant.Id, Quantity = item.Quantity, Status = "HELD", ExpiresAt = now.AddHours(config.GetValue<int>("Checkout:ReservationHours")), CreatedAt = now });
         }
         order.Subtotal = lines.Sum(x => x.TotalPrice);
@@ -113,7 +114,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         if (input.ExpectedTotal is not null && input.ExpectedTotal != order.TotalAmount) throw new BusinessException("Tổng tiền đã thay đổi. Vui lòng xem lại trước khi đặt hàng", 409);
         store.Set<Order>().Add(order); store.Set<OrderItem>().AddRange(lines);
         await AffiliateSources.CaptureAsync(store, order, lines, affiliateVisitToken ?? input.AffiliateVisitToken, ct);
-        foreach (var group in lines.GroupBy(x => x.BrandId)) store.Set<SellerOrder>().Add(new SellerOrder { OrderId = order.Id, BrandId = group.Key, Status = "PENDING", Subtotal = group.Sum(x => x.UnitPrice * x.Quantity), DiscountAmount = group.Sum(x => x.DiscountAmount), TotalAmount = group.Sum(x => x.TotalPrice), CreatedAt = now });
+        foreach (var group in lines.GroupBy(x => new { x.StoreId, x.BrandId })) store.Set<SellerOrder>().Add(new SellerOrder { OrderId = order.Id, BrandId = group.Key.BrandId, StoreId = group.Key.StoreId, Status = "PENDING", Subtotal = group.Sum(x => x.UnitPrice * x.Quantity), DiscountAmount = group.Sum(x => x.DiscountAmount), TotalAmount = group.Sum(x => x.TotalPrice), CreatedAt = now });
         store.Set<Payment>().Add(new Payment { OrderId = order.Id, PaymentMethod = "COD", Amount = order.TotalAmount, Currency = "VND", Status = "PENDING", CreatedAt = now });
         store.Set<OrderStatusHistory>().Add(new OrderStatusHistory { OrderId = order.Id, OldStatus = "", NewStatus = "PENDING", Note = "Tạo đơn hàng", CreatedAt = now });
         await UserNotifications.AddAsync(store, userId, "ORDER_CREATED", "Đã tạo đơn hàng " + order.OrderCode, "Đơn hàng của bạn đang chờ xác nhận.", "Order", order.Id, ct);
@@ -132,7 +133,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         var shippingFee = config.GetValue<decimal>("Checkout:ShippingFee");
         if (shippingFee < 0) throw new InvalidOperationException("Shipping fee must not be negative.");
         var order = new Order { UserId = userId, Subtotal = cart.SelectedTotal, ShippingFee = shippingFee };
-        var lines = selected.Select(x => new OrderItem { ProductId = x.ProductId, BrandId = x.BrandId, Quantity = x.Quantity, UnitPrice = x.UnitPrice, TotalPrice = x.UnitPrice * x.Quantity }).ToList();
+        var lines = selected.Select(x => new OrderItem { ProductId = x.ProductId, BrandId = x.BrandId, StoreId = x.StoreId, Quantity = x.Quantity, UnitPrice = x.UnitPrice, TotalPrice = x.UnitPrice * x.Quantity }).ToList();
         if (!string.IsNullOrWhiteSpace(input.VoucherCode)) await ApplyVoucherAsync(order, lines, input.VoucherCode.Trim().ToUpperInvariant(), ct);
         return new(order.Subtotal, order.DiscountAmount, shippingFee, order.Subtotal - order.DiscountAmount + shippingFee - order.ShippingDiscountAmount, cart.SelectedCount, CartHash(cart), order.ShippingDiscountAmount);
     }
@@ -181,7 +182,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
     public async Task<OrderDto> OrderAsync(Guid userId, Guid id, CancellationToken ct)
     {
         var order = await store.Set<Order>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId, ct) ?? throw new BusinessException("Không tìm thấy đơn hàng", 404);
-        var items = await store.Set<OrderItem>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.Id).Select(x => new OrderItemDto(x.Id, x.ProductId, x.BrandId, x.ProductName, x.SKU, x.Quantity, x.UnitPrice, x.DiscountAmount, x.TotalPrice)).ToListAsync(ct);
+        var items = await store.Set<OrderItem>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.Id).Select(x => new OrderItemDto(x.Id, x.ProductId, x.BrandId, x.ProductName, x.SKU, x.Quantity, x.UnitPrice, x.DiscountAmount, x.TotalPrice, x.StoreId)).ToListAsync(ct);
         var shipments = await store.Set<Shipment>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.ShippedAt).Take(50).Select(x => new ShipmentDto(x.Id, x.Carrier, x.TrackingCode, x.Status, x.ShippedAt, x.DeliveredAt)).ToListAsync(ct);
         var history = await store.Set<OrderStatusHistory>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.CreatedAt).Take(50).Select(x => new OrderHistoryDto(x.OldStatus, x.NewStatus, x.Note, x.CreatedAt)).ToListAsync(ct);
         return new(order.Id, order.OrderCode, order.Status, order.PaymentStatus, order.Subtotal, order.DiscountAmount, order.ShippingFee, order.TotalAmount, order.RecipientName, order.RecipientPhone, order.ShippingAddress, order.CreatedAt, items, shipments, history, order.ShippingDiscountAmount);

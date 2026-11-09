@@ -94,7 +94,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
 
     public async Task FavoriteAsync(Guid userId, Guid productId, bool value, CancellationToken ct)
     {
-        if (!await store.Set<Product>().AnyAsync(x => x.Id == productId && x.Status == 1, ct)) throw new BusinessException("Không tìm thấy sản phẩm", 404);
+        if (!await ProductCatalogScope.Available(store).AnyAsync(x => x.Id == productId, ct)) throw new BusinessException("Không tìm thấy sản phẩm", 404);
         var favorite = await store.Set<ProductFavorite>().SingleOrDefaultAsync(x => x.UserId == userId && x.ProductId == productId, ct);
         if (value && favorite is null) store.Set<ProductFavorite>().Add(new ProductFavorite { UserId = userId, ProductId = productId, CreatedAt = DateTimeOffset.UtcNow });
         if (!value && favorite is not null) store.Set<ProductFavorite>().Remove(favorite);
@@ -104,7 +104,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     public async Task<PageResult<CatalogItemDto>> FavoritesAsync(Guid userId, CatalogQuery query, CancellationToken ct)
     {
         var products = from f in store.Set<ProductFavorite>().AsNoTracking()
-            join p in store.Set<Product>() on f.ProductId equals p.Id where f.UserId == userId && p.Status == 1
+            join p in ProductCatalogScope.Available(store) on f.ProductId equals p.Id where f.UserId == userId && p.Status == 1
             orderby f.CreatedAt descending, f.Id
             select p;
         return await PageAsync(new CatalogService(store).ProjectProducts(products, userId), query, ct);

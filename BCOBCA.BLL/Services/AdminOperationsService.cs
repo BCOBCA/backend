@@ -21,6 +21,7 @@ public sealed class AdminOperationsService(ICommerceStore store, IOrderService o
         await Admin(accountId, ct); var source = store.Set<Order>().AsNoTracking();
         if (query.Status is not null) source = source.Where(x => x.Status == query.Status);
         if (query.BrandId is not null) source = source.Where(x => store.Set<SellerOrder>().Any(s => s.OrderId == x.Id && s.BrandId == query.BrandId));
+        if (query.StoreId is not null) source = source.Where(x => store.Set<SellerOrder>().Any(s => s.OrderId == x.Id && s.StoreId == query.StoreId));
         if (!string.IsNullOrWhiteSpace(query.Search)) source = source.Where(x => x.OrderCode.Contains(query.Search));
         return await Page(source.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Select(x => new OrderSummaryDto(x.Id, x.OrderCode, x.Status, x.PaymentStatus, x.TotalAmount, x.CreatedAt)), query, ct);
     }

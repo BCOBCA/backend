@@ -45,8 +45,7 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
         return await ProductSpecificationRules.ResolveDefinitionsAsync(store, id, ct);
     }
 
-    private IQueryable<Product> ProductQuery() => store.Set<Product>().AsNoTracking()
-        .Where(p => p.Status == 1 && store.Set<Brand>().Any(b => b.Id == p.BrandId && b.Status == 1));
+    private IQueryable<Product> ProductQuery() => ProductCatalogScope.Available(store);
 
     internal IQueryable<CatalogItemDto> ProjectProducts(IQueryable<Product> source, Guid? userId = null) => source.Select(p => new CatalogItemDto(p.Id, p.BrandId, p.Name, p.Slug, p.Description,
             store.Set<ProductImage>().Where(i => i.ProductId == p.Id).OrderByDescending(i => i.IsPrimary).ThenBy(i => i.SortOrder).Select(i => i.ImageUrl).FirstOrDefault() ?? "",
@@ -54,12 +53,13 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
             store.Set<ProductVariant>().Where(v => v.ProductId == p.Id && v.IsActive).OrderByDescending(v => v.StockQuantity > v.ReservedQuantity).ThenBy(v => v.SalePrice ?? v.Price).ThenBy(v => v.Id).Select(v => v.SalePrice).FirstOrDefault(), false,
             store.Set<ProductVariant>().Where(v => v.ProductId == p.Id && v.IsActive).OrderByDescending(v => v.StockQuantity > v.ReservedQuantity).ThenBy(v => v.SalePrice ?? v.Price).ThenBy(v => v.Id).Select(v => (Guid?)v.Id).FirstOrDefault(),
             store.Set<ProductVariant>().Where(v => v.ProductId == p.Id && v.IsActive).Sum(v => v.StockQuantity - v.ReservedQuantity),
-            userId != null && store.Set<ProductFavorite>().Any(f => f.UserId == userId && f.ProductId == p.Id)));
+            userId != null && store.Set<ProductFavorite>().Any(f => f.UserId == userId && f.ProductId == p.Id), null, null, null, p.SKU, null, p.StoreId));
 
     public async Task<PageResult<CatalogItemDto>> ProductsAsync(CatalogQuery query, CancellationToken ct, Guid? userId = null)
     {
         var source = ProductQuery();
         if (query.BrandId is not null) source = source.Where(x => x.BrandId == query.BrandId);
+        if (query.StoreId is not null) source = source.Where(x => x.StoreId == query.StoreId);
         if (query.CategoryId is { } categoryId)
         {
             var ids = CategoryTree.Descendants(categoryId, CategoryTree.Active(await store.Set<Category>().AsNoTracking().ToListAsync(ct)));
@@ -79,16 +79,16 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
         var variantRows = await store.Set<ProductVariant>().AsNoTracking().Where(x => x.ProductId == id && x.IsActive).OrderBy(x => x.Price).ThenBy(x => x.Id).ToListAsync(ct);
         var variants = variantRows.Select(CatalogVariantMapper.ToDto).ToArray();
         var images = await store.Set<ProductImage>().AsNoTracking().Where(x => x.ProductId == id).OrderByDescending(x => x.IsPrimary).ThenBy(x => x.SortOrder).Select(x => x.ImageUrl).ToListAsync(ct);
-        var metadata = await store.Set<Product>().AsNoTracking().Where(p => p.Id == id).Select(p => new { p.CategoryId, p.Specifications, p.SKU }).SingleAsync(ct);
+        var metadata = await store.Set<Product>().AsNoTracking().Where(p => p.Id == id).Select(p => new { p.CategoryId, p.Specifications, p.SKU, p.StoreId }).SingleAsync(ct);
         var definitions = await ProductSpecificationRules.ResolveDefinitionsAsync(store, metadata.CategoryId, ct);
         var specifications = ProductSpecificationRules.BuildGroups(ProductSpecificationRules.ParseValues(metadata.Specifications), definitions);
         var sellers = await store.Set<Store>().AsNoTracking()
-            .Where(s => s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null && store.Set<StoreProduct>().Any(link => link.StoreId == s.Id && link.ProductId == id))
+            .Where(s => s.Id == metadata.StoreId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null)
             .OrderBy(s => s.Name).ThenBy(s => s.Id)
             .Select(s => new ProductSellerDto(s.Id, s.Name, s.Slug, s.LogoUrl, s.Description,
                 store.Set<StoreSettings>().Any(settings => settings.StoreId == s.Id && settings.ShowPhone) ? s.Phone : null))
             .ToListAsync(ct);
-        return product with { Variants = variants, ImageUrls = images, Specifications = specifications, SKU = metadata.SKU, Sellers = sellers };
+        return product with { Variants = variants, ImageUrls = images, Specifications = specifications, SKU = metadata.SKU, StoreId = metadata.StoreId, Sellers = sellers };
     }
 
     private IQueryable<Service> ServiceQuery() => store.Set<Service>().AsNoTracking()

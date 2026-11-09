@@ -17,7 +17,7 @@ public sealed class DealerCatalogService(ICommerceStore store) : IDealerCatalogS
 
     private IQueryable<Product> Products(Guid storeId, Guid[] categoryIds) => store.Set<Product>().AsNoTracking()
         .Where(p => p.Status == 1 && categoryIds.Contains(p.CategoryId) &&
-            store.Set<StoreProduct>().Any(link => link.StoreId == storeId && link.ProductId == p.Id) &&
+            p.StoreId == storeId &&
             store.Set<Brand>().Any(b => b.Id == p.BrandId && b.Status == 1));
 
     public async Task<PageResult<DealerProductDto>> ProductsAsync(Guid storeId, DealerProductQuery query, CancellationToken ct)

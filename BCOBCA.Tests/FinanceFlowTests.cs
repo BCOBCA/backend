@@ -44,7 +44,7 @@ public sealed class FinanceFlowTests
             var finance = new FinanceService(store, config); var orders = new OrderService(store, config, finance); var members = new MemberService(store);
             var category = new Category { Name = "Test category", Slug = "test", IsActive = true };
             var brand = new Brand { Name = "Test brand", Slug = "test", OwnerAccountId = referrer.User.AccountId, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
-            var product = new Product { Name = "Test product", Slug = "test", BrandId = brand.Id, CategoryId = category.Id, SKU = "TEST-P", BasePrice = 100000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+            var product = new Product { StoreId = TestStores.Own(db, brand), Name = "Test product", Slug = "test", BrandId = brand.Id, CategoryId = category.Id, SKU = "TEST-P", BasePrice = 100000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
             var variant = new ProductVariant { ProductId = product.Id, SKU = "TEST-V", VariantName = "Standard", Price = 100000, StockQuantity = 2, IsActive = true };
             db.Categories.Add(category); db.Brands.Add(brand); db.Products.Add(product); db.ProductVariants.Add(variant); await db.SaveChangesAsync();
             var address = await members.SaveAddressAsync(buyer.User.Id, null, new AddressRequest("Test buyer", "0901234567", "79", "001", "Test-only address", true), default);

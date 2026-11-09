@@ -120,9 +120,12 @@ public sealed class RefundSettlementService(ICommerceStore store, IConfiguration
     public async Task<PageResult<SettlementDto>> SettlementsAsync(Guid accountId, bool allBrands, CatalogQuery query, CancellationToken ct)
     {
         if (allBrands) await RequireAdmin(accountId, ct);
-        else if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "BrandOwner" || x.Role == "BrandStaff"), ct)) throw new BusinessException("Cần quyền quản lý thương hiệu", 403);
-        var source = store.Set<SellerSettlement>().AsNoTracking().Where(x => allBrands || store.Set<Brand>().Any(b => b.Id == x.BrandId && b.OwnerAccountId == accountId) || store.Set<BrandMember>().Any(m => m.BrandId == x.BrandId && m.AccountId == accountId && m.Status == 1 && (m.Role == "Owner" || m.Role == "Manager")));
-        return await Page(from s in source join seller in store.Set<SellerOrder>() on s.SellerOrderId equals seller.Id orderby s.CreatedAt descending, s.Id select new SettlementDto(s.Id, seller.OrderId, s.BrandId, s.GrossAmount, s.FeeAmount, s.NetAmount, s.PaidAmount, s.Status, s.TransactionReference, s.CreatedAt, s.PaidAt), query, ct);
+        else if (!await store.Set<Store>().AnyAsync(s => s.OwnerAccountId == accountId && s.StoreType == 1 && s.DeletedAt == null, ct)
+            && !await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "BrandOwner" || x.Role == "BrandStaff"), ct)) throw new BusinessException("Cần quyền quản lý cửa hàng", 403);
+        var source = store.Set<SellerSettlement>().AsNoTracking().Where(x => allBrands
+            || x.StoreId != null && store.Set<Store>().Any(s => s.Id == x.StoreId && s.OwnerAccountId == accountId && s.StoreType == 1 && s.DeletedAt == null)
+            || x.StoreId == null && (store.Set<Brand>().Any(b => b.Id == x.BrandId && b.OwnerAccountId == accountId) || store.Set<BrandMember>().Any(m => m.BrandId == x.BrandId && m.AccountId == accountId && m.Status == 1 && (m.Role == "Owner" || m.Role == "Manager"))));
+        return await Page(from s in source join seller in store.Set<SellerOrder>() on s.SellerOrderId equals seller.Id orderby s.CreatedAt descending, s.Id select new SettlementDto(s.Id, seller.OrderId, s.BrandId, s.GrossAmount, s.FeeAmount, s.NetAmount, s.PaidAmount, s.Status, s.TransactionReference, s.CreatedAt, s.PaidAt, s.StoreId), query, ct);
     }
 
     public async Task PaySettlementAsync(Guid accountId, Guid id, SettlementPaymentRequest input, CancellationToken ct)
@@ -136,7 +139,7 @@ public sealed class RefundSettlementService(ICommerceStore store, IConfiguration
         var orderId = await store.Set<SellerOrder>().Where(x => x.Id == settlement.SellerOrderId).Select(x => x.OrderId).SingleAsync(ct);
         if (!await store.Set<Order>().AnyAsync(x => x.Id == orderId && x.Status == "COMPLETED" && x.PaymentStatus == "PAID", ct)
             || await (from refund in store.Set<Refund>() join payment in store.Set<Payment>() on refund.PaymentId equals payment.Id where payment.OrderId == orderId && (refund.Status == "PENDING" || refund.Status == "APPROVED") select refund.Id).AnyAsync(ct)) throw new BusinessException("Đơn hàng đang hoàn tiền hoặc chưa đủ điều kiện đối soát", 409);
-        var adjustments = await (from adjustment in store.Set<SellerSettlementAdjustment>() join original in store.Set<SellerSettlement>() on adjustment.SellerSettlementId equals original.Id where original.BrandId == settlement.BrandId && adjustment.RemainingAmount > 0 orderby adjustment.CreatedAt, adjustment.Id select adjustment).ToListAsync(ct);
+        var adjustments = await (from adjustment in store.Set<SellerSettlementAdjustment>() join original in store.Set<SellerSettlement>() on adjustment.SellerSettlementId equals original.Id where (settlement.StoreId != null ? original.StoreId == settlement.StoreId : original.StoreId == null && original.BrandId == settlement.BrandId) && adjustment.RemainingAmount > 0 orderby adjustment.CreatedAt, adjustment.Id select adjustment).ToListAsync(ct);
         var amountToPay = settlement.NetAmount;
         foreach (var adjustment in adjustments)
         {

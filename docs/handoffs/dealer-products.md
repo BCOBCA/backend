@@ -1,5 +1,7 @@
 # Dealer product storefront
 
+Ownership is superseded by [store-owned-products.md](store-owned-products.md): distinct store-owned listings replace shared StoreProducts. Notes below document the historical implementation/seed.
+
 - `StoreProducts(StoreId,ProductId)` explicitly links dealers to products; composite PK and FKs preserve existing Brand/product/cart ownership. Migration `20261107075451_AddStoreProducts` adds only this table and its reverse lookup index.
 - `IDealerCatalogService`: GET `/api/dealers/{id}/products` with page/pageSize/categoryId/minPrice/maxPrice/sort (popular/newest/price-asc/price-desc); GET `/api/dealers/{id}/product-categories` returns active leaf categories/counts from store assignments and actual linked products.
 - Product visibility requires active public dealer, active product/brand, and active category ancestry. Default variant follows existing catalog stock/price/ID order; range filtering and sort use that displayed price. Count/pagination happen in SQL. Ratings use approved ProductReviews; sales use completed order items, globally per product because existing cart/orders are brand-scoped. No sample ratings/sales are inserted.

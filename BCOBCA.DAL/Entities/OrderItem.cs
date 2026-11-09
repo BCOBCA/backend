@@ -7,6 +7,7 @@ public sealed class OrderItem
     public Guid ProductId { get; set; }
     public Guid? VariantId { get; set; }
     public Guid BrandId { get; set; }
+    public Guid? StoreId { get; set; }
     public string ProductName { get; set; } = "";
     public string SKU { get; set; } = "";
     public int Quantity { get; set; }
