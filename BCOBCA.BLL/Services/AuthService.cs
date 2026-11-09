@@ -135,7 +135,12 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
         var user = await store.Set<User>().SingleOrDefaultAsync(x => x.AccountId == accountId, ct) ?? throw new BusinessException("Không tìm thấy hồ sơ", 404);
         var account = await store.Set<Account>().SingleAsync(x => x.Id == accountId && x.Status == 1, ct);
         var roles = await store.Set<AccountRole>().Where(x => x.AccountId == accountId).Select(x => x.Role).ToListAsync(ct);
-        return new ProfileDto(user.Id, accountId, account.Email, account.Phone, user.FullName, user.AvatarUrl, user.ReferralCode, roles, user.Nickname);
+        var referrerNickname = user.ReferredByUserId is { } referrerId ? await store.Set<User>()
+            .Where(u => u.Id == referrerId && u.Nickname != "" && store.Set<Account>().Any(a => a.Id == u.AccountId && a.Status == 1))
+            .Select(u => u.Nickname).SingleOrDefaultAsync(ct) : null;
+        return new ProfileDto(user.Id, accountId, account.Email, account.Phone, user.FullName, user.AvatarUrl, user.ReferralCode, roles, user.Nickname,
+            user.CoverUrl, user.Gender, user.DateOfBirth == default ? null : user.DateOfBirth, user.ReferredByUserId, referrerNickname,
+            user.CreatedAt == default ? null : user.CreatedAt, user.UpdatedAt == default ? null : user.UpdatedAt, account.Status, account.EmailVerified, account.PhoneVerified);
     }
 
     public async Task<ProfileDto> UpdateProfileAsync(Guid accountId, UpdateProfileRequest input, CancellationToken ct)
@@ -144,6 +149,9 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
         var user = await store.Set<User>().SingleAsync(x => x.AccountId == accountId, ct);
         var account = await store.Set<Account>().SingleAsync(x => x.Id == accountId, ct);
         user.FullName = input.FullName.Trim(); user.Nickname = input.Nickname.Trim(); user.AvatarUrl = input.AvatarUrl; user.UpdatedAt = DateTimeOffset.UtcNow;
+        if (input.CoverUrl is not null) user.CoverUrl = input.CoverUrl;
+        if (input.Gender is { } gender) user.Gender = gender;
+        if (input.DateOfBirth is not null) user.DateOfBirth = input.DateOfBirth == "" ? default : DateOnly.ParseExact(input.DateOfBirth, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         if (account.Phone != input.Phone) account.PhoneVerified = false;
         account.Phone = input.Phone; account.UpdatedAt = DateTimeOffset.UtcNow;
         await store.SaveChangesAsync(ct);

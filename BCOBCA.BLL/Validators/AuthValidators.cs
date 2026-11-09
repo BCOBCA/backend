@@ -34,6 +34,10 @@ public sealed class ProfileValidator : AbstractValidator<UpdateProfileRequest>
         RuleFor(x => x.Phone).MaximumLength(20).Matches("^$|^\\+?[0-9]{9,15}$");
         RuleFor(x => x.Nickname).MaximumLength(100);
         RuleFor(x => x.AvatarUrl).MaximumLength(2000).Must(x => x == "" || Uri.TryCreate(x, UriKind.Absolute, out var uri) && uri.Scheme == "https");
+        RuleFor(x => x.CoverUrl).MaximumLength(2000).Must(x => x is null or "" || Uri.TryCreate(x, UriKind.Absolute, out var uri) && uri.Scheme == "https");
+        RuleFor(x => x.Gender).Must(x => x is null or >= 0 and <= 2);
+        RuleFor(x => x.DateOfBirth).Must(x => x is null or "" || DateOnly.TryParseExact(x, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date) && date.Year >= 1900 && date <= DateOnly.FromDateTime(DateTime.UtcNow))
+            .WithMessage("Ngày sinh không hợp lệ hoặc nằm trong tương lai.");
     }
 }
 
