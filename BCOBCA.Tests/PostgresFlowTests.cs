@@ -145,9 +145,10 @@ public sealed class PostgresFlowTests
             Assert.Equal("CANCELLED", (await orderService.OrderAsync(created.User.Id, abandoned.Id, default)).Status);
             Assert.Equal(0, (await db.ProductVariants.SingleAsync(x => x.Id == firstVariant.Id)).ReservedQuantity);
             Assert.Equal(0, await orderService.ExpireOneReservationAsync(default));
-            var refreshed = await auth.RefreshAsync(created.RefreshToken, default);
-            Assert.NotEqual(created.RefreshToken, refreshed.RefreshToken);
-            await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => auth.RefreshAsync(created.RefreshToken, default));
+            var firstSession = await auth.LoginAsync(new LoginRequest("test@example.com", "StrongPassword123!"), default);
+            var refreshed = await auth.RefreshAsync(firstSession.RefreshToken, default);
+            Assert.NotEqual(firstSession.RefreshToken, refreshed.RefreshToken);
+            await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => auth.RefreshAsync(firstSession.RefreshToken, default));
             await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => auth.RefreshAsync(refreshed.RefreshToken, default));
             var security = new AccountSecurityService(store, config);
             var resetToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));

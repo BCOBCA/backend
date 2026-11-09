@@ -1,0 +1,6 @@
+# Registration requires explicit login
+
+- Registration creates the account, customer role, profile, cart, membership and referral/affiliate records atomically; it does not issue access/refresh tokens or update LastLoginAt. Internal registration result can carry the created profile for server callers; the public API returns only a success confirmation, never credentials or user profile, and sets no refresh cookie on web/native.
+- Frontend registration calls a separate API/store action that never accepts a session or populates auth state. After success, clear the form and replace the route with login; show an accessible registration success banner there. Preserve referral/product/service/affiliate return parameters, never put a password in navigation state.
+- Only explicit login accepts tokens, saves the authenticated profile and follows the existing member/product return flow. Validation and duplicate-account errors keep the user on registration. Login failure remains on login with no newly authenticated user.
+- Verify the pre-fix token-issuance regression, web/native response/cookie behavior, no frontend session acceptance (even a legacy credential-bearing response), login/refresh/logout regressions and browser registration → success/login → authenticated profile against an isolated local DB. Do not create test accounts on production.

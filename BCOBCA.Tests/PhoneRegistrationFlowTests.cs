@@ -8,6 +8,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using Xunit;
+using BCOBCA.API.Controllers;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.FileProviders;
+using System.Text.Json;
 
 namespace BCOBCA.Tests;
 
@@ -35,10 +41,25 @@ public sealed class PhoneRegistrationFlowTests
             const string password = "StrongPassword123";
             var first = await auth.RegisterAsync(new RegisterRequest("", password, "First user", "0901234567"), default);
             var second = await auth.RegisterAsync(new RegisterRequest("", password, "Second user", "+84901234568"), default);
+            Assert.Empty(await db.RefreshTokens.ToListAsync());
+            Assert.All(await db.Accounts.ToListAsync(), account => Assert.Null(account.LastLoginAt));
+            foreach (var platform in new[] { "web", "native" })
+            {
+                var context = new DefaultHttpContext();
+                if (platform == "native") context.Request.Headers["X-Client-Platform"] = "native";
+                var controller = new AuthController(auth, new RegistrationEnvironment(), config) { ControllerContext = new ControllerContext { HttpContext = context } };
+                var response = Assert.IsType<ObjectResult>(await controller.Register(new RegisterRequest($"{platform}@example.test", password, "Registration API user"), default));
+                Assert.Equal(201, response.StatusCode);
+                var payload = JsonSerializer.SerializeToElement(response.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                Assert.Equal(new[] { "message" }, payload.GetProperty("data").EnumerateObject().Select(p => p.Name));
+                Assert.False(context.Response.Headers.ContainsKey("Set-Cookie"));
+            }
+            Assert.Empty(await db.RefreshTokens.ToListAsync());
             Assert.NotEqual(first.User.Id, second.User.Id);
             Assert.Equal("", first.User.Email);
             Assert.Equal("0901234567", first.User.Phone);
             Assert.Equal(first.User.Id, (await auth.LoginAsync(new LoginRequest("0901234567", password), default)).User.Id);
+            Assert.Single(await db.RefreshTokens.ToListAsync());
             Assert.Equal(second.User.Id, (await auth.LoginAsync(new LoginRequest("+84901234568", password), default)).User.Id);
             var email = await auth.RegisterAsync(new RegisterRequest(" EMAIL@EXAMPLE.COM ", password, "Email user"), default);
             Assert.Equal("email@example.com", email.User.Email);
@@ -57,5 +78,14 @@ public sealed class PhoneRegistrationFlowTests
             await using var drop = new NpgsqlCommand($"DROP DATABASE \"{databaseName}\" WITH (FORCE)", admin);
             await drop.ExecuteNonQueryAsync();
         }
+    }
+    private sealed class RegistrationEnvironment : IWebHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = "Development";
+        public string ApplicationName { get; set; } = "RegistrationTests";
+        public string WebRootPath { get; set; } = "";
+        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+        public string ContentRootPath { get; set; } = "";
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

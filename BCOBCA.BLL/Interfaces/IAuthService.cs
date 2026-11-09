@@ -4,7 +4,7 @@ namespace BCOBCA.BLL.Interfaces;
 
 public interface IAuthService
 {
-    Task<AuthResult> RegisterAsync(RegisterRequest input, CancellationToken ct);
+    Task<RegistrationResult> RegisterAsync(RegisterRequest input, CancellationToken ct);
     Task<AuthResult> LoginAsync(LoginRequest input, CancellationToken ct);
     Task<AuthResult> RefreshAsync(string token, CancellationToken ct);
     Task LogoutAsync(string token, CancellationToken ct);

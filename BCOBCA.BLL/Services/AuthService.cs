@@ -22,7 +22,7 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
     private static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(48));
 
-    public async Task<AuthResult> RegisterAsync(RegisterRequest input, CancellationToken ct)
+    public async Task<RegistrationResult> RegisterAsync(RegisterRequest input, CancellationToken ct)
     {
         input = input with { Email = (input.Email ?? "").Trim().ToLowerInvariant(), Phone = (input.Phone ?? "").Trim() };
         await registerValidator.ValidateAndThrowAsync(input, ct);
@@ -55,7 +55,7 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
         store.Set<AffiliateProfile>().Add(affiliate);
         store.Set<AffiliateWallet>().Add(new AffiliateWallet { AffiliateProfileId = affiliate.Id, Currency = "VND", UpdatedAt = now });
         await store.SaveChangesAsync(ct);
-        var result = await IssueAsync(account, Guid.NewGuid(), "BCOBCA", ct);
+        var result = new RegistrationResult(await GetProfileAsync(account.Id, ct));
         await tx.CommitAsync(ct);
         return result;
     }
