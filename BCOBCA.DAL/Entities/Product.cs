@@ -10,6 +10,7 @@ public sealed class Product
     public string SKU { get; set; } = "";
     public string ShortDescription { get; set; } = "";
     public string Description { get; set; } = "";
+    public string Specifications { get; set; } = "{}";
     public decimal BasePrice { get; set; }
     public decimal? SalePrice { get; set; }
     public short ProductType { get; set; }

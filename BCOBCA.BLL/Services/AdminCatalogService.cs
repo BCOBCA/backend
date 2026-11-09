@@ -79,6 +79,11 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
             var ancestor = await store.Set<Category>().SingleOrDefaultAsync(x => x.Id == parent, ct) ?? throw new BusinessException("Danh mục cha không tồn tại"); parent = ancestor.ParentId;
         }
         var category = id is null ? new Category() : await store.Set<Category>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy danh mục", 404);
+        var localDefinitions = input.AttributeDefinitions ?? ProductSpecificationRules.ParseDefinitions(category.AttributeDefinitions);
+        ProductSpecificationRules.ValidateDefinitions(localDefinitions);
+        var inheritedDefinitions = input.ParentId is { } parentId ? await ProductSpecificationRules.ResolveDefinitionsAsync(store, parentId, ct) : Array.Empty<CategoryAttributeDefinitionDto>();
+        ProductSpecificationRules.MergeDefinitions(new[] { inheritedDefinitions, localDefinitions });
+        if (input.AttributeDefinitions is not null) category.AttributeDefinitions = JsonSerializer.Serialize(input.AttributeDefinitions, ProductSpecificationRules.JsonOptions);
         category.Name = input.Name.Trim(); category.Slug = input.Slug; category.ParentId = input.ParentId; category.ImageUrl = input.ImageUrl; category.SortOrder = input.SortOrder; category.IsActive = input.IsActive;
         if (id is null) store.Set<Category>().Add(category);
         await Audit(accountId, id is null ? "CREATE" : "UPDATE", "Category", category.Id, ct); await tx.CommitAsync(ct); return category.Id;
@@ -104,6 +109,11 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         if (!await store.Set<Brand>().AnyAsync(x => x.Id == input.BrandId, ct) || !await store.Set<Category>().AnyAsync(x => x.Id == input.CategoryId, ct)) throw new BusinessException("Thương hiệu hoặc danh mục không tồn tại");
         var product = id is null ? new Product { BrandId = input.BrandId, CreatedAt = DateTimeOffset.UtcNow } : await store.Set<Product>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy sản phẩm", 404);
         if (id is not null) { await BrandAccess(accountId, product.BrandId, ct); if (product.BrandId != input.BrandId) throw new BusinessException("Không chuyển sản phẩm sang thương hiệu khác"); }
+        var definitions = await ProductSpecificationRules.ResolveDefinitionsAsync(store, input.CategoryId, ct);
+        if (id is null || input.Specifications is not null || product.CategoryId != input.CategoryId)
+            ProductSpecificationRules.ValidateValues(input.Specifications ?? ProductSpecificationRules.ParseValues(product.Specifications), definitions, "product");
+        foreach (var v in input.Variants) ProductSpecificationRules.ValidateValues(ProductSpecificationRules.ParseValues(v.Attributes), definitions, "variant");
+        if (input.Specifications is not null) product.Specifications = JsonSerializer.Serialize(input.Specifications, ProductSpecificationRules.JsonOptions);
         product.CategoryId = input.CategoryId; product.Name = input.Name; product.Slug = input.Slug; product.SKU = input.SKU; product.Description = input.Description; product.ShortDescription = input.ShortDescription;
         product.BasePrice = input.BasePrice; product.SalePrice = input.SalePrice; product.Status = (short)(input.IsActive ? 1 : 0); product.IsFeatured = input.IsFeatured; product.UpdatedAt = DateTimeOffset.UtcNow;
         if (id is null) store.Set<Product>().Add(product);

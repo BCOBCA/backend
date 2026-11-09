@@ -16,6 +16,8 @@ public sealed class CatalogController(ICatalogService catalog, IAuthService auth
     public async Task<IActionResult> Brand(Guid id, CancellationToken ct) => Ok(ApiResponse<BrandDto>.Ok(await catalog.BrandAsync(id, ct)));
     [HttpGet("categories")]
     public async Task<IActionResult> Categories([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<CategoryDto>>.Ok(await catalog.CategoriesAsync(query, ct)));
+    [HttpGet("categories/{id:guid}/attributes")]
+    public async Task<IActionResult> CategoryAttributes(Guid id, CancellationToken ct) => Ok(ApiResponse<IReadOnlyList<CategoryAttributeDefinitionDto>>.Ok(await catalog.CategoryAttributesAsync(id, ct)));
     [HttpGet("products")]
     public async Task<IActionResult> Products([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<CatalogItemDto>>.Ok(await catalog.ProductsAsync(query, ct, await OptionalUserId(ct))));
     [HttpGet("products/{id:guid}")]

@@ -15,7 +15,8 @@ public sealed class CategorySchemaTests
         var category = db.Model.FindEntityType(typeof(Category))!;
         Assert.Null(category.FindProperty("IconUrl"));
         Assert.NotNull(category.FindProperty("ImageUrl"));
-        Assert.Equal(7, category.GetProperties().Count());
+        Assert.Equal("jsonb", category.FindProperty("AttributeDefinitions")!.GetColumnType());
+        Assert.Equal(8, category.GetProperties().Count());
         Assert.NotNull(db.Model.FindEntityType(typeof(BrandCategory))!.FindProperty("IconUrl"));
     }
 

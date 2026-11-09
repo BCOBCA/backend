@@ -8,6 +8,7 @@ public interface ICatalogService
     Task<PageResult<BrandDto>> BrandsAsync(CatalogQuery query, CancellationToken ct);
     Task<BrandDto> BrandAsync(Guid id, CancellationToken ct);
     Task<PageResult<CategoryDto>> CategoriesAsync(CatalogQuery query, CancellationToken ct);
+    Task<IReadOnlyList<CategoryAttributeDefinitionDto>> CategoryAttributesAsync(Guid id, CancellationToken ct);
     Task<PageResult<CatalogItemDto>> ProductsAsync(CatalogQuery query, CancellationToken ct, Guid? userId = null);
     Task<CatalogItemDto> ProductAsync(Guid id, CancellationToken ct, Guid? userId = null);
     Task<PageResult<CatalogItemDto>> ServicesAsync(CatalogQuery query, CancellationToken ct);

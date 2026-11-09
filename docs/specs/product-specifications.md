@@ -1,0 +1,10 @@
+# Category-driven product specifications
+
+- Add JSONB `Products.Specifications` (object, default `{}`) and `Categories.AttributeDefinitions` (array, default `[]`). Preserve existing variant attributes, IDs, prices, inventory and relationships.
+- Definitions have canonical key, label, group, type (`text`, `number`, `boolean`, `select`), optional unit/options, required flag and scope (`product` or `variant`). Descendants inherit definitions and may override matching scope/key. Bound sizes and reject cycles, duplicate definitions, unknown configured fields, invalid types/units/options and missing required values.
+- Extend existing admin category/product inputs with optional fields; omitted metadata remains unchanged on updates. Category changes validate existing product values against the new schema. Existing clients remain compatible.
+- Public product detail returns grouped, typed specifications. Public category attribute endpoint returns inherited definitions. Variant selection continues to use variant attributes only.
+- Frontend renders grouped, category-specific specifications with proper units and boolean labels, then selected variant properties and SKU. No hardcoded per-model technical values in UI. Support a readable description specification section for the currently deployed legacy API until backend deployment.
+- Test rules and real PostgreSQL create/update/read-back, inheritance, authorization, migration/model consistency and preservation of omitted metadata before applying the reviewed migration. Back up before live changes; apply only the expected migration to the configured catalog DB.
+- Enrich identifiable existing electronics using primary sources; do not invent model/configuration-specific information. Store preparation/backup files in ignored `.local/`, not runtime JSON files.
+- Sequence: rules/tests → persistence/admin/detail API → frontend/tests → migration/integration → source-backed data preparation → backup/apply/read-back → browser/typecheck/lint/build and handoff.

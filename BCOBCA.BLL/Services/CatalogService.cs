@@ -39,6 +39,12 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
         => await PageAsync(store.Set<Category>().AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder).ThenBy(x => x.Id)
             .Select(x => new CategoryDto(x.Id, x.ParentId, x.Name, x.Slug, x.ImageUrl)), query, ct);
 
+    public async Task<IReadOnlyList<CategoryAttributeDefinitionDto>> CategoryAttributesAsync(Guid id, CancellationToken ct)
+    {
+        if (!await store.Set<Category>().AnyAsync(c => c.Id == id && c.IsActive, ct)) throw new BusinessException("Không tìm thấy danh mục", 404);
+        return await ProductSpecificationRules.ResolveDefinitionsAsync(store, id, ct);
+    }
+
     private IQueryable<Product> ProductQuery() => store.Set<Product>().AsNoTracking()
         .Where(p => p.Status == 1 && store.Set<Brand>().Any(b => b.Id == p.BrandId && b.Status == 1));
 
@@ -73,7 +79,10 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
         var variantRows = await store.Set<ProductVariant>().AsNoTracking().Where(x => x.ProductId == id && x.IsActive).OrderBy(x => x.Price).ThenBy(x => x.Id).ToListAsync(ct);
         var variants = variantRows.Select(CatalogVariantMapper.ToDto).ToArray();
         var images = await store.Set<ProductImage>().AsNoTracking().Where(x => x.ProductId == id).OrderByDescending(x => x.IsPrimary).ThenBy(x => x.SortOrder).Select(x => x.ImageUrl).ToListAsync(ct);
-        return product with { Variants = variants, ImageUrls = images };
+        var metadata = await store.Set<Product>().AsNoTracking().Where(p => p.Id == id).Select(p => new { p.CategoryId, p.Specifications }).SingleAsync(ct);
+        var definitions = await ProductSpecificationRules.ResolveDefinitionsAsync(store, metadata.CategoryId, ct);
+        var specifications = ProductSpecificationRules.BuildGroups(ProductSpecificationRules.ParseValues(metadata.Specifications), definitions);
+        return product with { Variants = variants, ImageUrls = images, Specifications = specifications };
     }
 
     private IQueryable<Service> ServiceQuery() => store.Set<Service>().AsNoTracking()

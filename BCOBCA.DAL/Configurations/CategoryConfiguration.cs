@@ -15,6 +15,8 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(x => x.Name).HasColumnType("varchar(150)").IsRequired();
         builder.Property(x => x.Slug).HasColumnType("varchar(180)").IsRequired();
         builder.Property(x => x.ImageUrl).HasColumnType("text").IsRequired();
+        builder.Property(x => x.AttributeDefinitions).HasColumnType("jsonb").HasDefaultValue("[]").IsRequired();
+        builder.ToTable(t => t.HasCheckConstraint("CK_Categories_AttributeDefinitions_Array", "jsonb_typeof(\"AttributeDefinitions\") = 'array'"));
         builder.Property(x => x.SortOrder).HasColumnType("int").IsRequired();
         builder.Property(x => x.IsActive).HasColumnType("boolean").IsRequired();
     }
