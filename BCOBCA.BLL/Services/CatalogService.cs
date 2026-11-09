@@ -82,7 +82,13 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
         var metadata = await store.Set<Product>().AsNoTracking().Where(p => p.Id == id).Select(p => new { p.CategoryId, p.Specifications, p.SKU }).SingleAsync(ct);
         var definitions = await ProductSpecificationRules.ResolveDefinitionsAsync(store, metadata.CategoryId, ct);
         var specifications = ProductSpecificationRules.BuildGroups(ProductSpecificationRules.ParseValues(metadata.Specifications), definitions);
-        return product with { Variants = variants, ImageUrls = images, Specifications = specifications, SKU = metadata.SKU };
+        var sellers = await store.Set<Store>().AsNoTracking()
+            .Where(s => s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null && store.Set<StoreProduct>().Any(link => link.StoreId == s.Id && link.ProductId == id))
+            .OrderBy(s => s.Name).ThenBy(s => s.Id)
+            .Select(s => new ProductSellerDto(s.Id, s.Name, s.Slug, s.LogoUrl, s.Description,
+                store.Set<StoreSettings>().Any(settings => settings.StoreId == s.Id && settings.ShowPhone) ? s.Phone : null))
+            .ToListAsync(ct);
+        return product with { Variants = variants, ImageUrls = images, Specifications = specifications, SKU = metadata.SKU, Sellers = sellers };
     }
 
     private IQueryable<Service> ServiceQuery() => store.Set<Service>().AsNoTracking()

@@ -50,7 +50,24 @@ public sealed class ProductSpecificationsFlowTests
             var input = new ProductInput(brand.Id, phone, "Phone", "specs-phone", "PHONE-SPECS", 1000, new[] { variant }, new[] { "https://example.test/photo.webp" }, Specifications: Values("{\"chipset\":\"Example chip\",\"battery\":3400,\"stereo\":true,\"weight\":150}"));
             await Assert.ThrowsAsync<BusinessException>(() => admin.SaveProductAsync(Guid.NewGuid(), null, input, default));
             var id = await admin.SaveProductAsync(account.Id, null, input, default);
+            var seller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 1, Name = "Seller A", Slug = "seller-a", Phone = "0900000001" };
+            var privatePhoneSeller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 1, Name = "Seller B", Slug = "seller-b", Phone = "0900000002" };
+            var hiddenSeller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 0, Name = "Hidden seller", Slug = "seller-hidden" };
+            var deletedSeller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 1, DeletedAt = DateTimeOffset.UtcNow, Name = "Deleted seller", Slug = "seller-deleted" };
+            var unrelatedSeller = new Store { OwnerAccountId = account.Id, StoreType = 1, Status = 1, Name = "Unrelated seller", Slug = "seller-unrelated" };
+            db.AddRange(seller, privatePhoneSeller, hiddenSeller, deletedSeller, unrelatedSeller);
+            db.AddRange(new StoreSettings { StoreId = seller.Id, ShowPhone = true }, new StoreSettings { StoreId = privatePhoneSeller.Id, ShowPhone = false });
+            foreach (var linkedSeller in new[] { seller, privatePhoneSeller, hiddenSeller, deletedSeller })
+                db.Add(new StoreProduct { StoreId = linkedSeller.Id, ProductId = id });
+            await db.SaveChangesAsync();
             var item = await catalog.ProductAsync(id, default);
+            var sellers = Assert.IsAssignableFrom<IReadOnlyList<ProductSellerDto>>(item.Sellers);
+            Assert.Equal(new[] { seller.Id, privatePhoneSeller.Id }, sellers.Select(s => s.Id));
+            Assert.Equal("Seller A", sellers[0].Name);
+            Assert.Equal("seller-a", sellers[0].Slug);
+            Assert.Equal("0900000001", sellers[0].Phone);
+            Assert.Null(sellers[1].Phone);
+            Assert.DoesNotContain(sellers, s => s.Name == brand.Name);
             Assert.Equal("PHONE-SPECS", item.SKU);
             Assert.NotEqual(item.Variants!.Single().SKU, item.SKU);
             Assert.Equal(4, item.Specifications!.Count);
