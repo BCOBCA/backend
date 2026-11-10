@@ -25,7 +25,10 @@ public sealed class AuthController(IAuthService auth, IWebHostEnvironment enviro
 
     [HttpPost("login"), EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(LoginRequest input, CancellationToken ct)
-        => Ok(Result(await auth.LoginAsync(input, ct)));
+    {
+        ValidateOrigin();
+        return Ok(Result(await auth.LoginAsync(input, ct)));
+    }
 
     [HttpPost("refresh"), EnableRateLimiting("auth")]
     public async Task<IActionResult> Refresh(RefreshRequest input, CancellationToken ct)
@@ -43,7 +46,7 @@ public sealed class AuthController(IAuthService auth, IWebHostEnvironment enviro
         try { return Ok(Result(await auth.RefreshAsync(token, ct))); }
         catch (BusinessException ex) when (ex.StatusCode == 401)
         {
-            Response.Cookies.Delete(CookieName, new CookieOptions { Path = "/api/auth" });
+            ClearRefreshCookies();
             return Ok(ApiResponse<object?>.Ok(null));
         }
     }
@@ -53,7 +56,7 @@ public sealed class AuthController(IAuthService auth, IWebHostEnvironment enviro
     {
         ValidateOrigin();
         await auth.LogoutAsync(ReadToken(input), ct);
-        Response.Cookies.Delete(CookieName, new CookieOptions { Path = "/api/auth" });
+        ClearRefreshCookies();
         return Ok(ApiResponse<object>.Ok(new { }));
     }
 
@@ -74,11 +77,41 @@ public sealed class AuthController(IAuthService auth, IWebHostEnvironment enviro
 
     private ApiResponse<object> Result(AuthResult result)
     {
-        if (!Native) Response.Cookies.Append(CookieName, result.RefreshToken, new CookieOptions
+        if (!Native)
         {
-            HttpOnly = true, Secure = !environment.IsDevelopment(), SameSite = SameSiteMode.Strict,
-            Path = "/api/auth", MaxAge = TimeSpan.FromDays(config.GetValue<int>("Jwt:RefreshTokenDays")), IsEssential = true
-        });
+            var options = RefreshCookieOptions();
+            // Migrate the older unpartitioned cookie before issuing its replacement.
+            if (options.Secure) ExpireRefreshCookie(partitioned: false);
+            Response.Cookies.Append(CookieName, result.RefreshToken, options);
+        }
         return ApiResponse<object>.Ok(new { result.AccessToken, RefreshToken = Native ? result.RefreshToken : null, result.ExpiresAt, result.User });
+    }
+
+    private CookieOptions RefreshCookieOptions()
+    {
+        var secure = !environment.IsDevelopment() || Request.IsHttps;
+        var options = new CookieOptions
+        {
+            HttpOnly = true, Secure = secure, SameSite = secure ? SameSiteMode.None : SameSiteMode.Lax,
+            Path = "/api/auth", MaxAge = TimeSpan.FromDays(config.GetValue<int>("Jwt:RefreshTokenDays")), IsEssential = true
+        };
+        if (secure) options.Extensions.Add("Partitioned");
+        return options;
+    }
+
+    private void ExpireRefreshCookie(bool partitioned)
+    {
+        var options = RefreshCookieOptions();
+        if (!partitioned) options.Extensions.Clear();
+        options.Expires = DateTimeOffset.UnixEpoch;
+        options.MaxAge = TimeSpan.Zero;
+        Response.Cookies.Append(CookieName, "", options);
+    }
+
+    private void ClearRefreshCookies()
+    {
+        if (Native) return;
+        ExpireRefreshCookie(partitioned: true);
+        if (RefreshCookieOptions().Secure) ExpireRefreshCookie(partitioned: false);
     }
 }
