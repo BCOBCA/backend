@@ -23,7 +23,7 @@ public sealed class ShippingVoucherFlowTests
         await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{databaseName}\"", admin)) await create.ExecuteNonQueryAsync();
         try
         {
-            var connection = new NpgsqlConnectionStringBuilder(admin.ConnectionString) { Database = databaseName }.ConnectionString;
+            var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("ConnectionStrings__Default")) { Database = databaseName }.ConnectionString;
             await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).Options);
             await db.Database.MigrateAsync(); Assert.False(db.Database.HasPendingModelChanges());
             var config = new ConfigurationBuilder().AddEnvironmentVariables().AddInMemoryCollection(new Dictionary<string, string?> { ["Checkout:ShippingFee"] = "20000", ["Membership:SpendPerPoint"] = "10000", ["Settlement:PlatformFeeRate"] = "0.1" }).Build();
