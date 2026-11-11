@@ -89,7 +89,17 @@ public sealed class StoreSplitCheckoutFlowTests
             Assert.Equal(3, (await service.FindRequestAsync(buyer.User.Id, "split-checkout", default))!.CheckoutOrders!.Count);
             Assert.Null(await service.FindRequestAsync(owner.User.Id, "split-checkout", default));
             Assert.Empty((await service.OrdersAsync(owner.User.Id, new(CheckoutGroupId: result.CheckoutGroupId), default)).Items);
-            Assert.Equal(3, (await service.OrdersAsync(buyer.User.Id, new(CheckoutGroupId: result.CheckoutGroupId), default)).Items.Count);
+            var listed = (await service.OrdersAsync(buyer.User.Id, new(CheckoutGroupId: result.CheckoutGroupId), default)).Items;
+            Assert.Equal(3, listed.Count);
+            foreach (var summary in listed)
+            {
+                var item = Assert.Single(summary.Items!);
+                Assert.Contains(item.ProductId, products.Select(p => p.Id));
+                Assert.Equal(summary.StoreName, item.StoreName);
+                Assert.Equal("Default", item.VariantName);
+                Assert.Equal(1, item.Quantity);
+                Assert.Equal((await db.OrderItems.SingleAsync(x => x.OrderId == summary.Id)).Id, item.Id);
+            }
             await Assert.ThrowsAsync<BusinessException>(() => service.CheckoutAsync(buyer.User.Id, "split-checkout", input with { Note = "Different" }, default));
             var beneficiary = await db.OrderItems.SingleAsync(x => x.DiscountAmount > 0);
             await service.CancelAsync(buyer.User.Id, beneficiary.OrderId, default);

@@ -217,7 +217,16 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
             if (query.Status is not ("PENDING" or "CONFIRMED" or "READY" or "SHIPPING" or "COMPLETED" or "CANCELLED" or "REFUNDED")) throw new BusinessException("Trạng thái không hợp lệ", 400);
             source = source.Where(x => x.Status == query.Status);
         }
-        return new(await Summaries(source.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size)).ToListAsync(ct), page, size, await source.CountAsync(ct));
+        var summaries = await Summaries(source.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size)).ToListAsync(ct);
+        var orderIds = summaries.Select(x => x.Id).ToArray();
+        var lines = await store.Set<OrderItem>().AsNoTracking().Where(x => orderIds.Contains(x.OrderId)).OrderBy(x => x.Id).Select(x => new { x.OrderId, Item = new OrderItemDto(x.Id, x.ProductId, x.BrandId, x.ProductName, x.SKU, x.Quantity, x.UnitPrice, x.DiscountAmount, x.TotalPrice, x.StoreId,
+            store.Set<Store>().IgnoreQueryFilters().Where(s => s.Id == x.StoreId).Select(s => s.Name).FirstOrDefault(),
+            store.Set<Store>().Where(s => s.Id == x.StoreId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null).Select(s => s.Slug).FirstOrDefault(),
+            store.Set<ProductImage>().Where(i => i.ProductId == x.ProductId).OrderByDescending(i => i.IsPrimary).ThenBy(i => i.SortOrder).ThenBy(i => i.Id).Select(i => i.ImageUrl).FirstOrDefault(),
+            store.Set<ProductVariant>().Where(v => v.Id == x.VariantId).Select(v => v.VariantName).FirstOrDefault(),
+            store.Set<Brand>().IgnoreQueryFilters().Where(b => b.Id == x.BrandId).Select(b => b.Name).FirstOrDefault()) }).ToListAsync(ct);
+        var grouped = lines.ToLookup(x => x.OrderId, x => x.Item);
+        return new(summaries.Select(x => x with { Items = grouped[x.Id].ToArray() }).ToArray(), page, size, await source.CountAsync(ct));
     }
 
     private IQueryable<OrderSummaryDto> Summaries(IQueryable<Order> source) => source.Select(x => new OrderSummaryDto(x.Id, x.OrderCode, x.Status, x.PaymentStatus, x.TotalAmount, x.CreatedAt,
