@@ -1,0 +1,7 @@
+# Order address snapshot
+
+Requirement: new orders persist street address + resolved ward name + resolved province name in the existing Orders.ShippingAddress column. Recipient name/phone stay snapshotted as before. Existing orders remain unchanged; frontend legacy-code lookup remains available only for those older snapshots.
+
+Implementation: `ShippingQuoteResult` carries per-store rates and the resolved destination. `GhnShippingQuoteService` reuses the validated province/ward names already loaded for GHN, with no extra location request. `OrderService` assigns the snapshot before splitting into shop orders. A missing resolved snapshot fails checkout rather than saving numeric codes. Replay returns the original snapshot; historical reads do not resolve the current member address or call an external address API. No schema change or migration.
+
+Validation: all 184 backend tests passed. Per-store checkout integration cases use actual shipping/client services with HTTP-faked location/GHN endpoints, assert exact named snapshots in responses and saved orders, edit the user's saved address, and verify old recipient/address snapshots and idempotent retries remain unchanged without additional location lookups. All five frontend address tests passed, including disabled external lookups for already named snapshots. Disposable test databases only; no business database updates or deployments performed.

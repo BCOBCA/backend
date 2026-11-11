@@ -8,7 +8,7 @@ namespace BCOBCA.BLL.Services;
 
 public sealed class GhnShippingQuoteService(ICommerceStore store, GhnQuoteClient client) : IShippingQuoteService
 {
-    public async Task<IReadOnlyDictionary<Guid, ShippingRate>> QuoteAsync(UserAddress? address, IReadOnlyList<OrderItem> lines, CancellationToken ct)
+    public async Task<ShippingQuoteResult> QuoteAsync(UserAddress? address, IReadOnlyList<OrderItem> lines, CancellationToken ct)
     {
         if (address is null) throw new BusinessException("Vui lòng chọn địa chỉ nhận hàng", 409);
         var storeIds = lines.Select(x => x.StoreId).Distinct().ToArray();
@@ -27,6 +27,6 @@ public sealed class GhnShippingQuoteService(ICommerceStore store, GhnQuoteClient
             return (StoreId: group.Key, Package: new GhnPackage(shop.GhnTestShopId.Value, (int)weight, items.Max(x => x.length), items.Max(x => x.width), (int)height, group.Sum(x => x.TotalPrice), items.Cast<object>().ToArray()));
         }).ToArray();
         var rates = await Task.WhenAll(packages.Select(async x => (x.StoreId, Rate: await client.QuoteAsync(address, names.Province, names.Ward, x.Package, ct))));
-        return rates.ToDictionary(x => x.StoreId, x => x.Rate);
+        return new(rates.ToDictionary(x => x.StoreId, x => x.Rate), $"{address.AddressLine.Trim()}, {names.Ward}, {names.Province}");
     }
 }

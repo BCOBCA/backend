@@ -12,12 +12,12 @@ internal static class TestOrders
 
     private sealed class TestShipping(IConfiguration config) : IShippingQuoteService
     {
-        public Task<IReadOnlyDictionary<Guid, ShippingRate>> QuoteAsync(UserAddress? address, IReadOnlyList<OrderItem> lines, CancellationToken ct)
+        public Task<ShippingQuoteResult> QuoteAsync(UserAddress? address, IReadOnlyList<OrderItem> lines, CancellationToken ct)
         {
             var fee = config.GetValue<decimal>("Checkout:ShippingFee");
             if (fee < 0) throw new InvalidOperationException("Test shipping fee must not be negative.");
             IReadOnlyDictionary<Guid, ShippingRate> rates = lines.Select(x => x.StoreId!.Value).Distinct().ToDictionary(id => id, _ => new ShippingRate(fee));
-            return Task.FromResult(rates);
+            return Task.FromResult(new ShippingQuoteResult(rates, $"{address?.AddressLine ?? "Test address"}, Phường kiểm thử, Thành phố Hồ Chí Minh"));
         }
     }
 }

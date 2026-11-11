@@ -14,6 +14,19 @@ namespace BCOBCA.Tests;
 
 public sealed class StoreSplitCheckoutFlowTests
 {
+    private sealed class ShippingHandler : HttpMessageHandler
+    {
+        public int LocationRequests { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var location = request.RequestUri!.Host == "provinces.open-api.vn";
+            if (location) LocationRequests++;
+            else Assert.Equal(GhnQuoteClient.PreviewUrl, request.RequestUri.AbsoluteUri);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(location
+                ? """{"code":79,"name":"Thành phố Hồ Chí Minh","wards":[{"code":1,"name":"Phường kiểm thử"}]}"""
+                : """{"code":200,"data":{"order_code":"","total_fee":30000}}""") });
+        }
+    }
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
@@ -30,7 +43,7 @@ public sealed class StoreSplitCheckoutFlowTests
             var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("ConnectionStrings__Default")) { Database = databaseName }.ConnectionString;
             await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).Options);
             await db.Database.MigrateAsync();
-            var config = new ConfigurationBuilder().AddEnvironmentVariables().AddInMemoryCollection(new Dictionary<string, string?> { ["Checkout:ShippingFee"] = "30000", ["Checkout:ReservationHours"] = "24" }).Build();
+            var config = new ConfigurationBuilder().AddEnvironmentVariables().AddInMemoryCollection(new Dictionary<string, string?> { ["Checkout:ShippingFee"] = "30000", ["Checkout:ReservationHours"] = "24", ["Shipping:Ghn:TestToken"] = "test-only-token" }).Build();
             var repository = new CommerceStore(db);
             var auth = new AuthService(repository, config, new RegisterValidator(), new LoginValidator(), new ProfileValidator());
             var owner = await auth.RegisterAsync(new("split-owner@example.com", "StrongPassword123!", "Owner"), default);
@@ -41,8 +54,8 @@ public sealed class StoreSplitCheckoutFlowTests
             var products = new List<Product>(); var variants = new List<ProductVariant>();
             for (var i = 1; i <= 3; i++)
             {
-                var seller = new Store { Name = $"Shop {i}", Slug = $"shop-{i}", OwnerAccountId = owner.User.AccountId, StoreType = 1, Status = 1 };
-                var product = new Product { StoreId = seller.Id, BrandId = brand.Id, CategoryId = category.Id, Name = $"Product {i}", Slug = $"product-{i}", SKU = $"P-{i}", BasePrice = equalPrices ? 100000 : i * 100000, Status = 1 };
+                var seller = new Store { Name = $"Shop {i}", Slug = $"shop-{i}", OwnerAccountId = owner.User.AccountId, StoreType = 1, Status = 1, GhnTestShopId = i };
+                var product = new Product { StoreId = seller.Id, BrandId = brand.Id, CategoryId = category.Id, Name = $"Product {i}", Slug = $"product-{i}", SKU = $"P-{i}", BasePrice = equalPrices ? 100000 : i * 100000, Status = 1, ShippingWeightGrams = 500, ShippingLengthCm = 20, ShippingWidthCm = 15, ShippingHeightCm = 10 };
                 var variant = new ProductVariant { ProductId = product.Id, SKU = $"V-{i}", VariantName = "Default", Price = product.BasePrice, StockQuantity = 10, IsActive = true };
                 db.AddRange(seller, product, variant); products.Add(product); variants.Add(variant);
             }
@@ -52,7 +65,9 @@ public sealed class StoreSplitCheckoutFlowTests
             db.AddRange(voucher, shipping, new UserVoucher { UserId = buyer.User.Id, VoucherId = voucher.Id, Status = "AVAILABLE", ClaimedAt = now }, new UserVoucher { UserId = buyer.User.Id, VoucherId = shipping.Id, Status = "AVAILABLE", ClaimedAt = now });
             if (sellerTargeted) db.Add(new VoucherTarget { VoucherId = voucher.Id, ProductId = products[0].Id });
             await db.SaveChangesAsync();
-            var service = TestOrders.Create(repository, config, new FinanceService(repository, config));
+            using var handler = new ShippingHandler();
+            using var http = new HttpClient(handler);
+            var service = new OrderService(repository, config, new FinanceService(repository, config), new GhnShippingQuoteService(repository, new GhnQuoteClient(http, config)));
             for (var i = 0; i < 3; i++) await service.AddAsync(buyer.User.Id, new(products[i].Id, variants[i].Id, 1), default);
             var address = await new MemberService(repository).SaveAddressAsync(buyer.User.Id, null, new("Buyer", "0901234567", "79", "001", "Test address", true), default);
             var preview = await service.PreviewAsync(buyer.User.Id, new(VoucherCodes: [voucher.Code, shipping.Code]), default);
@@ -71,9 +86,16 @@ public sealed class StoreSplitCheckoutFlowTests
             Assert.Equal(3, await db.Payments.CountAsync());
             Assert.Equal(3, await db.OrderStatusHistories.CountAsync());
             Assert.Empty((await service.CartAsync(buyer.User.Id, default)).Items);
+            const string savedAddress = "Test address, Phường kiểm thử, Thành phố Hồ Chí Minh";
+            Assert.Equal(savedAddress, result.ShippingAddress);
+            var lookupsAfterCheckout = handler.LocationRequests;
+            await new MemberService(repository).SaveAddressAsync(buyer.User.Id, address.Id, new("Changed recipient", "0901234567", "79", "001", "Changed address", true), default);
             foreach (var child in children)
             {
                 var detail = await service.OrderAsync(buyer.User.Id, child.Id, default);
+                Assert.Equal(savedAddress, detail.ShippingAddress);
+                Assert.Equal(savedAddress, (await db.Orders.AsNoTracking().SingleAsync(x => x.Id == child.Id)).ShippingAddress);
+                Assert.Equal("Buyer", detail.RecipientName);
                 var line = Assert.Single(detail.Items);
                 var allocation = preview.StoreOrders.Single(x => x.StoreId == line.StoreId);
                 Assert.Equal(allocation.TotalAmount, detail.TotalAmount);
@@ -85,6 +107,8 @@ public sealed class StoreSplitCheckoutFlowTests
                 if (sellerTargeted) Assert.Equal(line.ProductId == products[0].Id ? 50000m : 0m, detail.DiscountAmount);
             }
             var replay = await service.CheckoutAsync(buyer.User.Id, "split-checkout", input, default);
+            Assert.Equal(savedAddress, replay.ShippingAddress);
+            Assert.Equal(lookupsAfterCheckout, handler.LocationRequests);
             Assert.Equal(children.Select(x => x.Id), replay.CheckoutOrders!.Select(x => x.Id));
             Assert.Equal(3, (await service.FindRequestAsync(buyer.User.Id, "split-checkout", default))!.CheckoutOrders!.Count);
             Assert.Null(await service.FindRequestAsync(owner.User.Id, "split-checkout", default));

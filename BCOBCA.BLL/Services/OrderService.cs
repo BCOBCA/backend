@@ -82,7 +82,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         if (cartItems.Count == 0) throw new BusinessException("Chưa chọn sản phẩm");
         var now = DateTimeOffset.UtcNow;
         var order = new Order { UserId = userId, OrderCode = "BCA" + Guid.NewGuid().ToString("N")[..20].ToUpperInvariant(), Status = "PENDING", PaymentStatus = "UNPAID", RecipientName = address.RecipientName, RecipientPhone = address.Phone,
-            ShippingAddress = $"{address.AddressLine}, {address.WardCode}, {address.ProvinceCode}", Note = input.Note, IdempotencyKey = idempotencyKey, RequestHash = requestHash, CreatedAt = now };
+            Note = input.Note, IdempotencyKey = idempotencyKey, RequestHash = requestHash, CreatedAt = now };
         var lines = new List<OrderItem>();
         foreach (var item in cartItems)
         {
@@ -201,7 +201,10 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         var merchandiseContexts = contexts.Where(x => x.Voucher.DiscountType != "SHIPPING").ToArray();
         var merchandiseCodes = codes.Where(code => !contexts.Any(x => x.Voucher.Code == code && x.Voucher.DiscountType == "SHIPPING")).ToArray();
         StoreVoucherPricing.Apply(preliminary, merchandiseContexts, categories, zeroFees, level, merchandiseCodes, autoSelect, collected, now);
-        var rates = await shipping.QuoteAsync(address, preliminary, ct);
+        var quote = await shipping.QuoteAsync(address, preliminary, ct);
+        if (string.IsNullOrWhiteSpace(quote.ShippingAddress)) throw new BusinessException("Chưa xác minh được địa chỉ nhận hàng. Vui lòng thử lại", 503);
+        order.ShippingAddress = quote.ShippingAddress;
+        var rates = quote.Rates;
         var result = StoreVoucherPricing.Apply(lines, contexts, categories, rates.ToDictionary(x => x.Key, x => x.Value.Fee), level, codes, autoSelect, collected, now);
         order.DiscountAmount = lines.Sum(x => x.DiscountAmount); order.ShippingFee = rates.Values.Sum(x => x.Fee); order.ShippingDiscountAmount = result.ShippingDiscounts.Values.Sum();
         return new(result, rates);
