@@ -40,7 +40,16 @@ public sealed class GhnQuoteClient(HttpClient client, IConfiguration config)
         try
         {
             using var response = await client.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode) throw new BusinessException("Chưa lấy được phí giao hàng cho tuyến này. Vui lòng kiểm tra địa chỉ hoặc thử lại", 503);
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                {
+                    var error = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
+                    if (error.ValueKind == JsonValueKind.Object && error.TryGetProperty("code_message", out var errorCode) && errorCode.ValueKind == JsonValueKind.String && errorCode.GetString() == "PHONE_INVALID")
+                        throw new BusinessException("Số điện thoại nhận hàng không hợp lệ với GHN. Vui lòng cập nhật số điện thoại trong địa chỉ nhận hàng", 422);
+                }
+                throw new BusinessException("Chưa lấy được phí giao hàng cho tuyến này. Vui lòng kiểm tra địa chỉ hoặc thử lại", 503);
+            }
             var data = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
             if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("code", out var code) || code.ValueKind != JsonValueKind.Number || !code.TryGetInt32(out var status) || status != 200 || !data.TryGetProperty("data", out var body) || body.ValueKind != JsonValueKind.Object || !body.TryGetProperty("total_fee", out var total) || total.ValueKind != JsonValueKind.Number || !total.TryGetInt32(out var fee) || fee < 0) throw new BusinessException("Phí giao hàng chưa được xác nhận. Vui lòng thử lại", 503);
             if (!body.TryGetProperty("order_code", out var orderCode) || orderCode.ValueKind != JsonValueKind.String || orderCode.GetString() != "") throw new BusinessException("Báo giá giao hàng chưa được xác nhận", 503);

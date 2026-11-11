@@ -22,6 +22,8 @@ Validate HTTP/API status, fee, empty preview order code and ETA. Token goes only
 
 The supplied credential was confirmed to belong to production after staging rejected it with HTTP 401 Token is not valid. It was removed from sandbox configuration; a valid staging token is still needed for direct provider verification. No production request was attempted.
 
+Update 2026-11-11: the user subsequently configured a valid sandbox token and authorized test pickup registration/data setup. All ten active shops now have verified sandbox pickups and all 93 active products have estimated parcel metadata. Direct staging preview succeeded for each shop; see [shipping-test-data.md](shipping-test-data.md). No shipment was created.
+
 Official contracts: [GHN preview](https://developer.ghn.vn/vi/docs/order/preview), [request/address fields](https://developer.ghn.vn/vi/docs/order/create), [separate staging token](https://developer.ghn.vn/vi/docs/token/get-token).
 
 ## Validation

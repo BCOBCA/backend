@@ -50,10 +50,36 @@ public sealed class GhnQuoteClientTests
     }
 
     [Fact]
+    public async Task InvalidRecipientPhoneIsAnActionableValidationError()
+    {
+        using var http = new HttpClient(new Handler(_ => Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadRequest) {
+            Content = new StringContent("""{"code":400,"code_message":"PHONE_INVALID","message":"Sensitive provider details"}""")
+        })));
+        var error = await Assert.ThrowsAsync<BusinessException>(() => new GhnQuoteClient(http, Config()).QuoteAsync(Address, "Hồ Chí Minh", "Xã Bình Chánh", Package, default));
+        Assert.Equal(422, error.StatusCode);
+        Assert.Contains("Số điện thoại nhận hàng", error.Message);
+        Assert.DoesNotContain("Sensitive provider details", error.Message);
+    }
+
+    [Fact]
     public async Task MissingTestCredentialsNeverMakesANetworkCall()
     {
         using var http = new HttpClient(new Handler(_ => throw new InvalidOperationException("Unexpected network request")));
         await Assert.ThrowsAsync<BusinessException>(() => new GhnQuoteClient(http, Config(null)).QuoteAsync(Address, "Hồ Chí Minh", "Phường Sài Gòn", Package, default));
+    }
+
+    [Theory]
+    [InlineData(400, "{\"code_message\":\"OTHER_ERROR\"}")]
+    [InlineData(400, "{\"code_message\":123}")]
+    [InlineData(400, "not json")]
+    [InlineData(401, "{\"code_message\":\"PHONE_INVALID\"}")]
+    public async Task OtherProviderErrorsRemainUnavailableWithoutExposingDetails(int status, string body)
+    {
+        using var http = new HttpClient(new Handler(_ => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent(body) })));
+        var error = await Assert.ThrowsAsync<BusinessException>(() => new GhnQuoteClient(http, Config()).QuoteAsync(Address, "Hồ Chí Minh", "Phường Sài Gòn", Package, default));
+        Assert.Equal(503, error.StatusCode);
+        Assert.DoesNotContain("PHONE_INVALID", error.Message);
+        Assert.DoesNotContain("OTHER_ERROR", error.Message);
     }
 
     [Fact]
