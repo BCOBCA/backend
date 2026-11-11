@@ -150,14 +150,33 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
             where commission.AffiliateProfileId == profileId orderby commission.CreatedAt descending, commission.Id
             select new CommissionDto(commission.Id, commission.OrderItemId, commission.BaseAmount, commission.CommissionRate, commission.CommissionAmount, commission.Status, commission.CreatedAt, commission.ApprovedAt, order.Id, order.OrderCode, item.ProductId, item.ProductName, commission.RankName, commission.Rank, commission.PaidAmount)), query, ct);
     }
-    public async Task<PageResult<LeaderboardDto>> LeaderboardAsync(CatalogQuery query, CancellationToken ct)
+    public async Task<LeaderboardPageDto> LeaderboardAsync(CatalogQuery query, CancellationToken ct, string period = "all", Guid? userId = null)
     {
+        var range = LeaderboardPeriods.Range(period, DateTimeOffset.UtcNow);
         var (page, size) = CatalogService.Paging(query);
         var ranks = await LoyaltyQueries.AffiliateRanksAsync(store, ct);
+        var qualified = store.Set<AffiliateReferral>().Where(r => store.Set<Order>().Any(o => o.UserId == r.ReferredUserId && o.Status == "COMPLETED" && o.PaymentStatus == "PAID"));
         var source = from p in store.Set<AffiliateProfile>().AsNoTracking() join u in store.Set<User>() on p.UserId equals u.Id where p.Status == "ACTIVE"
-            select new { p.Id, DisplayName = u.Nickname == "" ? "Thành viên " + p.AffiliateCode.Substring(0, 6) : u.Nickname, Count = store.Set<AffiliateReferral>().Count(r => r.ReferrerUserId == u.Id && store.Set<Order>().Any(o => o.UserId == r.ReferredUserId && o.Status == "COMPLETED" && o.PaymentStatus == "PAID")) };
+            select new { p.Id, UserId = u.Id, u.AvatarUrl, DisplayName = u.Nickname == "" ? "Thành viên " + p.AffiliateCode.Substring(0, 6) : u.Nickname,
+                Total = qualified.Count(r => r.ReferrerUserId == u.Id),
+                Count = qualified.Count(r => r.ReferrerUserId == u.Id && (range.Start == null || r.QualifiedAt >= range.Start && r.QualifiedAt < range.End)) };
         var items = await source.OrderByDescending(x => x.Count).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size).ToListAsync(ct);
-        return new(items.Select((x, i) => { var rank = AffiliateRankRules.Calculate(x.Count, ranks); return new LeaderboardDto(x.Id, x.DisplayName, x.Count, (page - 1) * size + i + 1, rank.Name, rank.CommissionRate); }).ToArray(), page, size, await source.CountAsync(ct));
+        LeaderboardDto Entry(Guid id, string name, string avatar, int count, int total, int position, bool mine)
+        {
+            var tier = AffiliateRankRules.Calculate(total, ranks);
+            return new(id, name, count, position, tier.Name, tier.CommissionRate, avatar, tier.Rank, mine);
+        }
+        LeaderboardDto? myEntry = null;
+        if (userId is not null)
+        {
+            var mine = await source.SingleOrDefaultAsync(x => x.UserId == userId, ct);
+            if (mine is not null)
+            {
+                var position = 1 + await source.CountAsync(x => x.Count > mine.Count || x.Count == mine.Count && string.Compare(x.Id.ToString(), mine.Id.ToString()) < 0, ct);
+                myEntry = Entry(mine.Id, mine.DisplayName, mine.AvatarUrl, mine.Count, mine.Total, position, true);
+            }
+        }
+        return new(items.Select((x, i) => Entry(x.Id, x.DisplayName, x.AvatarUrl, x.Count, x.Total, (page - 1) * size + i + 1, x.UserId == userId)).ToArray(), page, size, await source.CountAsync(ct), period, myEntry);
     }
 
     public async Task ApproveCommissionAsync(Guid accountId, Guid id, CancellationToken ct)

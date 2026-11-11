@@ -11,7 +11,7 @@ public interface IFinanceService
     Task<PageResult<WithdrawalDto>> WithdrawalsAsync(Guid userId, CatalogQuery query, CancellationToken ct);
     Task<PageResult<WalletTransactionDto>> TransactionsAsync(Guid userId, CatalogQuery query, CancellationToken ct);
     Task<PageResult<CommissionDto>> CommissionsAsync(Guid userId, CatalogQuery query, CancellationToken ct);
-    Task<PageResult<LeaderboardDto>> LeaderboardAsync(CatalogQuery query, CancellationToken ct);
+    Task<LeaderboardPageDto> LeaderboardAsync(CatalogQuery query, CancellationToken ct, string period = "all", Guid? userId = null);
     Task ApproveCommissionAsync(Guid accountId, Guid id, CancellationToken ct);
     Task SetWithdrawalStatusAsync(Guid accountId, Guid id, WithdrawalStatusRequest input, CancellationToken ct);
     Task<BankDetailsDto> BankDetailsAsync(Guid accountId, Guid id, CancellationToken ct);

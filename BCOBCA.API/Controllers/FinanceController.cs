@@ -20,7 +20,7 @@ public sealed class FinanceController(IFinanceService finance, IAuthService auth
     [HttpGet("affiliate/commissions")]
     public async Task<IActionResult> Commissions([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<CommissionDto>>.Ok(await finance.CommissionsAsync(await UserId(ct), query, ct)));
     [HttpGet("affiliate/leaderboard")]
-    public async Task<IActionResult> Leaderboard([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<LeaderboardDto>>.Ok(await finance.LeaderboardAsync(query, ct)));
+    public async Task<IActionResult> Leaderboard([FromQuery] CatalogQuery query, CancellationToken ct, [FromQuery] string period = "all") => Ok(ApiResponse<LeaderboardPageDto>.Ok(await finance.LeaderboardAsync(query, ct, period, await UserId(ct))));
     [Authorize(Roles = "Admin,SuperAdmin"), HttpPost("admin/affiliate/commissions/{id:guid}/approve")]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct) { await finance.ApproveCommissionAsync(AccountId, id, ct); return Ok(ApiResponse<object>.Ok(new { })); }
     [Authorize(Roles = "Admin,SuperAdmin"), HttpPut("admin/affiliate/withdrawals/{id:guid}/status")]
