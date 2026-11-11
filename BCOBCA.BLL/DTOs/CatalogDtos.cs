@@ -1,6 +1,6 @@
 namespace BCOBCA.BLL.DTOs;
 
-public sealed record CatalogQuery(int Page = 1, int PageSize = 20, string? Search = null, Guid? BrandId = null, Guid? CategoryId = null, string Sort = "newest", string? Status = null, Guid? StoreId = null);
+public sealed record CatalogQuery(int Page = 1, int PageSize = 20, string? Search = null, Guid? BrandId = null, Guid? CategoryId = null, string Sort = "newest", string? Status = null, Guid? StoreId = null, Guid? CheckoutGroupId = null);
 public sealed record BrandDto(Guid Id, string Name, string Slug, string LogoUrl, string CoverUrl, string Description, string Website, string Phone);
 public sealed record CategoryDto(Guid Id, Guid? ParentId, string Name, string Slug, string ImageUrl);
 public sealed record VariantDto(Guid Id, string Name, string SKU, decimal Price, decimal? SalePrice, int AvailableStock, IReadOnlyDictionary<string, string>? Attributes = null, bool IsSample = false);

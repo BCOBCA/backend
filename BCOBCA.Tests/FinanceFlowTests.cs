@@ -41,7 +41,7 @@ public sealed class FinanceFlowTests
             var auth = new AuthService(store, config, new RegisterValidator(), new LoginValidator(), new ProfileValidator());
             var referrer = await auth.RegisterAsync(new RegisterRequest("referrer@example.com", "StrongPassword123!", "Test referrer"), default);
             var buyer = await auth.RegisterAsync(new RegisterRequest("buyer@example.com", "StrongPassword123!", "Test buyer", ReferralCode: referrer.User.ReferralCode), default);
-            var finance = new FinanceService(store, config); var orders = new OrderService(store, config, finance); var members = new MemberService(store);
+            var finance = new FinanceService(store, config); var orders = TestOrders.Create(store, config, finance); var members = new MemberService(store);
             var category = new Category { Name = "Test category", Slug = "test", IsActive = true };
             var brand = new Brand { Name = "Test brand", Slug = "test", OwnerAccountId = referrer.User.AccountId, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
             var product = new Product { StoreId = TestStores.Own(db, brand), Name = "Test product", Slug = "test", BrandId = brand.Id, CategoryId = category.Id, SKU = "TEST-P", BasePrice = 100000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };

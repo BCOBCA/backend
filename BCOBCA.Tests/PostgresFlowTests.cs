@@ -86,7 +86,7 @@ public sealed class PostgresFlowTests
             }
             await db.SaveChangesAsync();
             var address = await memberService.SaveAddressAsync(created.User.Id, null, new AddressRequest("Khách kiểm thử", "0901234567", "79", "001", "Địa chỉ chỉ dùng kiểm thử", true), default);
-            var orderService = new OrderService(store, config, new FinanceService(store, config));
+            var orderService = TestOrders.Create(store, config, new FinanceService(store, config));
             foreach (var variantId in variantIds)
             {
                 var variant = await db.ProductVariants.SingleAsync(x => x.Id == variantId);
@@ -105,31 +105,31 @@ public sealed class PostgresFlowTests
             await using (var mismatchDb = new ApplicationDbContext(options))
             {
                 var mismatchStore = new CommerceStore(mismatchDb);
-                var mismatchService = new OrderService(mismatchStore, config, new FinanceService(mismatchStore, config));
+                var mismatchService = TestOrders.Create(mismatchStore, config, new FinanceService(mismatchStore, config));
                 await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => mismatchService.CheckoutAsync(created.User.Id, "test-mismatch", checkout with { ExpectedTotal = 1 }, default));
             }
             await using (var changedCartDb = new ApplicationDbContext(options))
             {
                 var changedStore = new CommerceStore(changedCartDb);
-                var changedOrders = new OrderService(changedStore, config, new FinanceService(changedStore, config));
+                var changedOrders = TestOrders.Create(changedStore, config, new FinanceService(changedStore, config));
                 await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => changedOrders.CheckoutAsync(created.User.Id, "test-cart-mismatch", checkout with { ExpectedCartHash = new string('0', 64) }, default));
             }
             Assert.Equal(0, await db.Orders.CountAsync());
             var order = await orderService.CheckoutAsync(created.User.Id, "test-idempotency", checkout, default);
-            Assert.Equal(190000 + config.GetValue<decimal>("Checkout:ShippingFee"), order.TotalAmount);
+            Assert.Equal(190000 + config.GetValue<decimal>("Checkout:ShippingFee"), order.CheckoutOrders!.Sum(x => x.TotalAmount));
             Assert.Equal(2, await db.SellerOrders.CountAsync());
             Assert.Equal(2, await db.InventoryReservations.CountAsync());
             Assert.All(await db.ProductVariants.ToListAsync(), x => Assert.Equal(1, x.ReservedQuantity));
             Assert.Empty((await orderService.CartAsync(created.User.Id, default)).Items);
             Assert.Equal(order.Id, (await orderService.CheckoutAsync(created.User.Id, "test-idempotency", checkout, default)).Id);
-            Assert.Equal(1, await db.Orders.CountAsync());
+            Assert.Equal(2, await db.Orders.CountAsync());
             Assert.Equal(order.Id, (await orderService.FindRequestAsync(created.User.Id, "test-idempotency", default))!.Id);
             Assert.Null(await orderService.FindRequestAsync(Guid.NewGuid(), "test-idempotency", default));
             Assert.Equal("USED", (await db.UserVouchers.SingleAsync()).Status);
             Assert.DoesNotContain((await memberService.VouchersAsync(created.User.Id, new CatalogQuery(), default)).Items, x => x.Id == voucher.Id);
             await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => orderService.CheckoutAsync(created.User.Id, "test-idempotency", checkout with { Note = "Changed" }, default));
             await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => orderService.OrderAsync(Guid.NewGuid(), order.Id, default));
-            await orderService.CancelAsync(created.User.Id, order.Id, default);
+            foreach (var child in order.CheckoutOrders!) await orderService.CancelAsync(created.User.Id, child.Id, default);
             Assert.All(await db.ProductVariants.ToListAsync(), x => Assert.Equal(0, x.ReservedQuantity));
             Assert.All(await db.InventoryReservations.ToListAsync(), x => Assert.Equal("RELEASED", x.Status));
             Assert.Equal("CANCELLED", (await orderService.OrderAsync(created.User.Id, order.Id, default)).Status);

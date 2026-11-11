@@ -10,6 +10,8 @@ public sealed class VoucherConfiguration : IEntityTypeConfiguration<Voucher>
     {
         builder.ToTable("Vouchers");
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.StoreId).HasColumnType("uuid");
+        builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.Code).HasColumnType("varchar(50)").IsRequired();
         builder.HasIndex(x => x.Code).IsUnique();
         builder.Property(x => x.Name).HasColumnType("varchar(150)").IsRequired();

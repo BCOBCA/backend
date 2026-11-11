@@ -11,7 +11,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace BCOBCA.BLL.Services;
 
-public sealed class OrderService(ICommerceStore store, IConfiguration config, IFinanceService finance) : IOrderService
+public sealed class OrderService(ICommerceStore store, IConfiguration config, IFinanceService finance, IShippingQuoteService shipping) : IOrderService
 {
     private static string CartHash(CartDto cart) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(
         cart.Items.Where(x => x.IsSelected).OrderBy(x => x.Id).Select(x => new { x.Id, x.ProductId, x.VariantId, x.Quantity, x.UnitPrice })))));
@@ -73,7 +73,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         if (existing is not null)
         {
             if (existing.RequestHash != requestHash) throw new BusinessException("Mã yêu cầu đã được dùng cho nội dung khác", 409);
-            return await OrderAsync(userId, existing.Id, ct);
+            return await CheckoutResultAsync(userId, existing, ct);
         }
         var address = await store.Set<UserAddress>().SingleOrDefaultAsync(x => x.Id == input.AddressId && x.UserId == userId, ct) ?? throw new BusinessException("Địa chỉ giao hàng không hợp lệ", 404);
         if (input.ExpectedCartHash is not null && input.ExpectedCartHash != CartHash(await CartAsync(userId, ct))) throw new BusinessException("Giỏ hàng đã thay đổi. Vui lòng xem lại trước khi đặt hàng", 409);
@@ -95,33 +95,60 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
             if (unitPrice < 0) throw new BusinessException("Giá sản phẩm không hợp lệ", 409);
             variant.ReservedQuantity += item.Quantity;
             lines.Add(new OrderItem { OrderId = order.Id, ProductId = product.Id, VariantId = variant.Id, BrandId = product.BrandId, StoreId = product.StoreId, ProductName = product.Name, SKU = variant.SKU, Quantity = item.Quantity, UnitPrice = unitPrice, TotalPrice = unitPrice * item.Quantity });
-            store.Set<InventoryReservation>().Add(new InventoryReservation { OrderId = order.Id, VariantId = variant.Id, Quantity = item.Quantity, Status = "HELD", ExpiresAt = now.AddHours(config.GetValue<int>("Checkout:ReservationHours")), CreatedAt = now });
         }
         order.Subtotal = lines.Sum(x => x.TotalPrice);
-        order.ShippingFee = config.GetValue<decimal>("Checkout:ShippingFee");
-        if (order.ShippingFee < 0) throw new InvalidOperationException("Shipping fee must not be negative.");
-        var voucherSelection = await ApplyVouchersAsync(order, lines, input.VoucherCode, input.VoucherCodes, false, ct);
-        foreach (var voucher in voucherSelection.Applied)
+        var pricing = await ApplyVouchersAsync(order, lines, address, input.VoucherCode, input.VoucherCodes, false, ct);
+        var voucherSelection = pricing.Vouchers;
+        var totalAmount = order.Subtotal - order.DiscountAmount + order.ShippingFee - order.ShippingDiscountAmount;
+        if (input.ExpectedTotal is not null && input.ExpectedTotal != totalAmount) throw new BusinessException("Tổng tiền đã thay đổi. Vui lòng xem lại trước khi đặt hàng", 409);
+        var allocations = StoreSplitRules.Summarize(lines, pricing.Rates.ToDictionary(x => x.Key, x => x.Value.Fee), voucherSelection.ShippingDiscounts);
+        var checkoutGroupId = order.Id;
+        var children = new List<Order>();
+        foreach (var amounts in allocations)
         {
-            var voucherDiscount = voucher.DiscountType == "SHIPPING" ? order.ShippingDiscountAmount : order.DiscountAmount;
+            var child = children.Count == 0 ? order : new Order
+            {
+                UserId = userId, OrderCode = "BCA" + Guid.NewGuid().ToString("N")[..20].ToUpperInvariant(), Status = "PENDING", PaymentStatus = "UNPAID",
+                RecipientName = address.RecipientName, RecipientPhone = address.Phone, ShippingAddress = order.ShippingAddress,
+                Note = input.Note, IdempotencyKey = "child:" + Guid.NewGuid().ToString("N"), RequestHash = requestHash, CreatedAt = now
+            };
+            child.CheckoutGroupId = checkoutGroupId;
+            child.Subtotal = amounts.Subtotal; child.DiscountAmount = amounts.DiscountAmount;
+            child.ShippingFee = amounts.ShippingFee; child.ShippingDiscountAmount = amounts.ShippingDiscountAmount; child.TotalAmount = amounts.TotalAmount;
+            var childLines = lines.Where(x => x.StoreId == amounts.StoreId).ToList();
+            foreach (var line in childLines)
+            {
+                line.OrderId = child.Id;
+                store.Set<InventoryReservation>().Add(new InventoryReservation { OrderId = child.Id, VariantId = line.VariantId!.Value, Quantity = line.Quantity, Status = "HELD", ExpiresAt = now.AddHours(config.GetValue<int>("Checkout:ReservationHours")), CreatedAt = now });
+            }
+            store.Set<Order>().Add(child);
+            await AffiliateSources.CaptureAsync(store, child, childLines, affiliateVisitToken ?? input.AffiliateVisitToken, ct);
+            foreach (var group in childLines.GroupBy(x => x.BrandId)) store.Set<SellerOrder>().Add(new SellerOrder { OrderId = child.Id, BrandId = group.Key, StoreId = amounts.StoreId, Status = "PENDING", Subtotal = group.Sum(x => x.UnitPrice * x.Quantity), DiscountAmount = group.Sum(x => x.DiscountAmount), TotalAmount = group.Sum(x => x.TotalPrice), CreatedAt = now });
+            store.Set<Payment>().Add(new Payment { OrderId = child.Id, PaymentMethod = "COD", Amount = child.TotalAmount, Currency = "VND", Status = "PENDING", CreatedAt = now });
+            store.Set<OrderStatusHistory>().Add(new OrderStatusHistory { OrderId = child.Id, OldStatus = "", NewStatus = "PENDING", Note = "Tạo đơn hàng", CreatedAt = now });
+            await UserNotifications.AddAsync(store, userId, "ORDER_CREATED", "Đã tạo đơn hàng " + child.OrderCode, "Đơn hàng của bạn đang chờ xác nhận.", "Order", child.Id, ct);
+            children.Add(child);
+        }
+        foreach (var appliedVoucher in voucherSelection.Applied)
+        {
+            var voucher = appliedVoucher.Voucher;
+            var voucherDiscount = appliedVoucher.Option.DiscountAmount;
             store.Set<VoucherUsage>().Add(new VoucherUsage { VoucherId = voucher.Id, UserId = order.UserId, OrderId = order.Id, DiscountAmount = voucherDiscount, Status = "APPLIED", CreatedAt = now });
-            store.Set<OrderVoucherApplication>().Add(new OrderVoucherApplication { OrderId = order.Id, VoucherId = voucher.Id, DiscountAmount = voucherDiscount });
+            foreach (var child in children)
+            {
+                var childStore = lines.First(x => x.OrderId == child.Id).StoreId!.Value;
+                var allocated = voucher.DiscountType == "SHIPPING" ? child.ShippingDiscountAmount : appliedVoucher.Option.AppliedStoreId == childStore ? voucherDiscount : 0;
+                if (allocated > 0) store.Set<OrderVoucherApplication>().Add(new OrderVoucherApplication { OrderId = child.Id, VoucherId = voucher.Id, DiscountAmount = allocated });
+            }
             var userVoucher = await store.Set<UserVoucher>().SingleOrDefaultAsync(x => x.UserId == userId && x.VoucherId == voucher.Id, ct);
             if (userVoucher is null) { userVoucher = new UserVoucher { UserId = userId, VoucherId = voucher.Id, ClaimedAt = now }; store.Set<UserVoucher>().Add(userVoucher); }
             var usedCount = await store.Set<VoucherUsage>().CountAsync(x => x.UserId == userId && x.VoucherId == voucher.Id && x.Status == "APPLIED", ct);
             userVoucher.Status = usedCount + 1 >= voucher.PerUserLimit ? "USED" : "AVAILABLE"; userVoucher.UsedAt = now;
         }
-        order.TotalAmount = order.Subtotal - order.DiscountAmount + order.ShippingFee - order.ShippingDiscountAmount;
-        if (input.ExpectedTotal is not null && input.ExpectedTotal != order.TotalAmount) throw new BusinessException("Tổng tiền đã thay đổi. Vui lòng xem lại trước khi đặt hàng", 409);
-        store.Set<Order>().Add(order); store.Set<OrderItem>().AddRange(lines);
-        await AffiliateSources.CaptureAsync(store, order, lines, affiliateVisitToken ?? input.AffiliateVisitToken, ct);
-        foreach (var group in lines.GroupBy(x => new { x.StoreId, x.BrandId })) store.Set<SellerOrder>().Add(new SellerOrder { OrderId = order.Id, BrandId = group.Key.BrandId, StoreId = group.Key.StoreId, Status = "PENDING", Subtotal = group.Sum(x => x.UnitPrice * x.Quantity), DiscountAmount = group.Sum(x => x.DiscountAmount), TotalAmount = group.Sum(x => x.TotalPrice), CreatedAt = now });
-        store.Set<Payment>().Add(new Payment { OrderId = order.Id, PaymentMethod = "COD", Amount = order.TotalAmount, Currency = "VND", Status = "PENDING", CreatedAt = now });
-        store.Set<OrderStatusHistory>().Add(new OrderStatusHistory { OrderId = order.Id, OldStatus = "", NewStatus = "PENDING", Note = "Tạo đơn hàng", CreatedAt = now });
-        await UserNotifications.AddAsync(store, userId, "ORDER_CREATED", "Đã tạo đơn hàng " + order.OrderCode, "Đơn hàng của bạn đang chờ xác nhận.", "Order", order.Id, ct);
+        store.Set<OrderItem>().AddRange(lines);
         store.Set<CartItem>().RemoveRange(cartItems);
         await store.SaveChangesAsync(ct); await tx.CommitAsync(ct);
-        return await OrderAsync(userId, order.Id, ct);
+        return await CheckoutResultAsync(userId, order, ct);
     }
 
     public async Task<CheckoutPreviewDto> PreviewAsync(Guid userId, CheckoutPreviewRequest input, CancellationToken ct)
@@ -131,22 +158,30 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         var selected = cart.Items.Where(x => x.IsSelected).ToList();
         if (selected.Count == 0) throw new BusinessException("Chưa chọn sản phẩm");
         if (selected.Any(x => !x.IsAvailable || x.Quantity > x.AvailableStock)) throw new BusinessException("Sản phẩm không còn khả dụng hoặc không đủ tồn kho", 409);
-        var shippingFee = config.GetValue<decimal>("Checkout:ShippingFee");
-        if (shippingFee < 0) throw new InvalidOperationException("Shipping fee must not be negative.");
-        var order = new Order { UserId = userId, Subtotal = cart.SelectedTotal, ShippingFee = shippingFee };
-        var lines = selected.Select(x => new OrderItem { ProductId = x.ProductId, BrandId = x.BrandId, StoreId = x.StoreId, Quantity = x.Quantity, UnitPrice = x.UnitPrice, TotalPrice = x.UnitPrice * x.Quantity }).ToList();
-        var selection = await ApplyVouchersAsync(order, lines, input.VoucherCode, input.VoucherCodes, input.AutoSelectVouchers, ct);
-        return new(order.Subtotal, order.DiscountAmount, shippingFee, order.Subtotal - order.DiscountAmount + shippingFee - order.ShippingDiscountAmount, cart.SelectedCount, CartHash(cart), order.ShippingDiscountAmount, selection.Options, selection.Applied.Select(x => x.Code).ToArray());
+        var addressQuery = store.Set<UserAddress>().AsNoTracking().Where(x => x.UserId == userId);
+        var address = input.AddressId is { } addressId ? await addressQuery.SingleOrDefaultAsync(x => x.Id == addressId, ct) ?? throw new BusinessException("Địa chỉ giao hàng không hợp lệ", 404)
+            : await addressQuery.OrderByDescending(x => x.IsDefault).ThenBy(x => x.Id).FirstOrDefaultAsync(ct);
+        var order = new Order { UserId = userId, Subtotal = cart.SelectedTotal };
+        var lines = selected.Select(x => new OrderItem { ProductId = x.ProductId, VariantId = x.VariantId, BrandId = x.BrandId, StoreId = x.StoreId, Quantity = x.Quantity, UnitPrice = x.UnitPrice, TotalPrice = x.UnitPrice * x.Quantity }).ToList();
+        var pricing = await ApplyVouchersAsync(order, lines, address, input.VoucherCode, input.VoucherCodes, input.AutoSelectVouchers, ct);
+        var selection = pricing.Vouchers;
+        var amounts = StoreSplitRules.Summarize(lines, pricing.Rates.ToDictionary(x => x.Key, x => x.Value.Fee), selection.ShippingDiscounts);
+        var stores = amounts.Select(x => new CheckoutStoreOrderDto(x.StoreId, selected.First(i => i.StoreId == x.StoreId).StoreName ?? "Cửa hàng", x.Subtotal, x.DiscountAmount, x.ShippingFee, x.ShippingDiscountAmount, x.TotalAmount,
+            selection.Applied.Where(v => v.Voucher.StoreId == x.StoreId).Sum(v => v.Option.DiscountAmount), selection.Applied.Where(v => v.Voucher.StoreId == null && v.Voucher.DiscountType != "SHIPPING" && v.Option.AppliedStoreId == x.StoreId).Sum(v => v.Option.DiscountAmount),
+            selection.Applied.FirstOrDefault(v => v.Voucher.StoreId == x.StoreId)?.Voucher.Code, pricing.Rates[x.StoreId].ExpectedDeliveryAt)).ToArray();
+        return new(order.Subtotal, order.DiscountAmount, order.ShippingFee, order.Subtotal - order.DiscountAmount + order.ShippingFee - order.ShippingDiscountAmount, cart.SelectedCount, CartHash(cart), order.ShippingDiscountAmount, selection.Options, selection.Applied.Select(x => x.Voucher.Code).ToArray(), stores,
+            selection.Applied.Where(x => x.Voucher.StoreId != null).Sum(x => x.Option.DiscountAmount), selection.Applied.Where(x => x.Voucher.StoreId == null && x.Voucher.DiscountType != "SHIPPING").Sum(x => x.Option.DiscountAmount));
     }
 
-    private async Task<(IReadOnlyList<CheckoutVoucherDto> Options, IReadOnlyList<Voucher> Applied)> ApplyVouchersAsync(Order order, List<OrderItem> lines, string? legacyCode, IReadOnlyList<string>? voucherCodes, bool autoSelect, CancellationToken ct)
+    private sealed record CheckoutPricing(StoreVoucherSelection Vouchers, IReadOnlyDictionary<Guid, ShippingRate> Rates);
+
+    private async Task<CheckoutPricing> ApplyVouchersAsync(Order order, List<OrderItem> lines, UserAddress? address, string? legacyCode, IReadOnlyList<string>? voucherCodes, bool autoSelect, CancellationToken ct)
     {
         var codes = CheckoutVoucherRules.NormalizeCodes(legacyCode, voucherCodes, autoSelect);
         var collected = voucherCodes is not null || autoSelect;
-        if (!collected && codes.Length == 0) return ([], []);
         var now = DateTimeOffset.UtcNow;
         var owned = await store.Set<UserVoucher>().AsNoTracking().Where(x => x.UserId == order.UserId && x.Status == "AVAILABLE").Select(x => x.VoucherId).ToListAsync(ct);
-        var vouchers = await store.Set<Voucher>().Where(x => owned.Contains(x.Id) || !collected && codes.Contains(x.Code)).OrderBy(x => x.ExpiresAt).ThenBy(x => x.Code).ToListAsync(ct);
+        var vouchers = await store.Set<Voucher>().AsNoTracking().Where(x => owned.Contains(x.Id) || !collected && codes.Contains(x.Code)).OrderBy(x => x.ExpiresAt).ThenBy(x => x.Code).ToListAsync(ct);
         var ids = vouchers.Select(x => x.Id).ToArray();
         var targets = await store.Set<VoucherTarget>().AsNoTracking().Where(x => ids.Contains(x.VoucherId)).ToListAsync(ct);
         var usages = store.Set<VoucherUsage>().AsNoTracking().Where(x => ids.Contains(x.VoucherId) && x.Status == "APPLIED");
@@ -160,51 +195,62 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         }
         var productIds = lines.Select(x => x.ProductId).ToArray();
         var categories = await store.Set<Product>().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.CategoryId, ct);
-        // Both categories use original merchandise totals, so a product discount cannot invalidate shipping eligibility.
-        var originalLines = lines.Select(x => new CheckoutVoucherLine(x.ProductId, x.BrandId, categories[x.ProductId], x.UnitPrice * x.Quantity)).ToArray();
-        var options = vouchers.Select(v => CheckoutVoucherRules.Evaluate(v, targets.Where(t => t.VoucherId == v.Id).ToArray(), originalLines, order.ShippingFee, level, totalUses.GetValueOrDefault(v.Id), userUses.GetValueOrDefault(v.Id), owned.Contains(v.Id), collected, now)).ToArray();
-        if (autoSelect) codes = CheckoutVoucherRules.BestCodes(options);
-        var selected = codes.Select(code => options.SingleOrDefault(x => x.Code == code) ?? throw new BusinessException("Voucher chưa được thu thập hoặc không khả dụng", 409)).ToArray();
-        if (selected.GroupBy(x => x.DiscountType == "SHIPPING").Any(g => g.Count() > 1)) throw new BusinessException("Chỉ chọn tối đa một voucher sản phẩm và một voucher vận chuyển", 400);
-        foreach (var option in selected)
-        {
-            if (!option.IsEligible) throw new BusinessException(option.Reason ?? "Voucher không khả dụng", 409);
-            if (option.DiscountType == "SHIPPING") { order.ShippingDiscountAmount = option.DiscountAmount; continue; }
-            order.DiscountAmount = option.DiscountAmount;
-            var voucherTargets = targets.Where(t => t.VoucherId == option.Id).ToArray();
-            var eligible = lines.Where(x => CheckoutVoucherRules.Matches(x.ProductId, x.BrandId, categories[x.ProductId], voucherTargets)).ToArray();
-            var allocations = CommerceRules.AllocateDiscount(eligible.Select(x => x.TotalPrice).ToArray(), option.DiscountAmount);
-            for (var index = 0; index < eligible.Length; index++) { eligible[index].DiscountAmount = allocations[index]; eligible[index].TotalPrice -= allocations[index]; }
-        }
-        return (options.Where(x => owned.Contains(x.Id)).ToArray(), selected.Select(x => vouchers.Single(v => v.Id == x.Id)).ToArray());
+        var contexts = vouchers.Select(v => new CheckoutVoucherContext(v, targets.Where(t => t.VoucherId == v.Id).ToArray(), totalUses.GetValueOrDefault(v.Id), userUses.GetValueOrDefault(v.Id), owned.Contains(v.Id))).ToArray();
+        var preliminary = lines.Select(x => new OrderItem { ProductId = x.ProductId, VariantId = x.VariantId, BrandId = x.BrandId, StoreId = x.StoreId, ProductName = x.ProductName, Quantity = x.Quantity, UnitPrice = x.UnitPrice, TotalPrice = x.UnitPrice * x.Quantity }).ToArray();
+        var zeroFees = lines.Select(x => x.StoreId!.Value).Distinct().ToDictionary(id => id, _ => 0m);
+        var merchandiseContexts = contexts.Where(x => x.Voucher.DiscountType != "SHIPPING").ToArray();
+        var merchandiseCodes = codes.Where(code => !contexts.Any(x => x.Voucher.Code == code && x.Voucher.DiscountType == "SHIPPING")).ToArray();
+        StoreVoucherPricing.Apply(preliminary, merchandiseContexts, categories, zeroFees, level, merchandiseCodes, autoSelect, collected, now);
+        var rates = await shipping.QuoteAsync(address, preliminary, ct);
+        var result = StoreVoucherPricing.Apply(lines, contexts, categories, rates.ToDictionary(x => x.Key, x => x.Value.Fee), level, codes, autoSelect, collected, now);
+        order.DiscountAmount = lines.Sum(x => x.DiscountAmount); order.ShippingFee = rates.Values.Sum(x => x.Fee); order.ShippingDiscountAmount = result.ShippingDiscounts.Values.Sum();
+        return new(result, rates);
     }
 
     public async Task<PageResult<OrderSummaryDto>> OrdersAsync(Guid userId, CatalogQuery query, CancellationToken ct)
     {
         var (page, size) = CatalogService.Paging(query);
         var source = store.Set<Order>().AsNoTracking().Where(x => x.UserId == userId);
+        if (query.CheckoutGroupId is not null) source = source.Where(x => x.CheckoutGroupId == query.CheckoutGroupId);
         if (query.Status is not null)
         {
             if (query.Status is not ("PENDING" or "CONFIRMED" or "READY" or "SHIPPING" or "COMPLETED" or "CANCELLED" or "REFUNDED")) throw new BusinessException("Trạng thái không hợp lệ", 400);
             source = source.Where(x => x.Status == query.Status);
         }
-        return new(await source.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size).Select(x => new OrderSummaryDto(x.Id, x.OrderCode, x.Status, x.PaymentStatus, x.TotalAmount, x.CreatedAt)).ToListAsync(ct), page, size, await source.CountAsync(ct));
+        return new(await Summaries(source.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size)).ToListAsync(ct), page, size, await source.CountAsync(ct));
+    }
+
+    private IQueryable<OrderSummaryDto> Summaries(IQueryable<Order> source) => source.Select(x => new OrderSummaryDto(x.Id, x.OrderCode, x.Status, x.PaymentStatus, x.TotalAmount, x.CreatedAt,
+        (from line in store.Set<OrderItem>() join seller in store.Set<Store>().IgnoreQueryFilters() on line.StoreId equals seller.Id where line.OrderId == x.Id orderby line.Id select seller.Name).FirstOrDefault()));
+
+    private async Task<OrderDto> CheckoutResultAsync(Guid userId, Order order, CancellationToken ct)
+    {
+        var detail = await OrderAsync(userId, order.Id, ct);
+        if (order.CheckoutGroupId is null) return detail;
+        var children = await Summaries(store.Set<Order>().AsNoTracking().Where(x => x.UserId == userId && x.CheckoutGroupId == order.CheckoutGroupId).OrderBy(x => x.Id)).ToArrayAsync(ct);
+        return detail with { CheckoutOrders = children };
     }
 
     public async Task<OrderDto> OrderAsync(Guid userId, Guid id, CancellationToken ct)
     {
         var order = await store.Set<Order>().AsNoTracking().SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId, ct) ?? throw new BusinessException("Không tìm thấy đơn hàng", 404);
-        var items = await store.Set<OrderItem>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.Id).Select(x => new OrderItemDto(x.Id, x.ProductId, x.BrandId, x.ProductName, x.SKU, x.Quantity, x.UnitPrice, x.DiscountAmount, x.TotalPrice, x.StoreId)).ToListAsync(ct);
+        var items = await store.Set<OrderItem>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.Id).Select(x => new OrderItemDto(x.Id, x.ProductId, x.BrandId, x.ProductName, x.SKU, x.Quantity, x.UnitPrice, x.DiscountAmount, x.TotalPrice, x.StoreId,
+            store.Set<Store>().IgnoreQueryFilters().Where(s => s.Id == x.StoreId).Select(s => s.Name).FirstOrDefault(),
+            store.Set<Store>().Where(s => s.Id == x.StoreId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null).Select(s => s.Slug).FirstOrDefault(),
+            store.Set<ProductImage>().Where(i => i.ProductId == x.ProductId).OrderByDescending(i => i.IsPrimary).ThenBy(i => i.SortOrder).ThenBy(i => i.Id).Select(i => i.ImageUrl).FirstOrDefault(),
+            store.Set<ProductVariant>().Where(v => v.Id == x.VariantId).Select(v => v.VariantName).FirstOrDefault(),
+            store.Set<Brand>().IgnoreQueryFilters().Where(b => b.Id == x.BrandId).Select(b => b.Name).FirstOrDefault())).ToListAsync(ct);
         var shipments = await store.Set<Shipment>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.ShippedAt).Take(50).Select(x => new ShipmentDto(x.Id, x.Carrier, x.TrackingCode, x.Status, x.ShippedAt, x.DeliveredAt)).ToListAsync(ct);
-        var history = await store.Set<OrderStatusHistory>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.CreatedAt).Take(50).Select(x => new OrderHistoryDto(x.OldStatus, x.NewStatus, x.Note, x.CreatedAt)).ToListAsync(ct);
-        return new(order.Id, order.OrderCode, order.Status, order.PaymentStatus, order.Subtotal, order.DiscountAmount, order.ShippingFee, order.TotalAmount, order.RecipientName, order.RecipientPhone, order.ShippingAddress, order.CreatedAt, items, shipments, history, order.ShippingDiscountAmount);
+        var history = await store.Set<OrderStatusHistory>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.CreatedAt).Select(x => new OrderHistoryDto(x.OldStatus, x.NewStatus, x.Note, x.CreatedAt)).ToListAsync(ct);
+        var paymentMethod = await store.Set<Payment>().AsNoTracking().Where(x => x.OrderId == id).Select(x => x.PaymentMethod).FirstOrDefaultAsync(ct);
+        return new(order.Id, order.OrderCode, order.Status, order.PaymentStatus, order.Subtotal, order.DiscountAmount, order.ShippingFee, order.TotalAmount, order.RecipientName, order.RecipientPhone, order.ShippingAddress, order.CreatedAt, items, shipments, history, order.ShippingDiscountAmount, paymentMethod, order.CheckoutGroupId);
     }
 
     public async Task<OrderDto?> FindRequestAsync(Guid userId, string key, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(key) || key.Length > 100) throw new BusinessException("Mã yêu cầu không hợp lệ", 400);
-        var id = await store.Set<Order>().Where(x => x.UserId == userId && x.IdempotencyKey == key).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
-        return id is null ? null : await OrderAsync(userId, id.Value, ct);
+        var order = await store.Set<Order>().SingleOrDefaultAsync(x => x.UserId == userId && x.IdempotencyKey == key, ct);
+        return order is null ? null : await CheckoutResultAsync(userId, order, ct);
     }
 
     public async Task CancelAsync(Guid userId, Guid id, CancellationToken ct)
@@ -258,14 +304,20 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
             if (status == "CANCELLED")
             {
                 order.CancelledAt = now;
-                foreach (var usage in await store.Set<VoucherUsage>().Where(x => x.OrderId == order.Id && x.Status == "APPLIED").ToListAsync(ct))
+                var relatedIds = order.CheckoutGroupId is null ? new[] { order.Id }
+                    : await store.Set<Order>().Where(x => x.UserId == order.UserId && x.CheckoutGroupId == order.CheckoutGroupId).Select(x => x.Id).ToArrayAsync(ct);
+                foreach (var usage in await store.Set<VoucherUsage>().Where(x => relatedIds.Contains(x.OrderId) && x.Status == "APPLIED").ToListAsync(ct))
                 {
+                    var stillApplied = await (from application in store.Set<OrderVoucherApplication>() join sibling in store.Set<Order>() on application.OrderId equals sibling.Id
+                        where application.VoucherId == usage.VoucherId && relatedIds.Contains(sibling.Id) && sibling.Id != order.Id && sibling.Status != "CANCELLED" && application.DiscountAmount > 0
+                        select application.Id).AnyAsync(ct);
+                    if (stillApplied) continue;
                     usage.Status = "RELEASED";
                     var userVoucher = await store.Set<UserVoucher>().SingleOrDefaultAsync(x => x.UserId == order.UserId && x.VoucherId == usage.VoucherId, ct);
                     if (userVoucher is not null)
                     {
                         var limit = await store.Set<Voucher>().Where(x => x.Id == usage.VoucherId).Select(x => x.PerUserLimit).SingleAsync(ct);
-                        var otherUsages = store.Set<VoucherUsage>().Where(x => x.UserId == order.UserId && x.VoucherId == usage.VoucherId && x.OrderId != order.Id && x.Status == "APPLIED");
+                        var otherUsages = store.Set<VoucherUsage>().Where(x => x.UserId == order.UserId && x.VoucherId == usage.VoucherId && x.Id != usage.Id && x.Status == "APPLIED");
                         userVoucher.Status = await otherUsages.CountAsync(ct) >= limit ? "USED" : "AVAILABLE";
                         userVoucher.UsedAt = await otherUsages.Select(x => (DateTimeOffset?)x.CreatedAt).MaxAsync(ct);
                     }

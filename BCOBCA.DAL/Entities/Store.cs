@@ -6,6 +6,7 @@ public sealed class Store
     public Guid OwnerAccountId { get; set; }
     public short StoreType { get; set; }
     public string Name { get; set; } = "";
+    public int? GhnTestShopId { get; set; }
     public string Slug { get; set; } = "";
     public string LogoUrl { get; set; } = "";
     public string CoverUrl { get; set; } = "";

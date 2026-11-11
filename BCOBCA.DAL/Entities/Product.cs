@@ -13,6 +13,10 @@ public sealed class Product
     public string Description { get; set; } = "";
     public string Specifications { get; set; } = "{}";
     public decimal BasePrice { get; set; }
+    public int? ShippingWeightGrams { get; set; }
+    public int? ShippingLengthCm { get; set; }
+    public int? ShippingWidthCm { get; set; }
+    public int? ShippingHeightCm { get; set; }
     public decimal? SalePrice { get; set; }
     public short ProductType { get; set; }
     public short Status { get; set; }

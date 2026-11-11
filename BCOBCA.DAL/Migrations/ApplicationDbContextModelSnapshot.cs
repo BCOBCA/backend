@@ -1342,6 +1342,9 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<DateTimeOffset?>("CancelledAt")
                         .HasColumnType("timestamptz");
 
+                    b.Property<Guid?>("CheckoutGroupId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamptz");
 
@@ -1417,6 +1420,8 @@ namespace BCOBCA.DAL.Migrations
 
                     b.HasIndex("OrderCode")
                         .IsUnique();
+
+                    b.HasIndex("UserId", "CheckoutGroupId");
 
                     b.HasIndex("UserId", "IdempotencyKey")
                         .IsUnique();
@@ -1764,6 +1769,18 @@ namespace BCOBCA.DAL.Migrations
 
                     b.Property<decimal?>("SalePrice")
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("ShippingHeightCm")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ShippingLengthCm")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ShippingWeightGrams")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ShippingWidthCm")
+                        .HasColumnType("integer");
 
                     b.Property<string>("ShortDescription")
                         .IsRequired()
@@ -2487,6 +2504,9 @@ namespace BCOBCA.DAL.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<int?>("GhnTestShopId")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean");
 
@@ -3006,6 +3026,9 @@ namespace BCOBCA.DAL.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(20)");
 
+                    b.Property<Guid?>("StoreId")
+                        .HasColumnType("uuid");
+
                     b.Property<int?>("UsageLimit")
                         .HasColumnType("int");
 
@@ -3019,6 +3042,8 @@ namespace BCOBCA.DAL.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("StoreId");
 
                     b.ToTable("Vouchers", null, t =>
                         {
@@ -3833,6 +3858,14 @@ namespace BCOBCA.DAL.Migrations
                         .HasForeignKey("VoucherId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.Voucher", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.VoucherTarget", b =>

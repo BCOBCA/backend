@@ -57,7 +57,7 @@ public sealed class CheckoutVoucherRulesTests
     [Fact]
     public void RejectsInvalidSelections()
     {
-        foreach (var codes in new[] { new[] { "A", "B", "C" }, new[] { "A", "a" }, new[] { "" } })
+        foreach (var codes in new[] { Enumerable.Range(0, 103).Select(x => $"CODE{x}").ToArray(), new[] { "A", "a" }, new[] { "" } })
             Assert.Throws<BusinessException>(() => CheckoutVoucherRules.NormalizeCodes(null, codes, false));
     }
 

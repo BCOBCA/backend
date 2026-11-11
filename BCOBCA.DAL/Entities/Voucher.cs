@@ -3,6 +3,7 @@ namespace BCOBCA.DAL.Entities;
 public sealed class Voucher
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? StoreId { get; set; }
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";

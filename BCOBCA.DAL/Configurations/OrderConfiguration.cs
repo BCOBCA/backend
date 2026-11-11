@@ -14,6 +14,8 @@ public sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(x => x.OrderCode).IsUnique();
         builder.Property(x => x.UserId).HasColumnType("uuid").IsRequired();
         builder.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        builder.Property(x => x.CheckoutGroupId).HasColumnType("uuid");
+        builder.HasIndex(x => new { x.UserId, x.CheckoutGroupId });
         builder.Property(x => x.Status).HasColumnType("varchar(30)").IsRequired();
         builder.Property(x => x.PaymentStatus).HasColumnType("varchar(30)").IsRequired();
         builder.Property(x => x.Subtotal).HasColumnType("numeric(18,2)").IsRequired();

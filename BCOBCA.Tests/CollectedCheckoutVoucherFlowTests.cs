@@ -43,11 +43,12 @@ public sealed class CollectedCheckoutVoucherFlowTests
             var unowned = NewVoucher("NOTCOLLECTED", "FIXED", 100000);
             var expired = NewVoucher("COLLECTEXPIRED", "FIXED", 200000); expired.ExpiresAt = now.AddSeconds(-1);
             db.Categories.Add(category); db.Brands.Add(brand); db.Products.Add(product); db.ProductVariants.Add(variant);
+            db.ProductImages.Add(new ProductImage { ProductId = product.Id, ImageUrl = "https://example.test/order-image.jpg", IsPrimary = true });
             db.Vouchers.AddRange(fixedVoucher, percent, shipping, unowned, expired);
             foreach (var v in new[] { fixedVoucher, percent, shipping, expired }) db.UserVouchers.Add(new UserVoucher { UserId = buyer.User.Id, VoucherId = v.Id, Status = "AVAILABLE", ClaimedAt = now });
             await db.SaveChangesAsync();
             var members = new MemberService(store);
-            var orders = new OrderService(store, config, new FinanceService(store, config));
+            var orders = TestOrders.Create(store, config, new FinanceService(store, config));
             await orders.AddAsync(buyer.User.Id, new(product.Id, variant.Id, 1), default);
             var preview = await orders.PreviewAsync(buyer.User.Id, new(VoucherCodes: [], AutoSelectVouchers: true), default);
             Assert.Equal(new[] { fixedVoucher.Code, shipping.Code }, preview.AppliedVoucherCodes);
@@ -65,6 +66,14 @@ public sealed class CollectedCheckoutVoucherFlowTests
             var order = await orders.CheckoutAsync(buyer.User.Id, "collected-pair", input, default);
             Assert.Equal(order.Id, (await orders.CheckoutAsync(buyer.User.Id, "collected-pair", input, default)).Id);
             Assert.Equal(460000, order.TotalAmount); Assert.Equal(450000, order.Items.Single().TotalPrice);
+            Assert.Equal("Test store", order.Items.Single().StoreName);
+            Assert.Equal("Vouchers", order.Items.Single().BrandName);
+            Assert.StartsWith("test-store-", order.Items.Single().StoreSlug);
+            Assert.Equal("Default", order.Items.Single().VariantName);
+            Assert.Equal("https://example.test/order-image.jpg", order.Items.Single().ImageUrl);
+            Assert.Equal("COD", order.PaymentMethod);
+            Assert.Contains(order.History!, x => x.NewStatus == "PENDING" && x.Note == "Tạo đơn hàng");
+            await Assert.ThrowsAsync<BusinessException>(() => orders.OrderAsync(owner.User.Id, order.Id, default));
             Assert.Equal(new[] { 20000m, 50000m }, await db.VoucherUsages.Where(x => x.OrderId == order.Id).OrderBy(x => x.DiscountAmount).Select(x => x.DiscountAmount).ToArrayAsync());
             Assert.Equal(2, await db.OrderVoucherApplications.CountAsync(x => x.OrderId == order.Id));
             Assert.Equal(460000, (await db.Payments.SingleAsync(x => x.OrderId == order.Id)).Amount);
@@ -72,6 +81,21 @@ public sealed class CollectedCheckoutVoucherFlowTests
             await orders.CancelAsync(buyer.User.Id, order.Id, default);
             Assert.All(await db.UserVouchers.Where(x => x.VoucherId == fixedVoucher.Id || x.VoucherId == shipping.Id).ToListAsync(), x => Assert.Equal("AVAILABLE", x.Status));
             Assert.Equal(0, await db.VoucherUsages.CountAsync(x => x.OrderId == order.Id && x.Status == "APPLIED"));
+            product.IsDeleted = true;
+            var seller = await db.Stores.IgnoreQueryFilters().SingleAsync(x => x.Id == product.StoreId); seller.DeletedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            var historical = await orders.OrderAsync(buyer.User.Id, order.Id, default);
+            Assert.Equal("Voucher test", historical.Items.Single().ProductName);
+            Assert.Equal("Test store", historical.Items.Single().StoreName);
+            Assert.Null(historical.Items.Single().StoreSlug);
+            Assert.Contains(historical.History!, x => x.NewStatus == "CANCELLED");
+            var legacyItem = await db.OrderItems.SingleAsync(x => x.OrderId == order.Id);
+            legacyItem.StoreId = null;
+            await db.SaveChangesAsync();
+            var legacyOrder = await orders.OrderAsync(buyer.User.Id, order.Id, default);
+            Assert.Null(legacyOrder.Items.Single().StoreName);
+            Assert.Null(legacyOrder.Items.Single().StoreSlug);
+            Assert.Equal("Vouchers", legacyOrder.Items.Single().BrandName);
         }
         finally
         {

@@ -124,6 +124,9 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         foreach (var v in input.Variants) ProductSpecificationRules.ValidateValues(ProductSpecificationRules.ParseValues(v.Attributes), definitions, "variant");
         if (input.Specifications is not null) product.Specifications = JsonSerializer.Serialize(input.Specifications, ProductSpecificationRules.JsonOptions);
         product.CategoryId = input.CategoryId; product.Name = input.Name; product.Slug = input.Slug; product.SKU = input.SKU; product.Description = input.Description; product.ShortDescription = input.ShortDescription;
+        if (input.ShippingWeightGrams is <= 0 or > 50000 || input.ShippingLengthCm is <= 0 or > 200 || input.ShippingWidthCm is <= 0 or > 200 || input.ShippingHeightCm is <= 0 or > 200) throw new BusinessException("Kích thước hoặc khối lượng vận chuyển không hợp lệ");
+        product.ShippingWeightGrams = input.ShippingWeightGrams ?? product.ShippingWeightGrams;
+        product.ShippingLengthCm = input.ShippingLengthCm ?? product.ShippingLengthCm; product.ShippingWidthCm = input.ShippingWidthCm ?? product.ShippingWidthCm; product.ShippingHeightCm = input.ShippingHeightCm ?? product.ShippingHeightCm;
         product.BasePrice = input.BasePrice; product.SalePrice = input.SalePrice; product.Status = (short)(input.IsActive ? 1 : 0); product.IsFeatured = input.IsFeatured; product.UpdatedAt = DateTimeOffset.UtcNow;
         if (id is null) store.Set<Product>().Add(product);
         var existing = await store.Set<ProductVariant>().Where(x => x.ProductId == product.Id).ToListAsync(ct);
@@ -178,17 +181,32 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         await Audit(accountId, id is null ? "CREATE" : "UPDATE", "Article", article.Id, ct); return article.Id;
     }
 
+    public async Task SetStoreTestShippingAsync(Guid accountId, Guid storeId, StoreTestShippingInput input, CancellationToken ct)
+    {
+        await RequireAdmin(accountId, ct);
+        await StoreAccess(accountId, storeId, ct);
+        if (input.GhnTestShopId <= 0) throw new BusinessException("Mã cửa hàng GHN test không hợp lệ");
+        var seller = await store.Set<Store>().SingleAsync(x => x.Id == storeId, ct);
+        seller.GhnTestShopId = input.GhnTestShopId;
+        await Audit(accountId, "UPDATE_TEST_SHIPPING", "Store", storeId, ct);
+    }
+
     public async Task<Guid> SaveVoucherAsync(Guid accountId, Guid? id, VoucherInput input, CancellationToken ct)
     {
-        await RequireAdmin(accountId, ct); Text(input.Code, "Mã voucher", 50); Text(input.Name, "Tên voucher", 150); Text(input.Description, "Mô tả", 10000, false);
+        if (input.StoreId is { } owningStore) await StoreAccess(accountId, owningStore, ct); else await RequireAdmin(accountId, ct);
+        if (input.StoreId is not null && (input.PointCost > 0 || input.MinLevel > 1)) await RequireAdmin(accountId, ct);
+        Text(input.Code, "Mã voucher", 50); Text(input.Name, "Tên voucher", 150); Text(input.Description, "Mô tả", 10000, false);
         Money(input.DiscountValue); Money(input.MinOrderAmount); if (input.MaxDiscount is not null) Money(input.MaxDiscount.Value);
         if (input.PointCost < 0 || input.MinLevel is < 1 or > 10 || input.PointCost > 0 && input.PerUserLimit != 1) throw new BusinessException("Quy tắc điểm và level của voucher không hợp lệ");
         if (input.DiscountType is not ("FIXED" or "PERCENT" or "SHIPPING") || input.DiscountType == "PERCENT" && input.DiscountValue > 100 || input.DiscountValue <= 0 || input.PerUserLimit < 1 || input.UsageLimit < 1 || input.ExpiresAt <= input.StartsAt || input.Targets is null || input.Targets.Any(x => x is null) || input.Targets.Count > 100) throw new BusinessException("Quy tắc voucher không hợp lệ");
         await using var tx = await store.BeginTransactionAsync(ct);
         var voucher = id is null ? new Voucher() : await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy voucher", 404);
+        if (id is not null && voucher.StoreId != input.StoreId && !await Admin(accountId, ct)) throw new BusinessException("Không có quyền đổi phạm vi voucher", 403);
         if (id is not null && (await store.Set<VoucherUsage>().AnyAsync(x => x.VoucherId == id, ct) || await store.Set<UserVoucher>().AnyAsync(x => x.VoucherId == id, ct))) throw new BusinessException("Voucher đã được nhận hoặc sử dụng. Vui lòng tạo mã mới", 409);
         voucher.Code = input.Code.Trim().ToUpperInvariant(); voucher.Name = input.Name; voucher.Description = input.Description; voucher.DiscountType = input.DiscountType; voucher.DiscountValue = input.DiscountValue; voucher.MaxDiscount = input.MaxDiscount;
         voucher.MinOrderAmount = input.MinOrderAmount; voucher.PerUserLimit = input.PerUserLimit; voucher.UsageLimit = input.UsageLimit; voucher.StartsAt = input.StartsAt.ToUniversalTime(); voucher.ExpiresAt = input.ExpiresAt.ToUniversalTime(); voucher.Status = input.IsActive ? "ACTIVE" : "INACTIVE";
+        if (input.StoreId is { } sellerId && (!await store.Set<Store>().AnyAsync(x => x.Id == sellerId && x.StoreType == 1 && x.Status == 1, ct) || input.DiscountType == "SHIPPING")) throw new BusinessException("Voucher cửa hàng không hợp lệ", 409);
+        voucher.StoreId = input.StoreId;
         voucher.PointCost = input.PointCost; voucher.MinLevel = input.MinLevel; voucher.IsFlashSale = input.IsFlashSale;
         // Older releases only recognize ACTIVE and cannot enforce point/level restrictions.
         if (input.IsActive && (input.PointCost > 0 || input.MinLevel > 1 || input.DiscountType == "SHIPPING")) voucher.Status = "MEMBER_OFFER";

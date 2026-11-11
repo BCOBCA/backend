@@ -38,8 +38,10 @@ public sealed class StoreOwnedProductsFlowTests
             var brand = new Brand { OwnerAccountId = ownerA.Id, Status = 1, Name = "Shared manufacturer", Slug = "shared-manufacturer" };
             var category = new Category { Name = "Phones", Slug = "owner-phones", IsActive = true };
             var cart = new Cart { UserId = buyer.Id };
-            db.AddRange(ownerA, ownerB, buyerAccount, buyer, storeA, storeB, brand, category, cart);
+            db.AddRange(ownerA, ownerB, buyerAccount, buyer, brand, category, cart);
             await db.SaveChangesAsync();
+            await InsertLegacy("Stores", storeA); await InsertLegacy("Stores", storeB);
+            db.Stores.AttachRange(storeA, storeB);
             var original = new Product { BrandId = brand.Id, CategoryId = category.Id, Name = "Same model", Slug = "same-model", SKU = "SAME-MODEL", BasePrice = 1000, Status = 1, Specifications = "{\"chip\":\"Example chip\"}", AffiliateBudget = 100 };
             var originalVariant = new ProductVariant { ProductId = original.Id, SKU = "SAME-MODEL-64", VariantName = "64 GB", Attributes = "{\"storage\":\"64 GB\"}", Price = 1000, StockQuantity = 10, ReservedQuantity = 2, IsActive = true };
             var orphan = new Product { BrandId = brand.Id, CategoryId = category.Id, Name = "Unassigned historical record", Slug = "unassigned", SKU = "UNASSIGNED", Status = 1 };
@@ -51,6 +53,7 @@ public sealed class StoreOwnedProductsFlowTests
                 var parameter = new NpgsqlParameter("payload", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value = payload.ToJsonString() };
                 var sql = table switch
                 {
+                    "Stores" => "INSERT INTO \"Stores\" SELECT (jsonb_populate_record(NULL::\"Stores\", @payload)).*",
                     "Products" => "INSERT INTO \"Products\" SELECT (jsonb_populate_record(NULL::\"Products\", @payload)).*",
                     "ProductVariants" => "INSERT INTO \"ProductVariants\" SELECT (jsonb_populate_record(NULL::\"ProductVariants\", @payload)).*",
                     "ProductImages" => "INSERT INTO \"ProductImages\" SELECT (jsonb_populate_record(NULL::\"ProductImages\", @payload)).*",
@@ -123,7 +126,7 @@ public sealed class StoreOwnedProductsFlowTests
             Assert.Equal(1000, (await db.ProductVariants.AsNoTracking().SingleAsync(v => v.Id == originalVariant.Id)).Price);
             var config = new ConfigurationBuilder().AddEnvironmentVariables().AddInMemoryCollection(new Dictionary<string,string?> { ["Settlement:PlatformFeeRate"] = "0.1", ["Settlement:HoldDays"] = "0", ["Checkout:ShippingFee"] = "0" }).Build();
             var finance = new FinanceService(repository, config);
-            var orders = new OrderService(repository, config, finance);
+            var orders = TestOrders.Create(repository, config, finance);
             await Assert.ThrowsAsync<BusinessException>(() => orders.AddAsync(buyer.Id, new CartItemRequest(retained.Id, clonedVariant.Id, 1), default));
             await orders.AddAsync(buyer.Id, new CartItemRequest(retained.Id, originalVariant.Id, 1), default);
             await orders.AddAsync(buyer.Id, new CartItemRequest(clone.Id, clonedVariant.Id, 1), default);
@@ -132,35 +135,40 @@ public sealed class StoreOwnedProductsFlowTests
             Assert.Equal(2, cartView.Items.Select(i => i.StoreId).Distinct().Count());
             var address = await new MemberService(repository).SaveAddressAsync(buyer.Id, null, new AddressRequest("Buyer", "0901234567", "79", "001", "Ownership test address", true), default);
             var order = await orders.CheckoutAsync(buyer.Id, "store-isolation", new CheckoutRequest(address.Id), default);
-            Assert.Equal(2, order.Items.Select(i => i.StoreId).Distinct().Count());
-            Assert.Equal(2, await db.Set<SellerOrder>().CountAsync(s => s.OrderId == order.Id));
-            var persistedOrder = await db.Orders.SingleAsync(o => o.Id == order.Id);
-            persistedOrder.Status = "COMPLETED"; persistedOrder.PaymentStatus = "PAID";
+            var checkoutIds = order.CheckoutOrders!.Select(o => o.Id).ToArray();
+            Assert.Equal(2, checkoutIds.Length);
+            Assert.Single(order.Items.Select(i => i.StoreId).Distinct());
+            Assert.Equal(2, await db.Set<SellerOrder>().CountAsync(s => checkoutIds.Contains(s.OrderId)));
+            foreach (var persistedOrder in await db.Orders.Where(o => checkoutIds.Contains(o.Id)).ToListAsync())
+            {
+                persistedOrder.Status = "COMPLETED"; persistedOrder.PaymentStatus = "PAID";
+            }
             // Finance requires its caller's transaction and a membership; no unrelated ledger rules are mocked.
             db.Add(new UserMembership { UserId = buyer.Id, MemberCode = "STORE-BUYER-MEMBER", TierId = await db.Set<MembershipTier>().OrderBy(t => t.MinPoints).Select(t => t.Id).FirstAsync() });
             await db.SaveChangesAsync();
             await using (var tx = await db.Database.BeginTransactionAsync())
             {
-                await finance.AccrueOrderAsync(order.Id, default);
+                foreach (var childId in checkoutIds) await finance.AccrueOrderAsync(childId, default);
                 await tx.CommitAsync();
             }
             var refunds = new RefundSettlementService(repository, config);
             var aSettlements = (await refunds.SettlementsAsync(ownerA.Id, false, new CatalogQuery(), default)).Items;
             var bSettlements = (await refunds.SettlementsAsync(ownerB.Id, false, new CatalogQuery(), default)).Items;
-            Assert.Equal(storeA.Id, Assert.Single(aSettlements, s => s.OrderId == order.Id).StoreId);
+            Assert.Equal(storeA.Id, Assert.Single(aSettlements, s => checkoutIds.Contains(s.OrderId)).StoreId);
             Assert.Equal(storeB.Id, Assert.Single(bSettlements).StoreId);
             var settlementB = await db.Set<SellerSettlement>().SingleAsync(s => s.StoreId == storeB.Id);
             settlementB.Status = "PAID"; settlementB.PaidAmount = settlementB.NetAmount;
-            var completedRefund = new Refund { PaymentId = await db.Set<Payment>().Where(p => p.OrderId == order.Id).Select(p => p.Id).SingleAsync(), Amount = settlementB.NetAmount, Status = "COMPLETED", Reason = "Store B recovery fixture" };
+            var sellerBOrderId = await db.SellerOrders.Where(s => s.Id == settlementB.SellerOrderId).Select(s => s.OrderId).SingleAsync();
+            var completedRefund = new Refund { PaymentId = await db.Set<Payment>().Where(p => p.OrderId == sellerBOrderId).Select(p => p.Id).SingleAsync(), Amount = settlementB.NetAmount, Status = "COMPLETED", Reason = "Store B recovery fixture" };
             var debtB = new SellerSettlementAdjustment { SellerSettlementId = settlementB.Id, RefundId = completedRefund.Id, Amount = settlementB.NetAmount, RemainingAmount = settlementB.NetAmount, Status = "OPEN" };
             db.AddRange(completedRefund, debtB, new AccountRole { AccountId = ownerA.Id, Role = "Admin" });
             await db.SaveChangesAsync();
-            var settlementA = Assert.Single(aSettlements, s => s.OrderId == order.Id);
+            var settlementA = Assert.Single(aSettlements, s => checkoutIds.Contains(s.OrderId));
             await refunds.PaySettlementAsync(ownerA.Id, settlementA.Id, new SettlementPaymentRequest("STORE-A-PAYOUT"), default);
             Assert.Equal(settlementA.NetAmount, (await db.Set<SellerSettlement>().SingleAsync(s => s.Id == settlementA.Id)).PaidAmount);
             Assert.Equal(settlementB.NetAmount, (await db.Set<SellerSettlementAdjustment>().SingleAsync()).RemainingAmount);
             await Assert.ThrowsAsync<PostgresException>(() => db.GetService<IMigrator>().MigrateAsync("20261109032814_AddProductSpecifications"));
-            Assert.Equal(2, await db.Set<SellerOrder>().CountAsync(s => s.OrderId == order.Id && s.StoreId != null));
+            Assert.Equal(2, await db.Set<SellerOrder>().CountAsync(s => checkoutIds.Contains(s.OrderId) && s.StoreId != null));
             storeB.Status = 0;
             await db.SaveChangesAsync();
             await Assert.ThrowsAsync<BusinessException>(() => catalog.ProductAsync(clone.Id, default));

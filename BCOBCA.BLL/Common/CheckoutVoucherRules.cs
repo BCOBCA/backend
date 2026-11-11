@@ -9,8 +9,8 @@ public static class CheckoutVoucherRules
 {
     public static string[] NormalizeCodes(string? legacyCode, IReadOnlyList<string>? codes, bool autoSelect)
     {
-        if (legacyCode?.Length > 50 || codes?.Count > 2 || !string.IsNullOrWhiteSpace(legacyCode) && (codes is not null || autoSelect) || autoSelect && codes?.Count > 0)
-            throw new BusinessException("Chỉ chọn tối đa một voucher sản phẩm và một voucher vận chuyển", 400);
+        if (legacyCode?.Length > 50 || codes?.Count > 102 || !string.IsNullOrWhiteSpace(legacyCode) && (codes is not null || autoSelect) || autoSelect && codes?.Count > 0)
+            throw new BusinessException("Danh sách voucher không hợp lệ", 400);
         var result = codes?.ToArray() ?? (string.IsNullOrWhiteSpace(legacyCode) ? [] : [legacyCode]);
         if (result.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 50)) throw new BusinessException("Mã voucher không hợp lệ", 400);
         result = result.Select(x => x.Trim().ToUpperInvariant()).ToArray();

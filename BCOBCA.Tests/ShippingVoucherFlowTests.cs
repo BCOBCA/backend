@@ -38,7 +38,7 @@ public sealed class ShippingVoucherFlowTests
             var product = new Product { StoreId = TestStores.Own(db, brand), Name = "Shipping test", Slug = "shipping-test", SKU = "SHIP-P", BrandId = brand.Id, CategoryId = category.Id, BasePrice = 500000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
             var variant = new ProductVariant { ProductId = product.Id, SKU = "SHIP-V", VariantName = "Default", Price = 500000, StockQuantity = 5, IsActive = true };
             db.Categories.Add(category); db.Brands.Add(brand); db.Products.Add(product); db.ProductVariants.Add(variant); await db.SaveChangesAsync();
-            var members = new MemberService(store); var finance = new FinanceService(store, config); var orders = new OrderService(store, config, finance);
+            var members = new MemberService(store); var finance = new FinanceService(store, config); var orders = TestOrders.Create(store, config, finance);
             var free = await db.Vouchers.SingleAsync(x => x.Code == "BCASHIP30K");
             var paid = await db.Vouchers.SingleAsync(x => x.Code == "BCADOISHIP30K");
             Assert.Equal("SHIPPING", free.DiscountType); Assert.Equal("MEMBER_OFFER", free.Status); Assert.Equal(1000, paid.PointCost);

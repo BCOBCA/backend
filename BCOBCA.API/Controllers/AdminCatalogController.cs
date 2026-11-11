@@ -11,6 +11,7 @@ public sealed class AdminCatalogController(IAdminCatalogService admin) : Control
 {
     private Guid AccountId => Guid.Parse(User.FindFirst("sub")!.Value);
     private IActionResult Resource(Guid id) => Ok(ApiResponse<ResourceIdDto>.Ok(new(id)));
+    [HttpPut("stores/{id:guid}/shipping-test")] public async Task<IActionResult> StoreShipping(Guid id, StoreTestShippingInput input, CancellationToken ct) { await admin.SetStoreTestShippingAsync(AccountId, id, input, ct); return Ok(ApiResponse<object>.Ok(new { })); }
     [HttpPost("brands")] public async Task<IActionResult> AddBrand(BrandInput input, CancellationToken ct) => Resource(await admin.SaveBrandAsync(AccountId, null, input, ct));
     [HttpPut("brands/{id:guid}")] public async Task<IActionResult> PutBrand(Guid id, BrandInput input, CancellationToken ct) => Resource(await admin.SaveBrandAsync(AccountId, id, input, ct));
     [HttpPost("categories")] public async Task<IActionResult> AddCategory(CategoryInput input, CancellationToken ct) => Resource(await admin.SaveCategoryAsync(AccountId, null, input, ct));

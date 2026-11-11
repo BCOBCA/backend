@@ -4,6 +4,7 @@ namespace BCOBCA.BLL.Interfaces;
 
 public interface IAdminCatalogService
 {
+    Task SetStoreTestShippingAsync(Guid accountId, Guid storeId, StoreTestShippingInput input, CancellationToken ct);
     Task<Guid> SaveBrandAsync(Guid accountId, Guid? id, BrandInput input, CancellationToken ct);
     Task<Guid> SaveCategoryAsync(Guid accountId, Guid? id, CategoryInput input, CancellationToken ct);
     Task<Guid> SaveProductAsync(Guid accountId, Guid? id, ProductInput input, CancellationToken ct);

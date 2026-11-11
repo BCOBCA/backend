@@ -73,7 +73,7 @@ public sealed class ProductAffiliateFlowTests
             await links.SetProductPolicyAsync(other.User.AccountId, product.Id, new(true, 0.01m, 700m), default);
             var member = new MemberService(store);
             var address = await member.SaveAddressAsync(buyer.User.Id, null, new AddressRequest("Buyer", "0901234567", "79", "001", "Test address", true), default);
-            var finance = new FinanceService(store, config); var orders = new OrderService(store, config, finance);
+            var finance = new FinanceService(store, config); var orders = TestOrders.Create(store, config, finance);
             var voucher = new Voucher { Code = "LESS10", Name = "Discount", DiscountType = "FIXED", DiscountValue = 10000, PerUserLimit = 10, StartsAt = DateTimeOffset.UtcNow.AddDays(-1), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1), Status = "ACTIVE" };
             db.Vouchers.Add(voucher); db.VoucherTargets.Add(new VoucherTarget { VoucherId = voucher.Id, ProductId = product.Id }); await db.SaveChangesAsync();
             await orders.AddAsync(buyer.User.Id, new(product.Id, variant.Id, 1), default); await orders.AddAsync(buyer.User.Id, new(unlinked.Id, secondVariant.Id, 1), default);
@@ -159,7 +159,7 @@ public sealed class ProductAffiliateFlowTests
                 if (synchronize) builder.AddInterceptors(barrier);
                 await using var concurrent = new ApplicationDbContext(builder.Options);
                 var concurrentStore = new CommerceStore(concurrent);
-                try { await new OrderService(concurrentStore, config, new FinanceService(concurrentStore, config)).TransitionAsync(other.User.AccountId, orderId, new("COMPLETED", true), default); return true; }
+                try { await TestOrders.Create(concurrentStore, config, new FinanceService(concurrentStore, config)).TransitionAsync(other.User.AccountId, orderId, new("COMPLETED", true), default); return true; }
                 catch (Exception ex) when (DatabaseConflicts.IsConcurrency(ex)) { return false; }
             }
             var results = await Task.WhenAll(Complete(raceFirst.Id, true), Complete(raceSecond.Id, true));
