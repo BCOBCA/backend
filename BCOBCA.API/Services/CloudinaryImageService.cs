@@ -2,6 +2,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.IO.Compression;
 using BCOBCA.BLL.Common;
 using BCOBCA.BLL.DTOs;
 
@@ -25,21 +26,69 @@ public sealed class CloudinaryImageService(HttpClient client, IConfiguration con
         if (mime is null || !string.Equals(mime, file.ContentType, StringComparison.OrdinalIgnoreCase))
             throw new BusinessException("Chỉ hỗ trợ ảnh JPEG, PNG hoặc WebP hợp lệ.");
 
+        return await UploadBufferAsync(buffer, mime, "image", "", ct);
+    }
+
+    public async Task<ImageUploadDto> UploadAttachmentAsync(IFormFile file, CancellationToken ct)
+    {
+        if (file.Length == 0) throw new BusinessException("Không thể đính kèm tệp trống.");
+        if (file.Length > MaxImageBytes) throw new BusinessException("Tệp không được lớn hơn 5 MB.", 413);
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension is ".jpg" or ".jpeg" or ".png" or ".webp") return await UploadAsync(file, ct);
+        var mime = extension switch
+        {
+            ".pdf" => "application/pdf",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".txt" => "text/plain",
+            _ => null
+        };
+        if (mime is null || (file.ContentType != mime && file.ContentType != "application/octet-stream"))
+            throw new BusinessException("Chỉ hỗ trợ ảnh JPG, PNG, WebP hoặc tài liệu PDF, DOCX, XLSX, TXT.");
+        await using var buffer = new MemoryStream((int)file.Length);
+        await file.CopyToAsync(buffer, ct);
+        if (buffer.Length != file.Length || !ValidDocument(buffer, extension)) throw new BusinessException("Nội dung tệp không hợp lệ.");
+        return await UploadBufferAsync(buffer, mime, "raw", extension, ct);
+    }
+
+    private static bool ValidDocument(MemoryStream buffer, string extension)
+    {
+        var bytes = buffer.GetBuffer().AsSpan(0, (int)buffer.Length);
+        if (extension == ".pdf") return bytes.StartsWith("%PDF-"u8);
+        if (extension == ".txt")
+        {
+            try { return !new UTF8Encoding(false, true).GetString(bytes).Any(c => char.IsControl(c) && c is not '\r' and not '\n' and not '\t'); }
+            catch (DecoderFallbackException) { return false; }
+        }
+        try
+        {
+            buffer.Position = 0;
+            using var zip = new ZipArchive(buffer, ZipArchiveMode.Read, leaveOpen: true);
+            return zip.Entries.Count <= 2000 && zip.Entries.Sum(e => e.Length) <= 50 * 1024 * 1024
+                && zip.GetEntry("[Content_Types].xml") is not null
+                && zip.GetEntry(extension == ".docx" ? "word/document.xml" : "xl/workbook.xml") is not null
+                && !zip.Entries.Any(e => e.FullName.EndsWith("vbaProject.bin", StringComparison.OrdinalIgnoreCase));
+        }
+        catch (InvalidDataException) { return false; }
+    }
+
+    private async Task<ImageUploadDto> UploadBufferAsync(MemoryStream buffer, string mime, string resourceType, string extension, CancellationToken ct)
+    {
         var cloud = configuration["Cloudinary:CloudName"];
         var key = configuration["Cloudinary:ApiKey"];
         var secret = configuration["Cloudinary:ApiSecret"];
         if (string.IsNullOrWhiteSpace(cloud) || !Regex.IsMatch(cloud, "^[a-zA-Z0-9_-]{1,100}$") || string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(secret))
             throw new BusinessException("Dịch vụ tải ảnh chưa được cấu hình.", 503);
 
-        var publicId = $"bcobca/uploads/{Guid.NewGuid():N}";
+        var publicId = $"bcobca/uploads/{Guid.NewGuid():N}{extension}";
         buffer.Position = 0;
         using var form = new MultipartFormDataContent();
         using var image = new StreamContent(buffer);
         image.Headers.ContentType = new MediaTypeHeaderValue(mime);
         // Never forward user-supplied filenames or expose credentials to the caller.
-        form.Add(image, "file", "image");
+        form.Add(image, "file", "file" + extension);
         form.Add(new StringContent(publicId), "public_id");
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudinary.com/v1_1/{cloud}/image/upload") { Content = form };
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudinary.com/v1_1/{cloud}/{resourceType}/upload") { Content = form };
         request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes($"{key}:{secret}")));
         try
         {
@@ -50,9 +99,9 @@ public sealed class CloudinaryImageService(HttpClient client, IConfiguration con
             var url = ReadString(root, "secure_url");
             var uploadedId = ReadString(root, "public_id");
             var format = ReadString(root, "format");
-            if (uploadedId != publicId || ReadString(root, "resource_type") != "image" || format is not ("jpg" or "jpeg" or "png" or "webp")
+            if (uploadedId != publicId || ReadString(root, "resource_type") != resourceType || (resourceType == "image" && format is not ("jpg" or "jpeg" or "png" or "webp"))
                 || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || uri.Host != "res.cloudinary.com"
-                || !uri.IsDefaultPort || uri.UserInfo.Length != 0 || !uri.AbsolutePath.StartsWith($"/{cloud}/image/upload/", StringComparison.Ordinal))
+                || !uri.IsDefaultPort || uri.UserInfo.Length != 0 || !uri.AbsolutePath.StartsWith($"/{cloud}/{resourceType}/upload/", StringComparison.Ordinal))
                 throw new BusinessException("Dịch vụ lưu trữ trả về thông tin ảnh không hợp lệ.", 502);
             return new ImageUploadDto(url!, uploadedId);
         }
