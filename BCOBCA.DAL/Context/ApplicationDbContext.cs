@@ -93,7 +93,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<CheckInRule> CheckInRules => Set<CheckInRule>();
     public DbSet<PointExpiration> PointExpirations => Set<PointExpiration>();
     public DbSet<OrderVoucherApplication> OrderVoucherApplications => Set<OrderVoucherApplication>();
-    public DbSet<ProductReviewImage> ProductReviewImages => Set<ProductReviewImage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BCOBCA.BLL.Common;
 using BCOBCA.BLL.DTOs;
 using BCOBCA.BLL.Interfaces;
@@ -11,7 +12,7 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
 {
     private IQueryable<ReviewDto> Project(IQueryable<ProductReview> source) => from review in source join user in store.Set<User>().IgnoreQueryFilters() on review.UserId equals user.Id
         select new ReviewDto(review.Id, review.ProductId, !user.IsDeleted && user.Nickname != "" ? user.Nickname : "Khách hàng", review.Rating, review.Content, review.Status, review.CreatedAt,
-            store.Set<ProductReviewImage>().Where(x => x.ProductReviewId == review.Id).OrderBy(x => x.SortOrder).Select(x => x.ImageUrl).ToArray(), review.Revision);
+            JsonSerializer.Deserialize<string[]>(review.ImageUrls, (JsonSerializerOptions?)null)!, review.Revision);
     private static async Task<PageResult<T>> Page<T>(IQueryable<T> source, CatalogQuery query, CancellationToken ct)
     {
         var (page, size) = CatalogService.Paging(query);
@@ -42,11 +43,9 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
         var item = await PurchasedItem(userId, orderItemId, ct);
         var review = await store.Set<ProductReview>().SingleOrDefaultAsync(x => x.UserId == userId && x.OrderItemId == orderItemId, ct);
         if (review is null) { review = new ProductReview { UserId = userId, OrderItemId = orderItemId, ProductId = item.ProductId, CreatedAt = DateTimeOffset.UtcNow }; store.Set<ProductReview>().Add(review); }
-        var oldImages = await store.Set<ProductReviewImage>().Where(x => x.ProductReviewId == review.Id).OrderBy(x => x.SortOrder).ToListAsync(ct);
-        if (review.Rating == input.Rating && review.Content == input.Content.Trim() && oldImages.Select(x => x.ImageUrl).SequenceEqual(images)) return review.Id;
+        if (review.Rating == input.Rating && review.Content == input.Content.Trim() && JsonSerializer.Deserialize<string[]>(review.ImageUrls)!.SequenceEqual(images)) return review.Id;
         review.Rating = input.Rating; review.Content = input.Content.Trim(); review.Status = 0; review.Revision = Guid.NewGuid();
-        store.Set<ProductReviewImage>().RemoveRange(oldImages);
-        store.Set<ProductReviewImage>().AddRange(images.Select((url, index) => new ProductReviewImage { ProductReviewId = review.Id, ImageUrl = url, SortOrder = index }));
+        review.ImageUrls = JsonSerializer.Serialize(images);
         var accountId = await store.Set<User>().Where(x => x.Id == userId).Select(x => x.AccountId).SingleAsync(ct);
         store.Set<AuditLog>().Add(new AuditLog { AccountId = accountId, Action = "SUBMIT_REVIEW", EntityType = "ProductReview", EntityId = review.Id, CreatedAt = DateTimeOffset.UtcNow });
         await store.SaveChangesAsync(ct); await tx.CommitAsync(ct); return review.Id;

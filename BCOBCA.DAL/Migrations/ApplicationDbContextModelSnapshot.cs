@@ -1887,6 +1887,12 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamptz");
 
+                    b.Property<string>("ImageUrls")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]");
+
                     b.Property<Guid>("OrderItemId")
                         .HasColumnType("uuid");
 
@@ -1924,31 +1930,10 @@ namespace BCOBCA.DAL.Migrations
 
                     b.ToTable("ProductReviews", null, t =>
                         {
+                            t.HasCheckConstraint("CK_ProductReviews_ImageUrls_Array", "jsonb_typeof(\"ImageUrls\") = 'array'");
+
                             t.HasCheckConstraint("CK_ProductReviews_Valid", "\"Rating\" BETWEEN 1 AND 5");
                         });
-                });
-
-            modelBuilder.Entity("BCOBCA.DAL.Entities.ProductReviewImage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ImageUrl")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("ProductReviewId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductReviewId");
-
-                    b.ToTable("ProductReviewImages", (string)null);
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.ProductVariant", b =>
@@ -3580,15 +3565,6 @@ namespace BCOBCA.DAL.Migrations
                     b.HasOne("BCOBCA.DAL.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BCOBCA.DAL.Entities.ProductReviewImage", b =>
-                {
-                    b.HasOne("BCOBCA.DAL.Entities.ProductReview", null)
-                        .WithMany()
-                        .HasForeignKey("ProductReviewId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
