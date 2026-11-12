@@ -40,6 +40,7 @@ builder.Services.AddScoped<IMemberService, MemberService>();
 builder.Services.AddScoped<ILoyaltyConfigurationService, LoyaltyConfigurationService>();
 builder.Services.AddScoped<IPlatformFeeConfigurationService, PlatformFeeConfigurationService>();
 builder.Services.AddScoped<IAffiliateLinkService, AffiliateLinkService>();
+builder.Services.AddScoped<IAffiliateCatalogService, AffiliateCatalogService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddHttpClient<GhnQuoteClient>(client => client.Timeout = TimeSpan.FromSeconds(15))
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });

@@ -22,12 +22,13 @@ public sealed class ProductAffiliateFlowTests
     {
         EnvironmentBootstrap.Load();
         var databaseName = "bcobca_test_" + Guid.NewGuid().ToString("N");
-        await using var admin = new NpgsqlConnection(Environment.GetEnvironmentVariable("ConnectionStrings__Default"));
+        var supplied = Environment.GetEnvironmentVariable("ConnectionStrings__Default");
+        await using var admin = new NpgsqlConnection(supplied);
         await admin.OpenAsync();
         await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{databaseName}\"", admin)) await create.ExecuteNonQueryAsync();
         try
         {
-            var connection = new NpgsqlConnectionStringBuilder(admin.ConnectionString) { Database = databaseName }.ConnectionString;
+            var connection = new NpgsqlConnectionStringBuilder(supplied) { Database = databaseName }.ConnectionString;
             await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).Options);
             await db.Database.MigrateAsync(); Assert.False(db.Database.HasPendingModelChanges());
             var store = new CommerceStore(db);
@@ -53,6 +54,22 @@ public sealed class ProductAffiliateFlowTests
             var secondVariant = new ProductVariant { ProductId = unlinked.Id, SKU = "UNLINKED-1", VariantName = "Default", Price = 100000, StockQuantity = 20, IsActive = true };
             db.Categories.Add(category); db.Brands.Add(brand); db.Products.AddRange(product, unlinked); db.ProductVariants.AddRange(variant, secondVariant); await db.SaveChangesAsync();
             var links = new AffiliateLinkService(store, config);
+            var collaboration = new AffiliateCatalogService(store);
+            unlinked.AffiliateEnabled = false; variant.SalePrice = 80000; await db.SaveChangesAsync();
+            var collaborationPage = await collaboration.ProductsAsync(other.User.Id, new CatalogQuery(Search: "Linked", CategoryId: category.Id), default);
+            var promoted = Assert.Single(collaborationPage.Items);
+            Assert.Equal(product.Id, promoted.Id); Assert.Equal(100000m, promoted.Price); Assert.Equal(80000m, promoted.SalePrice);
+            Assert.Equal(0.02m, promoted.CommissionRate); Assert.Equal(1600m, promoted.EstimatedCommission);
+            Assert.Null(promoted.Rating); Assert.Equal(0, promoted.ReviewCount);
+            Assert.Single((await collaboration.ProductsAsync(other.User.Id, new CatalogQuery(Search: "Products", Sort: "price-asc"), default)).Items);
+            await Assert.ThrowsAsync<BusinessException>(() => collaboration.ProductsAsync(Guid.NewGuid(), new CatalogQuery(), default));
+            var rankRow = await db.Set<AffiliateRank>().OrderBy(r => r.Rank).FirstAsync();
+            var rankRate = rankRow.CommissionRate; rankRow.CommissionRate = 0.01m; await db.SaveChangesAsync();
+            var reRanked = Assert.Single((await collaboration.ProductsAsync(other.User.Id, new CatalogQuery(), default)).Items);
+            Assert.Equal(0.01m, reRanked.CommissionRate); Assert.Equal(800m, reRanked.EstimatedCommission);
+            rankRow.CommissionRate = rankRate; await db.SaveChangesAsync();
+            Assert.Empty((await collaboration.ProductsAsync(other.User.Id, new CatalogQuery(CategoryId: Guid.NewGuid()), default)).Items);
+            variant.SalePrice = null; unlinked.AffiliateEnabled = true; await db.SaveChangesAsync();
             (await db.AffiliateProfiles.SingleAsync(x => x.UserId == other.User.Id)).AffiliateCode = "LEGACY-AFFILIATE-ALIAS"; await db.SaveChangesAsync();
             var invitation = await links.InvitationAsync(owner.User.Id, default);
             Assert.Equal("https://shop.example.test/register?ref=" + owner.User.ReferralCode, invitation.Url);
@@ -71,6 +88,8 @@ public sealed class ProductAffiliateFlowTests
             await Assert.ThrowsAsync<BusinessException>(() => links.TrackAsync(last.Code, null, other.User.Id, default));
             await Assert.ThrowsAsync<BusinessException>(() => links.SetProductPolicyAsync(buyer.User.AccountId, product.Id, new(), default));
             await links.SetProductPolicyAsync(other.User.AccountId, product.Id, new(true, 0.01m, 700m), default);
+            var capped = (await collaboration.ProductsAsync(other.User.Id, new CatalogQuery(Search: "Linked"), default)).Items.Single(x => x.Id == product.Id);
+            Assert.Equal(0.01m, capped.CommissionRate); Assert.Equal(700m, capped.EstimatedCommission);
             var member = new MemberService(store);
             var address = await member.SaveAddressAsync(buyer.User.Id, null, new AddressRequest("Buyer", "0901234567", "79", "001", "Test address", true), default);
             var finance = new FinanceService(store, config); var orders = TestOrders.Create(store, config, finance);
@@ -86,6 +105,10 @@ public sealed class ProductAffiliateFlowTests
             await orders.TransitionAsync(other.User.AccountId, order.Id, new("COMPLETED", true), default);
             var commission = await db.AffiliateCommissions.SingleAsync();
             Assert.Equal(90000, commission.BaseAmount); Assert.Equal(0.01m, commission.CommissionRate); Assert.Equal(700, commission.CommissionAmount); Assert.Equal("Đồng", commission.RankName);
+            db.ProductReviews.Add(new ProductReview { ProductId = product.Id, UserId = buyer.User.Id, OrderItemId = order.Items.Single(x => x.ProductId == product.Id).Id, Rating = 5, Content = "Verified purchase", Status = 1, CreatedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+            var exhaustedPreview = (await collaboration.ProductsAsync(other.User.Id, new CatalogQuery(), default)).Items.Single(x => x.Id == product.Id);
+            Assert.Equal(0m, exhaustedPreview.EstimatedCommission); Assert.Equal(5d, exhaustedPreview.Rating); Assert.Equal(1, exhaustedPreview.ReviewCount);
             Assert.Equal((await db.AffiliateProfiles.SingleAsync(x => x.UserId == other.User.Id)).Id, commission.AffiliateProfileId);
             await using (var tx = await store.BeginTransactionAsync(default)) { await finance.AccrueOrderAsync(order.Id, default); await tx.CommitAsync(); }
             Assert.Single(await db.AffiliateCommissions.ToListAsync());

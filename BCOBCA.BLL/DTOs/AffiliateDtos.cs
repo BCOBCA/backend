@@ -6,3 +6,4 @@ public sealed record AffiliateVisitRequest(string Code, string? PreviousToken = 
 public sealed record AffiliateVisitDto(string Token, DateTimeOffset ExpiresAt);
 public sealed record AffiliateInvitationDto(string Code, string Url, int TotalInvites, int SuccessfulInvites);
 public sealed record ProductAffiliatePolicyRequest(bool Enabled = true, decimal? MaxRate = null, decimal? Budget = null);
+public sealed record AffiliateProductDto(Guid Id, string Name, string ImageUrl, decimal? Price, decimal? SalePrice, Guid? VariantId, int AvailableStock, double? Rating, int ReviewCount, decimal CommissionRate, decimal EstimatedCommission);
