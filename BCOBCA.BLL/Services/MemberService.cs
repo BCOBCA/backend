@@ -165,8 +165,17 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     }
 
     public async Task<PageResult<FeedbackDto>> FeedbacksAsync(Guid userId, CatalogQuery query, CancellationToken ct)
-        => await PageAsync(store.Set<Feedback>().AsNoTracking().Where(x => x.UserId == userId).OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)
+    {
+        var source = store.Set<Feedback>().AsNoTracking().Where(x => x.UserId == userId);
+        var search = query.Search?.Trim().ToLowerInvariant();
+        if (!string.IsNullOrEmpty(search))
+        {
+            search = search[..Math.Min(search.Length, 200)];
+            source = source.Where(x => x.Subject.ToLower().Contains(search) || x.Content.ToLower().Contains(search) || x.AdminResponse.ToLower().Contains(search));
+        }
+        return await PageAsync(source.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)
             .Select(x => new FeedbackDto(x.Id, x.Subject, x.Content, x.Status, x.AdminResponse, x.CreatedAt)), query, ct);
+    }
 
     public async Task<PageResult<QuotationDto>> QuotationsAsync(Guid userId, CatalogQuery query, CancellationToken ct)
         => await PageAsync((from q in store.Set<ServiceQuotation>().AsNoTracking() join r in store.Set<ServiceRequest>() on q.RequestId equals r.Id where r.UserId == userId orderby q.CreatedAt descending, q.Id select new QuotationDto(q.Id, q.QuoteCode, q.Amount, q.Description, q.ValidUntil, q.Status)), query, ct);
