@@ -1,0 +1,7 @@
+# Affiliate wallet history filters
+
+- Existing authenticated GET `/api/affiliate/transactions` adds optional `period=all|today|week|month|quarter` and `transactionType=all|commission|withdrawal|refund|other`. Existing CatalogQuery paging/search retained; search matches transaction/reference GUID and real order code, accepting leading `#`.
+- Existing GET `/api/affiliate/withdrawals` adds period and enforces CatalogQuery status `PENDING|APPROVED|PAID|REJECTED` (or all/omitted). Search matches request GUID, transfer reference, bank name and masked account number.
+- Vietnam calendar boundaries (+07:00), exclusive range end. Filter before count/Skip/Take; newest timestamp then ID for stable ordering. Query remains scoped to active affiliate wallet; commission join additionally constrained to that wallet's affiliate profile.
+- WalletTransactionDto adds ReferenceCode and actual commission Status (POSTED for other ledger entries). WithdrawalDto adds nullable BalanceAfter from its original DEBIT entry; no fabricated balance for older missing ledger entries. Read-only query changes, no new migration or money movement.
+- FinanceFlowTests and WalletHistoryFilterTests passed: server-translated joins/order-code search, filters before paging, withdrawal fee/net/original balance, account isolation, invalid filters, leading-# search, Vietnam day boundary and existing withdrawal/refund lifecycle. Partially paid commissions correctly remain APPROVED until fully consumed.

@@ -14,9 +14,9 @@ public sealed class FinanceController(IFinanceService finance, IAuthService auth
     [HttpPost("affiliate/withdrawals")]
     public async Task<IActionResult> Withdraw(WithdrawalRequest input, CancellationToken ct) => StatusCode(201, ApiResponse<ResourceIdDto>.Ok(new(await finance.WithdrawAsync(await UserId(ct), Request.Headers["Idempotency-Key"].ToString(), input, ct))));
     [HttpGet("affiliate/withdrawals")]
-    public async Task<IActionResult> Withdrawals([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<WithdrawalDto>>.Ok(await finance.WithdrawalsAsync(await UserId(ct), query, ct)));
+    public async Task<IActionResult> Withdrawals([FromQuery] CatalogQuery query, CancellationToken ct, [FromQuery] string period = "all") => Ok(ApiResponse<PageResult<WithdrawalDto>>.Ok(await finance.WithdrawalsAsync(await UserId(ct), query, ct, period)));
     [HttpGet("affiliate/transactions")]
-    public async Task<IActionResult> Transactions([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<WalletTransactionDto>>.Ok(await finance.TransactionsAsync(await UserId(ct), query, ct)));
+    public async Task<IActionResult> Transactions([FromQuery] CatalogQuery query, CancellationToken ct, [FromQuery] string period = "all", [FromQuery] string transactionType = "all") => Ok(ApiResponse<PageResult<WalletTransactionDto>>.Ok(await finance.TransactionsAsync(await UserId(ct), query, ct, period, transactionType)));
     [HttpGet("affiliate/commissions")]
     public async Task<IActionResult> Commissions([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<CommissionDto>>.Ok(await finance.CommissionsAsync(await UserId(ct), query, ct)));
     [HttpGet("affiliate/leaderboard")]

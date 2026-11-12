@@ -122,17 +122,48 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
         await store.SaveChangesAsync(ct); await tx.CommitAsync(ct); return withdrawal.Id;
     }
 
-    public async Task<PageResult<WithdrawalDto>> WithdrawalsAsync(Guid userId, CatalogQuery query, CancellationToken ct)
+    public async Task<PageResult<WithdrawalDto>> WithdrawalsAsync(Guid userId, CatalogQuery query, CancellationToken ct, string period = "all")
     {
         var wallet = await Wallet(userId, ct);
-        return await Page(store.Set<AffiliateWithdrawal>().AsNoTracking().Where(x => x.WalletId == wallet.Id).OrderByDescending(x => x.RequestedAt).ThenBy(x => x.Id)
-            .Select(x => new WithdrawalDto(x.Id, x.Amount, x.BankName, x.AccountNumber, x.AccountHolder, x.Status, x.TransactionReference, x.RequestedAt, x.ProcessedAt, x.FeeAmount, x.NetAmount)), query, ct);
+        var range = WalletHistoryFilters.Range(period, DateTimeOffset.UtcNow);
+        var search = WalletHistoryFilters.Search(query.Search);
+        var source = store.Set<AffiliateWithdrawal>().AsNoTracking().Where(x => x.WalletId == wallet.Id);
+        if (range.Start is { } start) source = source.Where(x => x.RequestedAt >= start);
+        if (range.End is { } end) source = source.Where(x => x.RequestedAt < end);
+        if (!string.IsNullOrWhiteSpace(query.Status) && query.Status != "all")
+        {
+            if (query.Status is not ("PENDING" or "APPROVED" or "PAID" or "REJECTED")) throw new BusinessException("Trạng thái rút tiền không hợp lệ");
+            source = source.Where(x => x.Status == query.Status);
+        }
+        if (search != "") source = source.Where(x => x.Id.ToString().Contains(search) || x.TransactionReference.ToLower().Contains(search) || x.BankName.ToLower().Contains(search) || x.AccountNumber.Contains(search));
+        return await Page(source.OrderByDescending(x => x.RequestedAt).ThenBy(x => x.Id)
+            .Select(x => new WithdrawalDto(x.Id, x.Amount, x.BankName, x.AccountNumber, x.AccountHolder, x.Status, x.TransactionReference, x.RequestedAt, x.ProcessedAt, x.FeeAmount, x.NetAmount,
+                store.Set<AffiliateWalletTransaction>().Where(t => t.WalletId == wallet.Id && t.ReferenceType == "Withdrawal" && t.ReferenceId == x.Id && t.Type == "DEBIT").OrderBy(t => t.CreatedAt).ThenBy(t => t.Id).Select(t => (decimal?)t.BalanceAfter).FirstOrDefault())), query, ct);
     }
-    public async Task<PageResult<WalletTransactionDto>> TransactionsAsync(Guid userId, CatalogQuery query, CancellationToken ct)
+    public async Task<PageResult<WalletTransactionDto>> TransactionsAsync(Guid userId, CatalogQuery query, CancellationToken ct, string period = "all", string transactionType = "all")
     {
         var wallet = await Wallet(userId, ct);
-        return await Page(store.Set<AffiliateWalletTransaction>().AsNoTracking().Where(x => x.WalletId == wallet.Id).OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)
-            .Select(x => new WalletTransactionDto(x.Id, x.Type, x.Amount, x.BalanceAfter, x.ReferenceType, x.ReferenceId, x.CreatedAt)), query, ct);
+        var range = WalletHistoryFilters.Range(period, DateTimeOffset.UtcNow);
+        var search = WalletHistoryFilters.Search(query.Search);
+        var transactions = store.Set<AffiliateWalletTransaction>().AsNoTracking().Where(x => x.WalletId == wallet.Id);
+        if (range.Start is { } start) transactions = transactions.Where(x => x.CreatedAt >= start);
+        if (range.End is { } end) transactions = transactions.Where(x => x.CreatedAt < end);
+        transactions = transactionType switch {
+            "all" => transactions,
+            "commission" => transactions.Where(x => x.ReferenceType == "Commission"),
+            "withdrawal" => transactions.Where(x => x.ReferenceType == "Withdrawal"),
+            "refund" => transactions.Where(x => x.ReferenceType == "Refund"),
+            "other" => transactions.Where(x => x.ReferenceType != "Commission" && x.ReferenceType != "Withdrawal" && x.ReferenceType != "Refund"),
+            _ => throw new BusinessException("Loại giao dịch không hợp lệ")
+        };
+        var source = from entry in transactions
+            join commission in store.Set<AffiliateCommission>().Where(c => c.AffiliateProfileId == wallet.AffiliateProfileId) on entry.ReferenceId equals commission.Id into commissions from commission in commissions.DefaultIfEmpty()
+            join item in store.Set<OrderItem>() on commission.OrderItemId equals item.Id into items from item in items.DefaultIfEmpty()
+            join order in store.Set<Order>() on item.OrderId equals order.Id into orders from order in orders.DefaultIfEmpty()
+            select new { Entry = entry, OrderCode = entry.ReferenceType == "Commission" && order != null ? order.OrderCode : "", Status = entry.ReferenceType == "Commission" && commission != null ? commission.Status : "POSTED" };
+        if (search != "") source = source.Where(x => x.Entry.Id.ToString().Contains(search) || x.Entry.ReferenceId.ToString().Contains(search) || x.OrderCode.ToLower().Contains(search));
+        return await Page(source.OrderByDescending(x => x.Entry.CreatedAt).ThenBy(x => x.Entry.Id)
+            .Select(x => new WalletTransactionDto(x.Entry.Id, x.Entry.Type, x.Entry.Amount, x.Entry.BalanceAfter, x.Entry.ReferenceType, x.Entry.ReferenceId, x.Entry.CreatedAt, x.OrderCode, x.Status)), query, ct);
     }
     public async Task<PageResult<CommissionDto>> CommissionsAsync(Guid userId, CatalogQuery query, CancellationToken ct)
     {
