@@ -83,6 +83,12 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
             ?? throw new BusinessException("Phiên đăng nhập không hợp lệ", 401);
         if (stored.RevokedAt is not null)
         {
+            var now = DateTimeOffset.UtcNow;
+            // Reject a just-rotated token without destroying the valid session of a competing tab.
+            // No credentials are issued in this window; older replay still revokes the family.
+            if (stored.ReplacedByTokenId is not null && stored.RevokedAt >= now.AddSeconds(-5)
+                && await store.Set<RefreshToken>().AnyAsync(x => x.FamilyId == stored.FamilyId && x.RevokedAt == null && x.ExpiresAt > now, ct))
+                throw new BusinessException("Phiên đang được làm mới. Vui lòng thử lại", 409);
             var family = await store.Set<RefreshToken>().Where(x => x.FamilyId == stored.FamilyId && x.RevokedAt == null).ToListAsync(ct);
             foreach (var member in family) member.RevokedAt = DateTimeOffset.UtcNow;
             await store.SaveChangesAsync(ct);

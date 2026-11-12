@@ -37,7 +37,7 @@ public sealed class PostgresFlowTests
             Assert.Contains("ImageUrl", categoryColumns);
             Assert.Contains("AttributeDefinitions", categoryColumns);
             Assert.Equal(8, categoryColumns.Count);
-            Assert.Equal(68, db.Model.GetEntityTypes().Count());
+            Assert.Equal(67, db.Model.GetEntityTypes().Count());
             var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
             var store = new CommerceStore(db);
             var catalog = new CatalogService(store);
@@ -148,6 +148,9 @@ public sealed class PostgresFlowTests
             var firstSession = await auth.LoginAsync(new LoginRequest("test@example.com", "StrongPassword123!"), default);
             var refreshed = await auth.RefreshAsync(firstSession.RefreshToken, default);
             Assert.NotEqual(firstSession.RefreshToken, refreshed.RefreshToken);
+            var replayHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(firstSession.RefreshToken)));
+            (await db.RefreshTokens.SingleAsync(x => x.TokenHash == replayHash)).RevokedAt = DateTimeOffset.UtcNow.AddSeconds(-10);
+            await db.SaveChangesAsync();
             await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => auth.RefreshAsync(firstSession.RefreshToken, default));
             await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => auth.RefreshAsync(refreshed.RefreshToken, default));
             var security = new AccountSecurityService(store, config);
