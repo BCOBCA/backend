@@ -1,8 +1,11 @@
 namespace BCOBCA.BLL.DTOs;
 
-public sealed record WithdrawalRequest(decimal Amount, string BankName, string AccountNumber, string AccountHolder);
+public sealed record WithdrawalRequest(decimal Amount, string BankName = "", string AccountNumber = "", string AccountHolder = "", Guid? BankAccountId = null, Guid? ExpectedConfigurationRevision = null);
 public sealed record WithdrawalStatusRequest(string Status, string TransactionReference = "");
-public sealed record WithdrawalDto(Guid Id, decimal Amount, string BankName, string AccountNumber, string AccountHolder, string Status, string TransactionReference, DateTimeOffset RequestedAt, DateTimeOffset? ProcessedAt);
+public sealed record WithdrawalDto(Guid Id, decimal Amount, string BankName, string AccountNumber, string AccountHolder, string Status, string TransactionReference, DateTimeOffset RequestedAt, DateTimeOffset? ProcessedAt, decimal FeeAmount = 0, decimal NetAmount = 0);
+public sealed record WithdrawalConfigurationDto(decimal FeeAmount, decimal MinimumAmount, decimal MaximumAmount, Guid Revision, DateTimeOffset? UpdatedAt, Guid? UpdatedByAccountId);
+public sealed record UpdateWithdrawalConfigurationRequest(decimal? FeeAmount, decimal? MinimumAmount, decimal? MaximumAmount, Guid? ExpectedRevision);
+public sealed record AffiliateBankAccountDto(Guid Id, string BankName, string AccountNumber, string AccountHolder);
 public sealed record BankDetailsDto(string BankName, string AccountNumber, string AccountHolder);
 public sealed record WalletTransactionDto(Guid Id, string Type, decimal Amount, decimal BalanceAfter, string ReferenceType, Guid ReferenceId, DateTimeOffset CreatedAt);
 public sealed record CommissionDto(Guid Id, Guid OrderItemId, decimal BaseAmount, decimal CommissionRate, decimal CommissionAmount, string Status, DateTimeOffset CreatedAt, DateTimeOffset? ApprovedAt, Guid? OrderId = null, string OrderCode = "", Guid? ProductId = null, string ProductName = "", string RankName = "", int? Rank = null, decimal PaidAmount = 0);

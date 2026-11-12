@@ -141,7 +141,11 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
     {
         var affiliate = await (from p in store.Set<AffiliateProfile>().AsNoTracking() join w in store.Set<AffiliateWallet>() on p.Id equals w.AffiliateProfileId join u in store.Set<User>() on p.UserId equals u.Id where p.UserId == userId
             select new AffiliateDto(u.ReferralCode, w.AvailableBalance, w.PendingBalance, store.Set<AffiliateReferral>().Count(r => r.ReferrerUserId == userId), w.DebtBalance, null)).SingleAsync(ct);
-        return affiliate with { RankInfo = await LoyaltyQueries.AffiliateRankAsync(store, userId, ct) };
+        var totalCommission = await (from commission in store.Set<AffiliateCommission>().AsNoTracking()
+            join profile in store.Set<AffiliateProfile>() on commission.AffiliateProfileId equals profile.Id
+            where profile.UserId == userId && commission.Status != "REVERSED"
+            select (decimal?)commission.CommissionAmount).SumAsync(ct) ?? 0m;
+        return affiliate with { RankInfo = await LoyaltyQueries.AffiliateRankAsync(store, userId, ct), TotalCommission = totalCommission };
     }
 
     public async Task<PageResult<ReferralDto>> ReferralsAsync(Guid userId, CatalogQuery query, CancellationToken ct)

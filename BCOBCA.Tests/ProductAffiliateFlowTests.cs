@@ -105,6 +105,8 @@ public sealed class ProductAffiliateFlowTests
             await orders.TransitionAsync(other.User.AccountId, order.Id, new("COMPLETED", true), default);
             var commission = await db.AffiliateCommissions.SingleAsync();
             Assert.Equal(90000, commission.BaseAmount); Assert.Equal(0.01m, commission.CommissionRate); Assert.Equal(700, commission.CommissionAmount); Assert.Equal("Đồng", commission.RankName);
+            Assert.Equal(700m, (await member.AffiliateAsync(other.User.Id, default)).TotalCommission);
+            Assert.Equal(0m, (await member.AffiliateAsync(owner.User.Id, default)).TotalCommission);
             db.ProductReviews.Add(new ProductReview { ProductId = product.Id, UserId = buyer.User.Id, OrderItemId = order.Items.Single(x => x.ProductId == product.Id).Id, Rating = 5, Content = "Verified purchase", Status = 1, CreatedAt = DateTimeOffset.UtcNow });
             await db.SaveChangesAsync();
             var exhaustedPreview = (await collaboration.ProductsAsync(other.User.Id, new CatalogQuery(), default)).Items.Single(x => x.Id == product.Id);
@@ -120,11 +122,13 @@ public sealed class ProductAffiliateFlowTests
             var history = (await finance.CommissionsAsync(other.User.Id, new CatalogQuery(), default)).Items.Single();
             Assert.Equal(order.OrderCode, history.OrderCode); Assert.Equal("Linked product", history.ProductName);
             await finance.ApproveCommissionAsync(other.User.AccountId, commission.Id, default);
+            await new WithdrawalConfigurationService(store).UpdateAsync(other.User.AccountId, new(0m, 1m, 50000000m, WithdrawalConfiguration.InitialRevision), default);
             var withdrawal = await finance.WithdrawAsync(other.User.Id, "payout", new(700, "Test bank", "123456789", "TEST OWNER"), default);
             await finance.SetWithdrawalStatusAsync(other.User.AccountId, withdrawal, new("APPROVED"), default);
             await finance.SetWithdrawalStatusAsync(other.User.AccountId, withdrawal, new("PAID", "BANK-REF"), default);
             await finance.SetWithdrawalStatusAsync(other.User.AccountId, withdrawal, new("PAID", "BANK-REF"), default);
             Assert.Equal("PAID", commission.Status); Assert.Equal(700, commission.PaidAmount);
+            Assert.Equal(700m, (await member.AffiliateAsync(other.User.Id, default)).TotalCommission);
             await finance.ApproveCommissionAsync(other.User.AccountId, commission.Id, default);
             var refunds = new RefundSettlementService(store, config);
             var refund = await refunds.RequestRefundAsync(buyer.User.Id, order.Id, "refund", new("Returned goods"), default);
@@ -132,6 +136,7 @@ public sealed class ProductAffiliateFlowTests
             await refunds.SetRefundStatusAsync(other.User.AccountId, refund, new("COMPLETED", "REFUND-REF", true), default);
             await refunds.SetRefundStatusAsync(other.User.AccountId, refund, new("COMPLETED", "REFUND-REF", true), default);
             Assert.Equal("REVERSED", commission.Status);
+            Assert.Equal(0m, (await member.AffiliateAsync(other.User.Id, default)).TotalCommission);
             Assert.Equal(700, (await db.AffiliateWallets.SingleAsync(x => x.AffiliateProfileId == commission.AffiliateProfileId)).DebtBalance);
             await orders.AddAsync(buyer.User.Id, new(product.Id, variant.Id, 1), default);
             var recovered = await orders.CheckoutAsync(buyer.User.Id, "budget-after-refund", new(address.Id), default, visit.Token);

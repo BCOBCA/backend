@@ -11,7 +11,7 @@ public sealed record VoucherDto(Guid Id, string Code, string Name, string Descri
 public sealed record NotificationDto(Guid Id, string Title, string Body, string TargetType, Guid? TargetId, DateTimeOffset? ReadAt, DateTimeOffset CreatedAt);
 public sealed record FeedbackRequest(string Type, string Subject, string Content);
 public sealed record FeedbackDto(Guid Id, string Subject, string Content, string Status, string AdminResponse, DateTimeOffset CreatedAt);
-public sealed record AffiliateDto(string Code, decimal AvailableBalance, decimal PendingBalance, int TotalReferrals, decimal DebtBalance = 0, AffiliateRankProgressDto? RankInfo = null);
+public sealed record AffiliateDto(string Code, decimal AvailableBalance, decimal PendingBalance, int TotalReferrals, decimal DebtBalance = 0, AffiliateRankProgressDto? RankInfo = null, decimal TotalCommission = 0);
 public sealed record AffiliateRankDto(int Rank, string Name, int MinSuccessfulReferrals, decimal CommissionRate);
 public sealed record AffiliateRankProgressDto(int Rank, string Name, int SuccessfulReferrals, decimal CommissionRate, string? NextRank, int? NextRankMinReferrals, int ReferralsToNextRank);
 public sealed record UpdateAffiliateRanksRequest(IReadOnlyList<AffiliateRankDto> Ranks);

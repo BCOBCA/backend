@@ -39,6 +39,8 @@ builder.Services.AddScoped<IDealerCatalogService, DealerCatalogService>();
 builder.Services.AddScoped<IMemberService, MemberService>();
 builder.Services.AddScoped<ILoyaltyConfigurationService, LoyaltyConfigurationService>();
 builder.Services.AddScoped<IPlatformFeeConfigurationService, PlatformFeeConfigurationService>();
+builder.Services.AddScoped<IWithdrawalConfigurationService, WithdrawalConfigurationService>();
+builder.Services.AddScoped<IAffiliateBankAccountService, AffiliateBankAccountService>();
 builder.Services.AddScoped<IAffiliateLinkService, AffiliateLinkService>();
 builder.Services.AddScoped<IAffiliateCatalogService, AffiliateCatalogService>();
 builder.Services.AddScoped<IOrderService, OrderService>();

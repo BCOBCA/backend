@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using BCOBCA.BLL.Common;
 using BCOBCA.BLL.DTOs;
 using BCOBCA.BLL.Interfaces;
@@ -92,41 +91,32 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
         await store.SaveChangesAsync(ct);
     }
 
-    private byte[] BankKey()
-    {
-        try
-        {
-            var key = Convert.FromBase64String(config["Security:BankDataKey"] ?? "");
-            if (key.Length != 32) throw new FormatException(); return key;
-        }
-        catch (FormatException) { throw new BusinessException("Chưa cấu hình khóa mã hóa thông tin ngân hàng", 503); }
-    }
-    private string Encrypt(BankDetailsDto details)
-    {
-        var nonce = RandomNumberGenerator.GetBytes(12); var plain = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(details)); var encrypted = new byte[plain.Length]; var tag = new byte[16];
-        using var aes = new AesGcm(BankKey(), 16); aes.Encrypt(nonce, plain, encrypted, tag);
-        return "v1:" + Convert.ToBase64String(nonce.Concat(tag).Concat(encrypted).ToArray());
-    }
-    private BankDetailsDto Decrypt(string value)
-    {
-        if (!value.StartsWith("v1:", StringComparison.Ordinal)) throw new BusinessException("Không thể đọc thông tin ngân hàng", 409);
-        var data = Convert.FromBase64String(value[3..]);
-        if (data.Length <= 28) throw new BusinessException("Không thể đọc thông tin ngân hàng", 409);
-        var plain = new byte[data.Length - 28]; using var aes = new AesGcm(BankKey(), 16); aes.Decrypt(data.AsSpan(0, 12), data.AsSpan(28), data.AsSpan(12, 16), plain);
-        return JsonSerializer.Deserialize<BankDetailsDto>(plain) ?? throw new InvalidOperationException("Invalid bank payload.");
-    }
-
+    private string Encrypt(BankDetailsDto details) => BankDataProtection.Encrypt(config, details);
+    private BankDetailsDto Decrypt(string value) => BankDataProtection.Decrypt(config, value);
     public async Task<Guid> WithdrawAsync(Guid userId, string idempotencyKey, WithdrawalRequest input, CancellationToken ct)
     {
-        if (input.Amount <= 0 || input.Amount > 9999999999999999.99m || decimal.Round(input.Amount, 2) != input.Amount || string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 100 || string.IsNullOrWhiteSpace(input.BankName) || input.BankName.Length > 150 || string.IsNullOrWhiteSpace(input.AccountHolder) || input.AccountHolder.Length > 150 || !Regex.IsMatch(input.AccountNumber, "^[0-9]{6,34}$")) throw new BusinessException("Thông tin rút tiền không hợp lệ");
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(input))));
+        if (input.Amount <= 0 || input.Amount > 9999999999999999.99m || decimal.Round(input.Amount, 2) != input.Amount || string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 100) throw new BusinessException("Thông tin rút tiền không hợp lệ");
+        var payload = input.BankAccountId is null && input.ExpectedConfigurationRevision is null
+            ? JsonSerializer.Serialize(new { input.Amount, input.BankName, input.AccountNumber, input.AccountHolder }) : JsonSerializer.Serialize(input);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
         await using var tx = await store.BeginTransactionAsync(ct); var wallet = await Wallet(userId, ct);
         var existing = await store.Set<AffiliateWithdrawal>().SingleOrDefaultAsync(x => x.WalletId == wallet.Id && x.IdempotencyKey == idempotencyKey, ct);
         if (existing is not null) { if (existing.RequestHash != hash) throw new BusinessException("Mã yêu cầu đã dùng cho nội dung khác", 409); return existing.Id; }
+        var settings = await store.Set<WithdrawalConfiguration>().AsNoTracking().SingleAsync(x => x.Id == WithdrawalConfiguration.SingletonId, ct);
+        if (settings.FeeAmount > 0 && input.ExpectedConfigurationRevision is null) throw new BusinessException("Vui lòng tải và xác nhận cấu hình phí rút tiền hiện tại.", 409);
+        if (input.ExpectedConfigurationRevision is { } revision && revision != settings.Revision) throw new BusinessException("Phí hoặc giới hạn rút tiền vừa thay đổi. Vui lòng tải lại và kiểm tra tóm tắt yêu cầu.", 409);
+        if (input.Amount < settings.MinimumAmount || input.Amount > settings.MaximumAmount) throw new BusinessException("Số tiền nằm ngoài giới hạn rút tiền hiện tại");
         if (wallet.DebtBalance > 0) throw new BusinessException("Cần cấn trừ hoa hồng đã thu hồi trước khi rút tiền", 409);
         if (wallet.AvailableBalance < input.Amount) throw new BusinessException("Số dư không đủ", 409);
-        var withdrawal = new AffiliateWithdrawal { WalletId = wallet.Id, Amount = input.Amount, BankName = input.BankName, AccountNumber = "****" + input.AccountNumber[^4..], AccountHolder = input.AccountHolder[..1] + "***",
-            BankDetailsEncrypted = Encrypt(new(input.BankName, input.AccountNumber, input.AccountHolder)), IdempotencyKey = idempotencyKey, RequestHash = hash, Status = "PENDING", RequestedAt = DateTimeOffset.UtcNow };
+        BankDetailsDto bank;
+        if (input.BankAccountId is { } bankId)
+        {
+            var saved = await store.Set<AffiliateBankAccount>().AsNoTracking().SingleOrDefaultAsync(a => a.Id == bankId && a.UserId == userId, ct) ?? throw new BusinessException("Không tìm thấy tài khoản ngân hàng của bạn", 404);
+            bank = BankDataProtection.Validate(Decrypt(saved.DetailsEncrypted));
+        }
+        else bank = BankDataProtection.Validate(new(input.BankName, input.AccountNumber, input.AccountHolder));
+        var withdrawal = new AffiliateWithdrawal { WalletId = wallet.Id, Amount = input.Amount, FeeAmount = settings.FeeAmount, NetAmount = input.Amount - settings.FeeAmount, BankName = bank.BankName, AccountNumber = "****" + bank.AccountNumber[^4..], AccountHolder = bank.AccountHolder[..1] + "***",
+            BankDetailsEncrypted = Encrypt(bank), IdempotencyKey = idempotencyKey, RequestHash = hash, Status = "PENDING", RequestedAt = DateTimeOffset.UtcNow };
         wallet.AvailableBalance -= input.Amount; wallet.UpdatedAt = DateTimeOffset.UtcNow;
         store.Set<AffiliateWithdrawal>().Add(withdrawal); Ledger(wallet, "DEBIT", -input.Amount, wallet.AvailableBalance, "Withdrawal", withdrawal.Id);
         await store.SaveChangesAsync(ct); await tx.CommitAsync(ct); return withdrawal.Id;
@@ -136,7 +126,7 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
     {
         var wallet = await Wallet(userId, ct);
         return await Page(store.Set<AffiliateWithdrawal>().AsNoTracking().Where(x => x.WalletId == wallet.Id).OrderByDescending(x => x.RequestedAt).ThenBy(x => x.Id)
-            .Select(x => new WithdrawalDto(x.Id, x.Amount, x.BankName, x.AccountNumber, x.AccountHolder, x.Status, x.TransactionReference, x.RequestedAt, x.ProcessedAt)), query, ct);
+            .Select(x => new WithdrawalDto(x.Id, x.Amount, x.BankName, x.AccountNumber, x.AccountHolder, x.Status, x.TransactionReference, x.RequestedAt, x.ProcessedAt, x.FeeAmount, x.NetAmount)), query, ct);
     }
     public async Task<PageResult<WalletTransactionDto>> TransactionsAsync(Guid userId, CatalogQuery query, CancellationToken ct)
     {

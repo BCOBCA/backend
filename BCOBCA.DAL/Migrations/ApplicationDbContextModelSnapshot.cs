@@ -173,6 +173,39 @@ namespace BCOBCA.DAL.Migrations
                     b.ToTable("AffiliateAttributions", (string)null);
                 });
 
+            modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateBankAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DetailsEncrypted")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MaskedAccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("AffiliateBankAccounts", (string)null);
+                });
+
             modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateCommission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -551,10 +584,18 @@ namespace BCOBCA.DAL.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(150)");
 
+                    b.Property<decimal>("FeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<DateTimeOffset?>("ProcessedAt")
                         .HasColumnType("timestamptz");
@@ -595,6 +636,8 @@ namespace BCOBCA.DAL.Migrations
 
                     b.ToTable("AffiliateWithdrawals", null, t =>
                         {
+                            t.HasCheckConstraint("CK_AffiliateWithdrawals_Fee", "\"FeeAmount\" >= 0 AND \"NetAmount\" > 0 AND \"NetAmount\" = \"Amount\" - \"FeeAmount\"");
+
                             t.HasCheckConstraint("CK_AffiliateWithdrawals_Valid", "\"Amount\" > 0");
                         });
                 });
@@ -3146,6 +3189,56 @@ namespace BCOBCA.DAL.Migrations
                     b.ToTable("VoucherUsages", (string)null);
                 });
 
+            modelBuilder.Entity("BCOBCA.DAL.Entities.WithdrawalConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("FeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("MaximumAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("MinimumAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<Guid?>("UpdatedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedByAccountId");
+
+                    b.ToTable("WithdrawalConfigurations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WithdrawalConfigurations_Amounts", "\"FeeAmount\" >= 0 AND \"MinimumAmount\" > \"FeeAmount\" AND \"MaximumAmount\" >= \"MinimumAmount\"");
+
+                            t.HasCheckConstraint("CK_WithdrawalConfigurations_Singleton", "\"Id\" = 'ca401bc0-b07b-4eb4-9b1d-30e229fdc943'::uuid");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("ca401bc0-b07b-4eb4-9b1d-30e229fdc943"),
+                            FeeAmount = 0m,
+                            MaximumAmount = 50000000m,
+                            MinimumAmount = 50000m,
+                            Revision = new Guid("c50e4db3-46b0-42de-a979-c2108fb1c599")
+                        });
+                });
+
             modelBuilder.Entity("BCOBCA.DAL.Entities.AccountActionToken", b =>
                 {
                     b.HasOne("BCOBCA.DAL.Entities.Account", null)
@@ -3180,6 +3273,15 @@ namespace BCOBCA.DAL.Migrations
                     b.HasOne("BCOBCA.DAL.Entities.Order", null)
                         .WithMany()
                         .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateBankAccount", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -3937,6 +4039,14 @@ namespace BCOBCA.DAL.Migrations
                         .HasForeignKey("VoucherId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.WithdrawalConfiguration", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.Account", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 #pragma warning restore 612, 618
         }

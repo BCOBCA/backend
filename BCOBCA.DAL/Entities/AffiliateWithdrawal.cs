@@ -5,6 +5,8 @@ public sealed class AffiliateWithdrawal
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid WalletId { get; set; }
     public decimal Amount { get; set; }
+    public decimal FeeAmount { get; set; }
+    public decimal NetAmount { get; set; }
     public string BankName { get; set; } = "";
     public string AccountNumber { get; set; } = "";
     public string AccountHolder { get; set; } = "";

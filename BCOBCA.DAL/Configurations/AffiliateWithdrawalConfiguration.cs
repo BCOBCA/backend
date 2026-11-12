@@ -18,6 +18,8 @@ public sealed class AffiliateWithdrawalConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.WalletId).HasColumnType("uuid").IsRequired();
         builder.HasOne<AffiliateWallet>().WithMany().HasForeignKey(x => x.WalletId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.Amount).HasColumnType("numeric(18,2)").IsRequired();
+        builder.Property(x => x.FeeAmount).HasPrecision(18, 2);
+        builder.Property(x => x.NetAmount).HasPrecision(18, 2);
         builder.Property(x => x.BankName).HasColumnType("varchar(150)").IsRequired();
         builder.Property(x => x.AccountNumber).HasColumnType("varchar(50)").IsRequired();
         builder.Property(x => x.AccountHolder).HasColumnType("varchar(150)").IsRequired();
@@ -27,5 +29,6 @@ public sealed class AffiliateWithdrawalConfiguration : IEntityTypeConfiguration<
         builder.Property(x => x.ProcessedAt).HasColumnType("timestamptz");
         builder.Property(x => x.Version).IsRowVersion();
         builder.ToTable(t => t.HasCheckConstraint("CK_AffiliateWithdrawals_Valid", "\"Amount\" > 0"));
+        builder.ToTable(t => t.HasCheckConstraint("CK_AffiliateWithdrawals_Fee", "\"FeeAmount\" >= 0 AND \"NetAmount\" > 0 AND \"NetAmount\" = \"Amount\" - \"FeeAmount\""));
     }
 }
