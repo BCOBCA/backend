@@ -79,6 +79,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Article> Articles => Set<Article>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
+    public DbSet<PlatformFeeConfiguration> PlatformFeeConfigurations => Set<PlatformFeeConfiguration>();
     public DbSet<AccountRole> AccountRoles => Set<AccountRole>();
     public DbSet<BrandCategoryMapping> BrandCategoryMappings => Set<BrandCategoryMapping>();
     public DbSet<SellerOrder> SellerOrders => Set<SellerOrder>();

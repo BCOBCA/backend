@@ -1644,6 +1644,48 @@ namespace BCOBCA.DAL.Migrations
                     b.ToTable("PaymentTransactions", (string)null);
                 });
 
+            modelBuilder.Entity("BCOBCA.DAL.Entities.PlatformFeeConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PlatformFeeRate")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<Guid?>("UpdatedByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UpdatedByAccountId");
+
+                    b.ToTable("PlatformFeeConfigurations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PlatformFeeConfigurations_Rate", "\"PlatformFeeRate\" BETWEEN 0 AND 1");
+
+                            t.HasCheckConstraint("CK_PlatformFeeConfigurations_Singleton", "\"Id\" = 'e312fc37-3690-41a2-80dd-8f0276adf492'::uuid");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("e312fc37-3690-41a2-80dd-8f0276adf492"),
+                            PlatformFeeRate = 0m,
+                            Revision = new Guid("07e3ef2e-844e-49b1-b0ef-822eb4f17483")
+                        });
+                });
+
             modelBuilder.Entity("BCOBCA.DAL.Entities.PointExpiration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3478,6 +3520,14 @@ namespace BCOBCA.DAL.Migrations
                         .HasForeignKey("PaymentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.PlatformFeeConfiguration", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.Account", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.PointExpiration", b =>

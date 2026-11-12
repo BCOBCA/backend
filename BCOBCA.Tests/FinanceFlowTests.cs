@@ -53,6 +53,8 @@ public sealed class FinanceFlowTests
             var denied = await Assert.ThrowsAsync<BusinessException>(() => orders.TransitionAsync(referrer.User.AccountId, order.Id, new OrderStatusRequest("CONFIRMED"), default));
             Assert.Equal(403, denied.StatusCode);
             db.AccountRoles.Add(new AccountRole { AccountId = referrer.User.AccountId, Role = "Admin" }); await db.SaveChangesAsync();
+            var feeSettings = new PlatformFeeConfigurationService(store);
+            await feeSettings.UpdateAsync(referrer.User.AccountId, new(0.1m, (await feeSettings.GetAsync(referrer.User.AccountId, default)).Revision), default);
             foreach (var status in new[] { "CONFIRMED", "READY" }) await orders.TransitionAsync(referrer.User.AccountId, order.Id, new OrderStatusRequest(status), default);
             var operations = new AdminOperationsService(store, orders);
             var shipmentInput = new ShipmentInput(order.Id, " Test carrier ", " TEST-TRACKING ");

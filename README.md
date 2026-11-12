@@ -102,3 +102,5 @@ Integration tests cần PostgreSQL development và role có CREATEDB; tự tạo
 COD trước; báo giá chỉ để khách xem, nhân viên xử lý tiếp. Có cart/checkout, voucher, kho, multibrand orders, reviews/moderation, membership, affiliate, withdrawals, full refunds và settlements. Không seed dữ liệu kinh doanh giả. Thưởng theo đơn mặc định tắt cho đến khi đặt chính sách thực trong env.
 
 Chưa xác minh SMTP thật, payment/push/carrier integrations hoặc production deployment. Các khoản thu/chi COD hiện do nhân viên xác nhận giao dịch thực tế.
+
+Phí sàn được lưu trong database và quản lý bằng `GET`/`PUT /api/admin/settings/platform-fee` (Admin/SuperAdmin), không lấy từ `Settlement__PlatformFeeRate` nữa. Migration khởi tạo 0%; xem [hướng dẫn cấu hình phí sàn](docs/handoffs/admin-platform-fee.md) để tích hợp màn hình admin và triển khai.

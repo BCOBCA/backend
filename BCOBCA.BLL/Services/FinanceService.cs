@@ -81,8 +81,9 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
             }
             wallet.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        var feeRate = config.GetValue<decimal>("Settlement:PlatformFeeRate");
-        if (feeRate < 0 || feeRate > 1 || decimal.Round(feeRate, 4) != feeRate) throw new InvalidOperationException("Settlement platform fee rate is invalid.");
+        var feeRate = await store.Set<PlatformFeeConfiguration>().AsNoTracking()
+            .Where(x => x.Id == PlatformFeeConfiguration.SingletonId).Select(x => x.PlatformFeeRate).SingleAsync(ct);
+        PlatformFeeRules.Validate(feeRate);
         foreach (var sellerOrder in await store.Set<SellerOrder>().Where(x => x.OrderId == orderId).ToListAsync(ct))
         {
             var fee = decimal.Round(sellerOrder.TotalAmount * feeRate, 2, MidpointRounding.AwayFromZero);
