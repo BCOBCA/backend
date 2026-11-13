@@ -23,6 +23,14 @@ public sealed class SellerController(ISellerService seller) : ControllerBase
     public async Task<IActionResult> Summary(Guid storeId, CancellationToken ct)
         => Ok(ApiResponse<SellerSummaryDto>.Ok(await seller.SummaryAsync(AccountId, storeId, ct)));
 
+    [HttpGet("stores/{storeId:guid}/profile")]
+    public async Task<IActionResult> Profile(Guid storeId, CancellationToken ct)
+        => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.ProfileAsync(AccountId, storeId, ct)));
+
+    [HttpPut("stores/{storeId:guid}/profile")]
+    public async Task<IActionResult> UpdateProfile(Guid storeId, SellerStoreProfileInput input, CancellationToken ct)
+        => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.UpdateProfileAsync(AccountId, storeId, input, ct)));
+
     [HttpGet("stores/{storeId:guid}/products")]
     public async Task<IActionResult> Products(Guid storeId, [FromQuery] CatalogQuery query, CancellationToken ct)
         => Ok(ApiResponse<PageResult<SellerProductDto>>.Ok(await seller.ProductsAsync(AccountId, storeId, query, ct)));

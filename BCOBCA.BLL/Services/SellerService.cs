@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BCOBCA.BLL.Services;
 
-public sealed class SellerService(ICommerceStore store) : ISellerService
+public sealed partial class SellerService(ICommerceStore store) : ISellerService
 {
     public async Task<SellerStoreDto> OnboardAsync(Guid accountId, CancellationToken ct)
     {
