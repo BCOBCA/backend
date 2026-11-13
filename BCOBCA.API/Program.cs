@@ -35,6 +35,7 @@ builder.Services.AddScoped<ICommerceStore, CommerceStore>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICatalogService, CatalogService>();
 builder.Services.AddScoped<IDealerService, DealerService>();
+builder.Services.AddScoped<ISellerService, SellerService>();
 builder.Services.AddScoped<IDealerCatalogService, DealerCatalogService>();
 builder.Services.AddScoped<IMemberService, MemberService>();
 builder.Services.AddScoped<ILoyaltyConfigurationService, LoyaltyConfigurationService>();
