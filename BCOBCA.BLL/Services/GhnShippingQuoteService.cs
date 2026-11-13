@@ -13,6 +13,9 @@ public sealed class GhnShippingQuoteService(ICommerceStore store, GhnQuoteClient
         if (address is null) throw new BusinessException("Vui lòng chọn địa chỉ nhận hàng", 409);
         var storeIds = lines.Select(x => x.StoreId).Distinct().ToArray();
         var shops = await store.Set<Store>().AsNoTracking().Where(x => storeIds.Contains(x.Id) && x.StoreType == 1 && x.Status == 1).ToDictionaryAsync(x => x.Id, ct);
+        var warehouseBranches = await store.Set<StoreBranch>().AsNoTracking().Where(b => storeIds.Contains(b.StoreId) && (b.IsPickup || b.IsReturn)).ToListAsync(ct);
+        var pickups = warehouseBranches.Where(b => b.IsPickup).ToDictionary(b => b.StoreId);
+        var returns = warehouseBranches.Where(b => b.IsReturn).ToDictionary(b => b.StoreId);
         var productIds = lines.Select(x => x.ProductId).ToArray();
         var products = await store.Set<Product>().AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
         var names = await client.AddressNamesAsync(address, ct);
@@ -24,7 +27,19 @@ public sealed class GhnShippingQuoteService(ICommerceStore store, GhnQuoteClient
             }).ToArray();
             var weight = items.Sum(x => (long)x.weight * x.quantity); var height = items.Sum(x => (long)x.height * x.quantity);
             if (weight > 50000 || height > 200) throw new BusinessException("Kiện hàng vượt kích thước giao hàng được hỗ trợ", 409);
-            return (StoreId: group.Key, Package: new GhnPackage(shop.GhnTestShopId.Value, (int)weight, items.Max(x => x.length), items.Max(x => x.width), (int)height, group.Sum(x => x.TotalPrice), items.Cast<object>().ToArray()));
+            GhnPickup? pickup = null;
+            if (pickups.TryGetValue(group.Key, out var branch))
+            {
+                if (!branch.IsActive || string.IsNullOrWhiteSpace(branch.Address) || string.IsNullOrWhiteSpace(branch.Phone) || string.IsNullOrWhiteSpace(branch.ProvinceName) || string.IsNullOrWhiteSpace(branch.WardName)) throw new BusinessException("Kho lấy hàng của cửa hàng chưa đủ thông tin. Vui lòng liên hệ cửa hàng.", 409);
+                pickup = new(branch.Name, branch.Phone, branch.Address, branch.ProvinceName, branch.WardName);
+            }
+            GhnPickup? returnAddress = null;
+            if (returns.TryGetValue(group.Key, out var returnBranch))
+            {
+                if (!returnBranch.IsActive || string.IsNullOrWhiteSpace(returnBranch.Address) || string.IsNullOrWhiteSpace(returnBranch.Phone) || string.IsNullOrWhiteSpace(returnBranch.ProvinceName) || string.IsNullOrWhiteSpace(returnBranch.WardName)) throw new BusinessException("Địa chỉ trả hàng của cửa hàng chưa đủ thông tin. Vui lòng liên hệ cửa hàng.", 409);
+                returnAddress = new(returnBranch.Name, returnBranch.Phone, returnBranch.Address, returnBranch.ProvinceName, returnBranch.WardName);
+            }
+            return (StoreId: group.Key, Package: new GhnPackage(shop.GhnTestShopId.Value, (int)weight, items.Max(x => x.length), items.Max(x => x.width), (int)height, group.Sum(x => x.TotalPrice), items.Cast<object>().ToArray(), pickup, returnAddress));
         }).ToArray();
         var rates = await Task.WhenAll(packages.Select(async x => (x.StoreId, Rate: await client.QuoteAsync(address, names.Province, names.Ward, x.Package, ct))));
         return new(rates.ToDictionary(x => x.StoreId, x => x.Rate), $"{address.AddressLine.Trim()}, {names.Ward}, {names.Province}");

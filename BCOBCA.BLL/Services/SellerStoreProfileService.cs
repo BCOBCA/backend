@@ -26,7 +26,7 @@ public sealed partial class SellerService
             where link.StoreId == storeId && activeCategoryIds.Contains(category.Id) orderby category.Name select new DealerCategoryDto(category.Id, category.Name)).ToListAsync(ct);
         var branches = await store.Set<StoreBranch>().AsNoTracking().Where(b => b.StoreId == storeId)
             .OrderByDescending(b => b.IsMain).ThenBy(b => b.Name).ThenBy(b => b.Id)
-            .Select(b => new SellerBranchProfileDto(b.Id, b.Name, b.Phone, b.Address, b.ProvinceCode, b.WardCode, b.IsMain, b.IsActive, b.Latitude, b.Longitude)).ToListAsync(ct);
+            .Select(b => new SellerBranchProfileDto(b.Id, b.Name, b.Phone, b.Address, b.ProvinceCode, b.WardCode, b.IsMain, b.IsActive, b.Latitude, b.Longitude, b.ProvinceName, b.WardName, b.IsPickup, b.IsReturn)).ToListAsync(ct);
         var verification = await store.Set<StoreVerification>().AsNoTracking().Where(v => v.StoreId == storeId)
             .OrderByDescending(v => v.CreatedAt).ThenByDescending(v => v.Id)
             .Select(v => new SellerVerificationDto(v.LegalName, v.TaxCode, v.RepresentativeName, v.Status, v.RejectionReason, v.UpdatedAt)).FirstOrDefaultAsync(ct);

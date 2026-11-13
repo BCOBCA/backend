@@ -7,7 +7,8 @@ using Microsoft.Extensions.Configuration;
 
 namespace BCOBCA.BLL.Services;
 
-public sealed record GhnPackage(int ShopId, int Weight, int Length, int Width, int Height, decimal MerchandiseTotal, IReadOnlyList<object> Items);
+public sealed record GhnPickup(string Name, string Phone, string Address, string Province, string Ward);
+public sealed record GhnPackage(int ShopId, int Weight, int Length, int Width, int Height, decimal MerchandiseTotal, IReadOnlyList<object> Items, GhnPickup? Pickup = null, GhnPickup? Return = null);
 
 public sealed class GhnQuoteClient(HttpClient client, IConfiguration config)
 {
@@ -33,10 +34,21 @@ public sealed class GhnQuoteClient(HttpClient client, IConfiguration config)
         using var request = new HttpRequestMessage(HttpMethod.Post, PreviewUrl);
         request.Headers.Add("Token", token);
         request.Headers.Add("ShopId", package.ShopId.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        request.Content = JsonContent.Create(new { payment_type_id = 2, required_note = "KHONGCHOXEMHANG", to_name = address.RecipientName, to_phone = address.Phone,
-            to_address = address.AddressLine, to_province_name = province, to_ward_name = ward, is_new_to_address = true,
-            weight = package.Weight, length = package.Length, width = package.Width, height = package.Height,
-            service_type_id = package.Weight < 20000 ? 2 : 5, cod_amount = decimal.Round(package.MerchandiseTotal, 0, MidpointRounding.AwayFromZero), items = package.Items });
+        var body = new Dictionary<string, object?> { ["payment_type_id"] = 2, ["required_note"] = "KHONGCHOXEMHANG", ["to_name"] = address.RecipientName, ["to_phone"] = address.Phone,
+            ["to_address"] = address.AddressLine, ["to_province_name"] = province, ["to_ward_name"] = ward, ["is_new_to_address"] = true,
+            ["weight"] = package.Weight, ["length"] = package.Length, ["width"] = package.Width, ["height"] = package.Height,
+            ["service_type_id"] = package.Weight < 20000 ? 2 : 5, ["cod_amount"] = decimal.Round(package.MerchandiseTotal, 0, MidpointRounding.AwayFromZero), ["items"] = package.Items };
+        if (package.Pickup is { } pickup)
+        {
+            body["from_name"] = pickup.Name; body["from_phone"] = pickup.Phone; body["from_address"] = pickup.Address;
+            body["from_province_name"] = pickup.Province; body["from_ward_name"] = pickup.Ward; body["is_new_from_address"] = true;
+        }
+        if (package.Return is { } returns)
+        {
+            body["return_name"] = returns.Name; body["return_phone"] = returns.Phone; body["return_address"] = returns.Address;
+            body["return_province_name"] = returns.Province; body["return_ward_name"] = returns.Ward; body["is_new_return_address"] = true;
+        }
+        request.Content = JsonContent.Create(body);
         try
         {
             using var response = await client.SendAsync(request, ct);
@@ -51,9 +63,9 @@ public sealed class GhnQuoteClient(HttpClient client, IConfiguration config)
                 throw new BusinessException("Chưa lấy được phí giao hàng cho tuyến này. Vui lòng kiểm tra địa chỉ hoặc thử lại", 503);
             }
             var data = await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-            if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("code", out var code) || code.ValueKind != JsonValueKind.Number || !code.TryGetInt32(out var status) || status != 200 || !data.TryGetProperty("data", out var body) || body.ValueKind != JsonValueKind.Object || !body.TryGetProperty("total_fee", out var total) || total.ValueKind != JsonValueKind.Number || !total.TryGetInt32(out var fee) || fee < 0) throw new BusinessException("Phí giao hàng chưa được xác nhận. Vui lòng thử lại", 503);
-            if (!body.TryGetProperty("order_code", out var orderCode) || orderCode.ValueKind != JsonValueKind.String || orderCode.GetString() != "") throw new BusinessException("Báo giá giao hàng chưa được xác nhận", 503);
-            DateTimeOffset? eta = body.TryGetProperty("expected_delivery_time", out var delivery) && delivery.ValueKind == JsonValueKind.String && delivery.TryGetDateTimeOffset(out var date) ? date : null;
+            if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("code", out var code) || code.ValueKind != JsonValueKind.Number || !code.TryGetInt32(out var status) || status != 200 || !data.TryGetProperty("data", out var result) || result.ValueKind != JsonValueKind.Object || !result.TryGetProperty("total_fee", out var total) || total.ValueKind != JsonValueKind.Number || !total.TryGetInt32(out var fee) || fee < 0) throw new BusinessException("Phí giao hàng chưa được xác nhận. Vui lòng thử lại", 503);
+            if (!result.TryGetProperty("order_code", out var orderCode) || orderCode.ValueKind != JsonValueKind.String || orderCode.GetString() != "") throw new BusinessException("Báo giá giao hàng chưa được xác nhận", 503);
+            DateTimeOffset? eta = result.TryGetProperty("expected_delivery_time", out var delivery) && delivery.ValueKind == JsonValueKind.String && delivery.TryGetDateTimeOffset(out var date) ? date : null;
             return new(fee, eta);
         }
         catch (HttpRequestException) { throw new BusinessException("Không kết nối được dịch vụ giao hàng. Vui lòng thử lại", 503); }

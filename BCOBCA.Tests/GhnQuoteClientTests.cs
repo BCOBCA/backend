@@ -37,6 +37,28 @@ public sealed class GhnQuoteClientTests
         Assert.Equal(23000m, rate.Fee); Assert.NotNull(rate.ExpectedDeliveryAt); Assert.Equal(1, calls);
     }
 
+    [Fact]
+    public async Task SelectedWarehouseOverridesTheShopOriginWithoutCreatingAShipment()
+    {
+        using var http = new HttpClient(new Handler(async request => {
+            Assert.Equal(GhnQuoteClient.PreviewUrl, request.RequestUri!.AbsoluteUri);
+            var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync()).RootElement;
+            Assert.Equal("Kho Đà Nẵng", body.GetProperty("from_name").GetString());
+            Assert.Equal("0901234567", body.GetProperty("from_phone").GetString());
+            Assert.Equal("12 Nguyễn Văn Linh", body.GetProperty("from_address").GetString());
+            Assert.Equal("Đà Nẵng", body.GetProperty("from_province_name").GetString());
+            Assert.Equal("Phường Hải Châu", body.GetProperty("from_ward_name").GetString());
+            Assert.True(body.GetProperty("is_new_from_address").GetBoolean());
+            Assert.Equal("Kho trả Hà Nội", body.GetProperty("return_name").GetString());
+            Assert.Equal("34 Hoàn Kiếm", body.GetProperty("return_address").GetString());
+            Assert.True(body.GetProperty("is_new_return_address").GetBoolean());
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"code":200,"data":{"order_code":"","total_fee":31000}}""") };
+        }));
+        var package = Package with { Pickup = new GhnPickup("Kho Đà Nẵng", "0901234567", "12 Nguyễn Văn Linh", "Đà Nẵng", "Phường Hải Châu"), Return = new GhnPickup("Kho trả Hà Nội", "0901234567", "34 Hoàn Kiếm", "Hà Nội", "Phường Hoàn Kiếm") };
+        var rate = await new GhnQuoteClient(http, Config()).QuoteAsync(Address, "Hồ Chí Minh", "Phường Sài Gòn", package, default);
+        Assert.Equal(31000m, rate.Fee);
+    }
+
     [Theory]
     [InlineData("{\"code\":200,\"data\":{\"total_fee\":-1}}")]
     [InlineData("{\"code\":400,\"data\":null}")]

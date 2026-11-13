@@ -115,7 +115,7 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
             ShowPhone = store.Set<StoreSettings>().Any(s => s.StoreId == x.Id && s.ShowPhone)
         }).SingleAsync(ct);
         var branches = await PublicBranches().Where(b => b.StoreId == dealer.Id).OrderByDescending(b => b.IsMain).ThenBy(b => b.Id)
-            .Select(b => new DealerBranchDto(b.Id, b.Name, b.Address, b.ProvinceCode, b.WardCode, contact.ShowPhone ? b.Phone : null, b.Latitude, b.Longitude, b.IsMain)).ToListAsync(ct);
+            .Select(b => new DealerBranchDto(b.Id, b.Name, b.Address + (b.WardName == "" ? "" : ", " + b.WardName) + (b.ProvinceName == "" ? "" : ", " + b.ProvinceName), b.ProvinceCode, b.WardCode, contact.ShowPhone ? b.Phone : null, b.Latitude, b.Longitude, b.IsMain)).ToListAsync(ct);
         return new(dealer, contact.Phone, contact.Email, contact.Website, branches);
     }
 

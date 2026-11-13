@@ -17,14 +17,27 @@ public sealed class StoreSplitCheckoutFlowTests
     private sealed class ShippingHandler : HttpMessageHandler
     {
         public int LocationRequests { get; private set; }
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var location = request.RequestUri!.Host == "provinces.open-api.vn";
             if (location) LocationRequests++;
-            else Assert.Equal(GhnQuoteClient.PreviewUrl, request.RequestUri.AbsoluteUri);
-            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(location
+            else
+            {
+                Assert.Equal(GhnQuoteClient.PreviewUrl, request.RequestUri.AbsoluteUri);
+                var body = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct)).RootElement;
+                if (request.Headers.GetValues("ShopId").Single() == "1")
+                {
+                    Assert.Equal("Selected warehouse", body.GetProperty("from_name").GetString());
+                    Assert.Equal("Warehouse street", body.GetProperty("from_address").GetString());
+                    Assert.True(body.GetProperty("is_new_from_address").GetBoolean());
+                    Assert.Equal("Warehouse street", body.GetProperty("return_address").GetString());
+                    Assert.True(body.GetProperty("is_new_return_address").GetBoolean());
+                }
+                else Assert.False(body.TryGetProperty("from_address", out _));
+            }
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(location
                 ? """{"code":79,"name":"Thành phố Hồ Chí Minh","wards":[{"code":1,"name":"Phường kiểm thử"}]}"""
-                : """{"code":200,"data":{"order_code":"","total_fee":30000}}""") });
+                : """{"code":200,"data":{"order_code":"","total_fee":30000}}""") };
         }
     }
     [Theory]
@@ -55,6 +68,7 @@ public sealed class StoreSplitCheckoutFlowTests
             for (var i = 1; i <= 3; i++)
             {
                 var seller = new Store { Name = $"Shop {i}", Slug = $"shop-{i}", OwnerAccountId = owner.User.AccountId, StoreType = 1, Status = 1, GhnTestShopId = i };
+                if (i == 1) db.Add(new StoreBranch { StoreId = seller.Id, Name = "Selected warehouse", Phone = "0901234567", Address = "Warehouse street", ProvinceCode = "79", WardCode = "26734", ProvinceName = "Hồ Chí Minh", WardName = "Phường Sài Gòn", IsPickup = true, IsReturn = true });
                 var product = new Product { StoreId = seller.Id, BrandId = brand.Id, CategoryId = category.Id, Name = $"Product {i}", Slug = $"product-{i}", SKU = $"P-{i}", BasePrice = equalPrices ? 100000 : i * 100000, Status = 1, ShippingWeightGrams = 500, ShippingLengthCm = 20, ShippingWidthCm = 15, ShippingHeightCm = 10 };
                 var variant = new ProductVariant { ProductId = product.Id, SKU = $"V-{i}", VariantName = "Default", Price = product.BasePrice, StockQuantity = 10, IsActive = true };
                 db.AddRange(seller, product, variant); products.Add(product); variants.Add(variant);

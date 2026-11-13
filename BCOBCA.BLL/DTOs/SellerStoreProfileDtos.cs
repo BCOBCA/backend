@@ -6,7 +6,10 @@ public sealed record SellerStoreProfileInput(string Name, string Description, st
     string Email, string Phone, string Website, string Provinces, Guid[] CategoryIds,
     SellerMainBranchInput MainBranch, SellerVisibilityDto Settings, DateTimeOffset UpdatedAt);
 public sealed record SellerBranchProfileDto(Guid Id, string Name, string Phone, string Address, string ProvinceCode,
-    string WardCode, bool IsMain, bool IsActive, decimal? Latitude, decimal? Longitude);
+    string WardCode, bool IsMain, bool IsActive, decimal? Latitude, decimal? Longitude,
+    string ProvinceName = "", string WardName = "", bool IsPickup = false, bool IsReturn = false);
+public sealed record SellerBranchInput(string Name, string Phone, string Address, string ProvinceCode, string WardCode, DateTimeOffset UpdatedAt);
+public sealed record SellerPickupBranchInput(Guid BranchId, DateTimeOffset UpdatedAt);
 public sealed record SellerVerificationDto(string LegalName, string TaxCode, string RepresentativeName,
     short Status, string? RejectionReason, DateTimeOffset UpdatedAt);
 public sealed record SellerStoreProfileDto(Guid Id, string Name, string Slug, string Description, string LogoUrl,

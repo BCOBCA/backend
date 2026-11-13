@@ -2658,6 +2658,12 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<bool>("IsMain")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsPickup")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsReturn")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal?>("Latitude")
                         .HasPrecision(10, 7)
                         .HasColumnType("numeric(10,7)");
@@ -2684,6 +2690,11 @@ namespace BCOBCA.DAL.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("ProvinceName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
                     b.Property<Guid>("StoreId")
                         .HasColumnType("uuid");
 
@@ -2694,6 +2705,11 @@ namespace BCOBCA.DAL.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<string>("WardName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
 
                     b.HasKey("Id");
 
@@ -2708,11 +2724,23 @@ namespace BCOBCA.DAL.Migrations
 
                     b.HasIndex("StoreId", "IsActive", "ProvinceCode");
 
+                    b.HasIndex(new[] { "StoreId" }, "IX_StoreBranches_Pickup")
+                        .IsUnique()
+                        .HasFilter("\"IsPickup\"");
+
+                    b.HasIndex(new[] { "StoreId" }, "IX_StoreBranches_Return")
+                        .IsUnique()
+                        .HasFilter("\"IsReturn\"");
+
                     b.ToTable("StoreBranches", null, t =>
                         {
                             t.HasCheckConstraint("CK_StoreBranches_Latitude", "\"Latitude\" BETWEEN -90 AND 90");
 
                             t.HasCheckConstraint("CK_StoreBranches_Longitude", "\"Longitude\" BETWEEN -180 AND 180");
+
+                            t.HasCheckConstraint("CK_StoreBranches_Pickup", "NOT \"IsPickup\" OR (\"IsActive\" AND \"Address\" <> '' AND \"Phone\" <> '' AND \"ProvinceName\" <> '' AND \"WardName\" <> '')");
+
+                            t.HasCheckConstraint("CK_StoreBranches_Return", "NOT \"IsReturn\" OR (\"IsActive\" AND \"Address\" <> '' AND \"Phone\" <> '' AND \"ProvinceName\" <> '' AND \"WardName\" <> '')");
                         });
                 });
 

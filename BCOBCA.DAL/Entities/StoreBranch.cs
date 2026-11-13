@@ -10,6 +10,10 @@ public sealed class StoreBranch
     public string Address { get; set; } = "";
     public string ProvinceCode { get; set; } = "";
     public string WardCode { get; set; } = "";
+    public string ProvinceName { get; set; } = "";
+    public string WardName { get; set; } = "";
+    public bool IsPickup { get; set; }
+    public bool IsReturn { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public bool IsMain { get; set; }

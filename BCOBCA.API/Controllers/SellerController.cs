@@ -35,9 +35,25 @@ public sealed class SellerController(ISellerService seller) : ControllerBase
     public async Task<IActionResult> Products(Guid storeId, [FromQuery] CatalogQuery query, CancellationToken ct)
         => Ok(ApiResponse<PageResult<SellerProductDto>>.Ok(await seller.ProductsAsync(AccountId, storeId, query, ct)));
 
+    [HttpPost("stores/{storeId:guid}/branches")]
+    public async Task<IActionResult> AddBranch(Guid storeId, SellerBranchInput input, CancellationToken ct)
+        => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.SaveBranchAsync(AccountId, storeId, null, input, ct)));
+
+    [HttpPut("stores/{storeId:guid}/branches/{id:guid}")]
+    public async Task<IActionResult> UpdateBranch(Guid storeId, Guid id, SellerBranchInput input, CancellationToken ct)
+        => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.SaveBranchAsync(AccountId, storeId, id, input, ct)));
+
+    [HttpPut("stores/{storeId:guid}/pickup-branch")]
+    public async Task<IActionResult> PickupBranch(Guid storeId, SellerPickupBranchInput input, CancellationToken ct)
+        => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.SelectPickupBranchAsync(AccountId, storeId, input, ct)));
+
     [HttpGet("stores/{storeId:guid}/orders")]
     public async Task<IActionResult> Orders(Guid storeId, [FromQuery] CatalogQuery query, CancellationToken ct)
         => Ok(ApiResponse<PageResult<SellerOrderDto>>.Ok(await seller.OrdersAsync(AccountId, storeId, query, ct)));
+
+    [HttpPut("stores/{storeId:guid}/return-branch")]
+    public async Task<IActionResult> ReturnBranch(Guid storeId, SellerPickupBranchInput input, CancellationToken ct)
+        => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.SelectReturnBranchAsync(AccountId, storeId, input, ct)));
 
     [HttpGet("stores/{storeId:guid}/orders/{id:guid}")]
     public async Task<IActionResult> Order(Guid storeId, Guid id, CancellationToken ct)
