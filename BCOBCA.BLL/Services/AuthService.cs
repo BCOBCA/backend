@@ -22,7 +22,13 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
     private static string Hash(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
     private static string NewToken() => Convert.ToHexString(RandomNumberGenerator.GetBytes(48));
 
-    public async Task<RegistrationResult> RegisterAsync(RegisterRequest input, CancellationToken ct)
+    public Task<RegistrationResult> RegisterAsync(RegisterRequest input, CancellationToken ct)
+        => RegisterCoreAsync(input, false, ct);
+
+    public Task<RegistrationResult> RegisterSellerAsync(RegisterRequest input, CancellationToken ct)
+        => RegisterCoreAsync(input, true, ct);
+
+    private async Task<RegistrationResult> RegisterCoreAsync(RegisterRequest input, bool seller, CancellationToken ct)
     {
         input = input with { Email = (input.Email ?? "").Trim().ToLowerInvariant(), Phone = (input.Phone ?? "").Trim() };
         await registerValidator.ValidateAndThrowAsync(input, ct);
@@ -48,6 +54,7 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
         store.Set<Account>().Add(account);
         store.Set<User>().Add(user);
         store.Set<AccountRole>().Add(new AccountRole { AccountId = account.Id, Role = "Customer" });
+        if (seller) await SellerProvisioning.EnsureAsync(store, account, user, ct);
         store.Set<Cart>().Add(new Cart { UserId = user.Id, CreatedAt = now, UpdatedAt = now });
         var tier = await store.Set<MembershipTier>().Where(x => x.IsActive).OrderBy(x => x.SortOrder).FirstAsync(ct);
         store.Set<UserMembership>().Add(new UserMembership { UserId = user.Id, TierId = tier.Id, MemberCode = "BCA" + Convert.ToHexString(RandomNumberGenerator.GetBytes(8)), JoinedAt = now });

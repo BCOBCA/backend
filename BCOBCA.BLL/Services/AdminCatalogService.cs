@@ -244,7 +244,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
     {
         await using var tx = await store.BeginTransactionAsync(ct);
         if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && x.Role == "SuperAdmin", ct)) throw new BusinessException("Cần quyền SuperAdmin", 403);
-        if (input.Role is not ("Customer" or "BrandOwner" or "BrandStaff" or "Admin" or "SuperAdmin")) throw new BusinessException("Vai trò không hợp lệ");
+        if (input.Role is not ("Customer" or "Seller" or "BrandOwner" or "BrandStaff" or "Admin" or "SuperAdmin")) throw new BusinessException("Vai trò không hợp lệ");
         if (accountId == input.AccountId && input.Role == "SuperAdmin" && !input.Granted) throw new BusinessException("Không thể tự thu hồi quyền SuperAdmin");
         if (input.Role == "SuperAdmin" && !input.Granted)
         {

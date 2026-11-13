@@ -23,6 +23,13 @@ public sealed class AuthController(IAuthService auth, IWebHostEnvironment enviro
         return StatusCode(201, ApiResponse<RegistrationConfirmationDto>.Ok(new()));
     }
 
+    [HttpPost("register-seller"), EnableRateLimiting("auth")]
+    public async Task<IActionResult> RegisterSeller(RegisterRequest input, CancellationToken ct)
+    {
+        await auth.RegisterSellerAsync(input, ct);
+        return StatusCode(201, ApiResponse<RegistrationConfirmationDto>.Ok(new()));
+    }
+
     [HttpPost("login"), EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(LoginRequest input, CancellationToken ct)
     {

@@ -11,6 +11,10 @@ public sealed class SellerController(ISellerService seller) : ControllerBase
 {
     private Guid AccountId => Guid.Parse(User.FindFirst("sub")!.Value);
 
+    [HttpPost("onboard")]
+    public async Task<IActionResult> Onboard(CancellationToken ct)
+        => Ok(ApiResponse<SellerStoreDto>.Ok(await seller.OnboardAsync(AccountId, ct)));
+
     [HttpGet("stores")]
     public async Task<IActionResult> Stores(CancellationToken ct)
         => Ok(ApiResponse<IReadOnlyList<SellerStoreDto>>.Ok(await seller.StoresAsync(AccountId, ct)));

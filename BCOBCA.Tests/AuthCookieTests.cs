@@ -160,6 +160,7 @@ public sealed class AuthCookieTests
         }
         public Task LogoutAsync(string token, CancellationToken ct) { Calls++; return Task.CompletedTask; }
         public Task<RegistrationResult> RegisterAsync(RegisterRequest input, CancellationToken ct) => throw new NotSupportedException();
+        public Task<RegistrationResult> RegisterSellerAsync(RegisterRequest input, CancellationToken ct) => throw new NotSupportedException();
         public Task<ProfileDto> GetProfileAsync(Guid accountId, CancellationToken ct) => throw new NotSupportedException();
         public Task<ProfileDto> UpdateProfileAsync(Guid accountId, UpdateProfileRequest input, CancellationToken ct) => throw new NotSupportedException();
         public Task<Guid> GetUserIdAsync(Guid accountId, CancellationToken ct) => throw new NotSupportedException();

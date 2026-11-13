@@ -9,6 +9,20 @@ namespace BCOBCA.BLL.Services;
 
 public sealed class SellerService(ICommerceStore store) : ISellerService
 {
+    public async Task<SellerStoreDto> OnboardAsync(Guid accountId, CancellationToken ct)
+    {
+        await using var tx = await store.BeginTransactionAsync(ct);
+        var account = await store.Set<Account>().SingleOrDefaultAsync(a => a.Id == accountId && a.Status == 1, ct)
+            ?? throw new BusinessException("Tài khoản không hoạt động", 403);
+        var user = await store.Set<User>().SingleOrDefaultAsync(u => u.AccountId == accountId, ct)
+            ?? throw new BusinessException("Không tìm thấy hồ sơ", 404);
+        var shop = await SellerProvisioning.EnsureAsync(store, account, user, ct);
+        await store.SaveChangesAsync(ct);
+        var result = (await StoresAsync(accountId, ct)).Single(s => s.Id == shop.Id);
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
     private IQueryable<Store> Owned(Guid accountId) => store.Set<Store>().AsNoTracking()
         .Where(s => s.OwnerAccountId == accountId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null);
 
