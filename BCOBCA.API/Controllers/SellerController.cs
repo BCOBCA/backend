@@ -47,6 +47,10 @@ public sealed class SellerController(ISellerService seller) : ControllerBase
     public async Task<IActionResult> PickupBranch(Guid storeId, SellerPickupBranchInput input, CancellationToken ct)
         => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.SelectPickupBranchAsync(AccountId, storeId, input, ct)));
 
+    [HttpPut("stores/{storeId:guid}/main-branch")]
+    public async Task<IActionResult> MainBranch(Guid storeId, SellerPickupBranchInput input, CancellationToken ct)
+        => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.SelectMainBranchAsync(AccountId, storeId, input, ct)));
+
     [HttpGet("stores/{storeId:guid}/orders")]
     public async Task<IActionResult> Orders(Guid storeId, [FromQuery] CatalogQuery query, CancellationToken ct)
         => Ok(ApiResponse<PageResult<SellerOrderDto>>.Ok(await seller.OrdersAsync(AccountId, storeId, query, ct)));

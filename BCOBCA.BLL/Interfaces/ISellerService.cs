@@ -11,6 +11,7 @@ public interface ISellerService
     Task<SellerStoreProfileDto> UpdateProfileAsync(Guid accountId, Guid storeId, SellerStoreProfileInput input, CancellationToken ct);
     Task<SellerStoreProfileDto> SaveBranchAsync(Guid accountId, Guid storeId, Guid? branchId, SellerBranchInput input, CancellationToken ct);
     Task<SellerStoreProfileDto> SelectPickupBranchAsync(Guid accountId, Guid storeId, SellerPickupBranchInput input, CancellationToken ct);
+    Task<SellerStoreProfileDto> SelectMainBranchAsync(Guid accountId, Guid storeId, SellerPickupBranchInput input, CancellationToken ct);
     Task<SellerStoreProfileDto> SelectReturnBranchAsync(Guid accountId, Guid storeId, SellerPickupBranchInput input, CancellationToken ct);
     Task<SellerSummaryDto> SummaryAsync(Guid accountId, Guid storeId, CancellationToken ct);
     Task<PageResult<SellerProductDto>> ProductsAsync(Guid accountId, Guid storeId, CatalogQuery query, CancellationToken ct);

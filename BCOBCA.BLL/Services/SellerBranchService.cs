@@ -39,7 +39,7 @@ public sealed partial class SellerService
         var branch = branchId.HasValue
             ? await store.Set<StoreBranch>().SingleOrDefaultAsync(b => b.Id == branchId && b.StoreId == storeId && b.IsActive, ct)
                 ?? throw new BusinessException("Không tìm thấy chi nhánh đang hoạt động của cửa hàng.", 404)
-            : new StoreBranch { StoreId = storeId, IsMain = !await store.Set<StoreBranch>().AnyAsync(b => b.StoreId == storeId && b.IsMain, ct) };
+            : new StoreBranch { StoreId = storeId };
         // Verify before mutating a tracked branch, so a rejected address leaves it unchanged.
         var names = await BranchLocationAsync(new StoreBranch { ProvinceCode = input.ProvinceCode, WardCode = input.WardCode }, ct);
         if (branch.Address != input.Address || branch.ProvinceCode != input.ProvinceCode || branch.WardCode != input.WardCode)
@@ -59,6 +59,26 @@ public sealed partial class SellerService
 
     public Task<SellerStoreProfileDto> SelectPickupBranchAsync(Guid accountId, Guid storeId, SellerPickupBranchInput input, CancellationToken ct)
         => SelectWarehouseBranchAsync(accountId, storeId, input, false, ct);
+
+    public async Task<SellerStoreProfileDto> SelectMainBranchAsync(Guid accountId, Guid storeId, SellerPickupBranchInput input, CancellationToken ct)
+    {
+        if (input.BranchId == Guid.Empty || input.UpdatedAt == default) throw new BusinessException("Vui lòng chọn chi nhánh chính.");
+        await using var tx = await store.BeginTransactionAsync(ct);
+        var shop = await BranchStoreAsync(accountId, storeId, input.UpdatedAt, ct);
+        var branch = await store.Set<StoreBranch>().SingleOrDefaultAsync(b => b.Id == input.BranchId && b.StoreId == storeId && b.IsActive, ct)
+            ?? throw new BusinessException("Không tìm thấy chi nhánh đang hoạt động của cửa hàng.", 404);
+        var previous = await store.Set<StoreBranch>().Where(b => b.StoreId == storeId && b.IsMain && b.Id != branch.Id).ToListAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+        foreach (var value in previous) { value.IsMain = false; value.UpdatedAt = now; }
+        // Clear the old main before setting the new one to respect the immediate unique index.
+        if (previous.Count > 0) await store.SaveChangesAsync(ct);
+        branch.IsMain = true;
+        branch.UpdatedAt = shop.UpdatedAt = now;
+        await store.SaveChangesAsync(ct);
+        var result = await ProfileAsync(accountId, storeId, ct);
+        await tx.CommitAsync(ct);
+        return result;
+    }
 
     public Task<SellerStoreProfileDto> SelectReturnBranchAsync(Guid accountId, Guid storeId, SellerPickupBranchInput input, CancellationToken ct)
         => SelectWarehouseBranchAsync(accountId, storeId, input, true, ct);

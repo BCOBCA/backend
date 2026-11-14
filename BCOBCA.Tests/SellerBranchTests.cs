@@ -49,7 +49,7 @@ public sealed class SellerBranchTests
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveBranchAsync(other.Id, shop.Id, null, input, default));
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveBranchAsync(owner.Id, shop.Id, foreign.Id, input, default));
             var first = await service.SaveBranchAsync(owner.Id, shop.Id, null, input, default);
-            Assert.Single(first.Branches); Assert.True(first.Branches[0].IsMain); Assert.False(first.Branches[0].IsPickup);
+            Assert.Single(first.Branches); Assert.False(first.Branches[0].IsMain); Assert.False(first.Branches[0].IsPickup);
             Assert.Equal("Hồ Chí Minh", first.Branches[0].ProvinceName);
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveBranchAsync(owner.Id, shop.Id, null, input, default));
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveBranchAsync(owner.Id, shop.Id, null, input with { UpdatedAt = first.UpdatedAt, WardCode = "99999" }, default));
@@ -59,7 +59,7 @@ public sealed class SellerBranchTests
             var branch = second.Branches.Single(b => b.Name == "Kho 2");
             var selected = await service.SelectPickupBranchAsync(owner.Id, shop.Id, new(branch.Id, second.UpdatedAt), default);
             Assert.Equal(branch.Id, Assert.Single(selected.Branches, b => b.IsPickup).Id);
-            Assert.True(selected.Branches.Single(b => b.Name == "Kho 1").IsMain);
+            Assert.DoesNotContain(selected.Branches, b => b.IsMain);
             var next = await service.SelectPickupBranchAsync(owner.Id, shop.Id, new(first.Branches[0].Id, selected.UpdatedAt), default);
             Assert.Equal(first.Branches[0].Id, Assert.Single(next.Branches, b => b.IsPickup).Id);
             var edited = await service.SaveBranchAsync(owner.Id, shop.Id, first.Branches[0].Id, input with { Address = "56 Nguyễn Huệ", UpdatedAt = next.UpdatedAt }, default);
@@ -69,6 +69,19 @@ public sealed class SellerBranchTests
             Assert.Equal(first.Branches[0].Id, Assert.Single(returnProfile.Branches, b => b.IsPickup).Id);
             var shared = await service.SelectReturnBranchAsync(owner.Id, shop.Id, new(first.Branches[0].Id, returnProfile.UpdatedAt), default);
             Assert.True(shared.Branches.Single(b => b.IsPickup).IsReturn);
+            Assert.DoesNotContain(shared.Branches, b => b.IsMain);
+            await Assert.ThrowsAsync<BusinessException>(() => service.SelectMainBranchAsync(other.Id, shop.Id, new(branch.Id, shared.UpdatedAt), default));
+            await Assert.ThrowsAsync<BusinessException>(() => service.SelectMainBranchAsync(owner.Id, shop.Id, new(foreign.Id, shared.UpdatedAt), default));
+            await Assert.ThrowsAsync<BusinessException>(() => service.SelectMainBranchAsync(owner.Id, shop.Id, new(branch.Id, first.UpdatedAt), default));
+            var main = await service.SelectMainBranchAsync(owner.Id, shop.Id, new(first.Branches[0].Id, shared.UpdatedAt), default);
+            Assert.Equal(first.Branches[0].Id, Assert.Single(main.Branches, b => b.IsMain).Id);
+            shared = await service.SelectMainBranchAsync(owner.Id, shop.Id, new(branch.Id, main.UpdatedAt), default);
+            Assert.Equal(branch.Id, Assert.Single(shared.Branches, b => b.IsMain).Id);
+            Assert.False(shared.Branches.Single(b => b.Id == first.Branches[0].Id).IsMain);
+            Assert.True(shared.Branches.Single(b => b.IsPickup).IsReturn);
+            Assert.Equal(first.Branches[0].Id, Assert.Single(shared.Branches, b => b.IsPickup).Id);
+            shared = await service.SelectMainBranchAsync(owner.Id, shop.Id, new(branch.Id, shared.UpdatedAt), default);
+            Assert.Single(shared.Branches, b => b.IsMain);
             Assert.Equal(123, (await db.Stores.SingleAsync(s => s.Id == shop.Id)).GhnTestShopId);
             await Assert.ThrowsAsync<BusinessException>(() => service.SelectPickupBranchAsync(owner.Id, shop.Id, new(branch.Id, next.UpdatedAt), default));
             var inactive = await db.StoreBranches.SingleAsync(b => b.Id == branch.Id); inactive.IsActive = false; await db.SaveChangesAsync();
