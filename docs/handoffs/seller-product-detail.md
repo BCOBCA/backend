@@ -1,0 +1,6 @@
+# Seller product detail API
+
+- Authenticated GET `/api/seller/stores/{storeId}/products/{id}` calls `SellerService.ProductAsync`. Validates active account and owned active store, then restricts nondeleted product lookup to StoreId. Hidden owned products remain readable. Foreign store/product and deleted product requests fail.
+- `SellerProductDetailDto`: existing summary plus SKU, full description, primary-first ordered image URLs, all variant identities/prices/sale prices/stock/reserved/available/active flags, specification groups, nullable shipping weight/dimensions and created/updated timestamps. Available variant stock is clamped at zero. Existing shared specification projection supports free text and typed legacy data.
+- No new migrations, mutations, public catalog changes, analytics or permission grants in this endpoint. Short-description removal is supplied by the preceding migration change.
+- Verification: service test covers hidden ownership, reserved/available stock, independent prices, ordered gallery, specs/shipping and foreign/deleted denial; actual HTTP test covers authentication, binding/envelope and foreign-owner denial. Combined 9 product/other-brand/migration tests pass using localhost scratch databases. No production writes or deployment.

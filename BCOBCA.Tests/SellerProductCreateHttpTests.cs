@@ -49,6 +49,7 @@ public sealed class SellerProductCreateHttpTests
             var route = $"/api/seller/stores/{shop.Id}/products";
             var input = new SellerCreateProductInput(Guid.NewGuid(), brand.Id, category.Id, "New product", 50000, 3, ["https://images.example.test/item.png"], 100, 10, 10, 10);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync(route, input)).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync($"{route}/{Guid.NewGuid()}")).StatusCode);
             client.DefaultRequestHeaders.Add("X-Test-Account", other.Id.ToString());
             Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync(route, input)).StatusCode);
             client.DefaultRequestHeaders.Remove("X-Test-Account"); client.DefaultRequestHeaders.Add("X-Test-Account", owner.Id.ToString());
@@ -60,6 +61,14 @@ public sealed class SellerProductCreateHttpTests
             using var response = await client.PostAsJsonAsync(route, forged); Assert.Equal(HttpStatusCode.Created, response.StatusCode);
             using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()); var id = json.RootElement.GetProperty("data").GetProperty("id").GetGuid();
             Assert.Equal(3, json.RootElement.GetProperty("data").GetProperty("stock").GetInt32());
+            using var detailResponse = await client.GetAsync($"{route}/{id}");
+            Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+            using var detailJson = JsonDocument.Parse(await detailResponse.Content.ReadAsStringAsync());
+            Assert.Equal(id, detailJson.RootElement.GetProperty("data").GetProperty("product").GetProperty("id").GetGuid());
+            Assert.Single(detailJson.RootElement.GetProperty("data").GetProperty("variants").EnumerateArray());
+            client.DefaultRequestHeaders.Remove("X-Test-Account"); client.DefaultRequestHeaders.Add("X-Test-Account", other.Id.ToString());
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{route}/{id}")).StatusCode);
+            client.DefaultRequestHeaders.Remove("X-Test-Account"); client.DefaultRequestHeaders.Add("X-Test-Account", owner.Id.ToString());
             using var retry = await client.PostAsJsonAsync(route, input); Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
             await using var check = new ApplicationDbContext(options); var product = await check.Products.SingleAsync();
             Assert.Equal(id, product.Id); Assert.Equal(shop.Id, product.StoreId); Assert.False(product.IsFeatured);

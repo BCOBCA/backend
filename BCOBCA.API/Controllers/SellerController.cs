@@ -35,6 +35,10 @@ public sealed class SellerController(ISellerService seller) : ControllerBase
     public async Task<IActionResult> Products(Guid storeId, [FromQuery] CatalogQuery query, CancellationToken ct)
         => Ok(ApiResponse<PageResult<SellerProductDto>>.Ok(await seller.ProductsAsync(AccountId, storeId, query, ct)));
 
+    [HttpGet("stores/{storeId:guid}/products/{id:guid}")]
+    public async Task<IActionResult> Product(Guid storeId, Guid id, CancellationToken ct)
+        => Ok(ApiResponse<SellerProductDetailDto>.Ok(await seller.ProductAsync(AccountId, storeId, id, ct)));
+
     [HttpPost("stores/{storeId:guid}/branches")]
     public async Task<IActionResult> AddBranch(Guid storeId, SellerBranchInput input, CancellationToken ct)
         => Ok(ApiResponse<SellerStoreProfileDto>.Ok(await seller.SaveBranchAsync(AccountId, storeId, null, input, ct)));

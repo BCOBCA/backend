@@ -15,6 +15,7 @@ public interface ISellerService
     Task<SellerStoreProfileDto> SelectReturnBranchAsync(Guid accountId, Guid storeId, SellerPickupBranchInput input, CancellationToken ct);
     Task<SellerSummaryDto> SummaryAsync(Guid accountId, Guid storeId, CancellationToken ct);
     Task<PageResult<SellerProductDto>> ProductsAsync(Guid accountId, Guid storeId, CatalogQuery query, CancellationToken ct);
+    Task<SellerProductDetailDto> ProductAsync(Guid accountId, Guid storeId, Guid id, CancellationToken ct);
     Task<SellerProductOptionsDto> ProductOptionsAsync(Guid accountId, Guid storeId, CancellationToken ct);
     Task<SellerProductDto> CreateProductAsync(Guid accountId, Guid storeId, SellerCreateProductInput input, CancellationToken ct);
     Task<PageResult<SellerOrderDto>> OrdersAsync(Guid accountId, Guid storeId, CatalogQuery query, CancellationToken ct);
