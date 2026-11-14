@@ -47,8 +47,9 @@ public sealed class CloudinaryVerificationStorage(HttpClient client, IConfigurat
         form.Add(bytes, "file", "document" + Path.GetExtension(file.FileName).ToLowerInvariant());
         form.Add(new StringContent(publicId), "public_id");
         form.Add(new StringContent("false"), "overwrite");
-        // In the REST API the delivery type is the endpoint, not the SDK's `type` option.
-        using var request = Request("authenticated", form);
+        // Upload is the API action; authenticated is the asset's delivery type.
+        form.Add(new StringContent("authenticated"), "type");
+        using var request = Request("upload", form);
         await ExecuteAsync(async () =>
         {
             using var response = await client.SendAsync(request, ct);

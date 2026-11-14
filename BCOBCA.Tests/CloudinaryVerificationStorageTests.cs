@@ -20,14 +20,16 @@ public sealed class CloudinaryVerificationStorageTests
     private static HttpResponseMessage Json(object data) => new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(data), Encoding.UTF8, "application/json") };
 
     [Fact]
-    public async Task UploadUsesAuthenticatedRawEndpointWithoutForwardingPersonalFilename()
+    public async Task UploadUsesUploadActionAndAuthenticatedDeliveryTypeWithoutPersonalFilename()
     {
         using var client = new HttpClient(new Handler(async request =>
         {
-            Assert.Equal("https://api.cloudinary.com/v1_1/test-cloud/raw/authenticated", request.RequestUri!.AbsoluteUri);
+            // The upload action and delivery type are independent, as in Cloudinary's official SDK.
+            Assert.Equal("https://api.cloudinary.com/v1_1/test-cloud/raw/upload", request.RequestUri!.AbsoluteUri);
             Assert.Equal("Basic", request.Headers.Authorization?.Scheme);
             var parts = Assert.IsType<MultipartFormDataContent>(request.Content).ToDictionary(p => p.Headers.ContentDisposition!.Name!.Trim('"'));
             Assert.Equal(PublicId, await parts["public_id"].ReadAsStringAsync());
+            Assert.Equal("authenticated", await parts["type"].ReadAsStringAsync());
             Assert.Equal("false", await parts["overwrite"].ReadAsStringAsync());
             Assert.Equal(Document.Content, await parts["file"].ReadAsByteArrayAsync());
             Assert.DoesNotContain("private-person-name", parts["file"].Headers.ContentDisposition!.ToString());
