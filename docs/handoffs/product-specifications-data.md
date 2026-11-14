@@ -1,0 +1,10 @@
+# Production specifications data update — 2026-11-09
+
+At the user's explicit request, populated existing `Products.Specifications` in the configured production Neon catalog. This supersedes the earlier pending-data notes in `product-specifications.md`.
+
+- Before: 93 store-owned listings, all specifications `{}`. After: **93/93 nonempty**, 461 typed common values; no unmatched models. Filled eight empty leaf-category `AttributeDefinitions` arrays to supply labels, grouping and units. No schema migration, product ownership change or deployment was performed.
+- Data comes from the prepared 21-model manifest under ignored `.local/product-specifications/manifest.json`, with primary source provenance. Original and independent store listings are matched by exact original slug or the ownership migration's deterministic clone suffix, and verified against original product names and inherited category rules. Generic/unidentified models only receive confirmed product-type metadata; no guessed chip, power or battery values.
+- Applied helper: ignored `.local/product-specifications-live/Update.csproj` / `Program.cs`. Exact host/database guard; serializable transaction, short lock/statement timeouts, parameterized updates, only empty JSON objects/definition arrays eligible, refuse changed identities, backup before mutation, read-back equality before commit.
+- Backup: `.local/product-specifications-live/before-20261109-072226-4680.json` (private original product/category rows). Final read-only audit: 93 existing nonempty, zero known empty or unmatched listings. Repeat application is a no-op.
+- Invariant hash verified all other product/category fields plus full variants/images/cart/order/order-item/seller-order/settlement/review/favorite/inventory-movement tables remained unchanged. No prices, stock, reservations, descriptions, images or seller links were edited.
+- Follow-up checks use public product detail responses for the original iPhone 13 Pro and a separate store's listing to confirm grouped metadata is returned by the deployed API.

@@ -1,6 +1,6 @@
 # Category-driven product specifications
 
-Implemented 2026-11-09. Online database changes are **pending explicit approval**: automatic approval review rejected applying the migration/seed to the live Neon catalog. No online writes or deployment occurred.
+Implemented 2026-11-09. **Data status update:** the user subsequently authorized populating production specifications; 93/93 store-owned listings now have metadata. See [product-specifications-data.md](product-specifications-data.md). Earlier pending-data/preparation notes below describe the initial implementation stage; no deployment or migration was performed by this data update.
 
 ## Storage and contracts
 

@@ -1,8 +1,0 @@
-# Dealer industry categories
-
-- Reuse active product `Categories` through `StoreCategories(StoreId, CategoryId)`. Composite primary key; FKs to Stores and Categories; index `(CategoryId, StoreId)` supports discovery. No dependence on shared owner accounts or product ownership.
-- Apply migration `20261107023003_AddStoreCategories` before deploying the updated API. Existing stores are unassigned; no categories or assignments are fabricated/backfilled. The online database was not modified for this change.
-- GET `/api/dealers/categories` returns active catalog IDs/names ordered like the product catalog. GET `/api/dealers?categoryId=<uuid>` matches explicit links to active categories, composing with search, area (including nationwide only), ordering and pagination. `verifiedOnly` remains supported for older API consumers.
-- GET `/api/dealers/mine` additionally returns active `categoryIds`. PUT `/api/dealers/{id}/categories` accepts `{ "categoryIds": ["<uuid>"] }`; empty clears; null/over 100/unknown/inactive values fail validation; duplicate IDs are deduplicated. Requires authenticated store owner, dealer type, and not deleted. Store row is locked inside the existing serializable transaction while replacing links.
-- Province updates preserve and return category IDs. Branch addresses and Provinces schema are unchanged.
-- Verification: DealerFlowTests cover permissions, active catalog, multi-select/deduplication, invalid inputs, replacement/clearing, inactive-category exclusion, filtering with search/area, and migration down/up. All backend tests run only against local scratch PostgreSQL on port 55433.
