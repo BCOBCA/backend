@@ -26,7 +26,7 @@ public sealed partial class SellerService
     {
         await CheckProfileAccess(accountId, storeId, ct);
         input = input with { Name = input.Name?.Trim() ?? "", Description = input.Description?.Trim() ?? "",
-            ShortDescription = input.ShortDescription?.Trim() ?? "", ImageUrls = input.ImageUrls?.Select(url => url?.Trim() ?? "").ToArray()!,
+            ImageUrls = input.ImageUrls?.Select(url => url?.Trim() ?? "").ToArray()!,
             Variants = input.Variants?.Select(v => v is null ? null! : v with { Name = v.Name?.Trim() ?? "" }).ToArray() };
         await new SellerCreateProductValidator().ValidateAndThrowAsync(input, ct);
         var sku = "SP-" + input.RequestId.ToString("N").ToUpperInvariant();
@@ -50,7 +50,7 @@ public sealed partial class SellerService
         // Reuse catalog validation, inventory ledger and audit; ownership is fixed by the route, never the body.
         var id = await catalog.SaveProductAsync(accountId, null, new ProductInput(input.BrandId, input.CategoryId, input.Name,
             $"{baseSlug}-{input.RequestId:N}", sku, representative.Price, variants,
-            input.ImageUrls, input.Description, input.ShortDescription, representative.SalePrice, input.IsActive, false,
+            input.ImageUrls, input.Description, representative.SalePrice, input.IsActive, false,
             specifications, storeId, input.ShippingWeightGrams,
             input.ShippingLengthCm, input.ShippingWidthCm, input.ShippingHeightCm, UseOtherBrand: input.UseOtherBrand), ct);
         return await ProjectProducts(Products(storeId).Where(p => p.Id == id)).SingleAsync(ct);

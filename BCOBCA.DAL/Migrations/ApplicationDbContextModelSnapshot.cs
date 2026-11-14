@@ -1867,10 +1867,6 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<int?>("ShippingWidthCm")
                         .HasColumnType("integer");
 
-                    b.Property<string>("ShortDescription")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasColumnType("varchar(280)");

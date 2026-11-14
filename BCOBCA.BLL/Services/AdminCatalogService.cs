@@ -97,7 +97,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
 
     public async Task<Guid> SaveProductAsync(Guid accountId, Guid? id, ProductInput input, CancellationToken ct)
     {
-        Text(input.Name, "Tên sản phẩm", 250); Slug(input.Slug, 280); Text(input.SKU, "SKU", 100); Text(input.Description, "Mô tả", 100000, false); Text(input.ShortDescription, "Mô tả ngắn", 2000, false);
+        Text(input.Name, "Tên sản phẩm", 250); Slug(input.Slug, 280); Text(input.SKU, "SKU", 100); Text(input.Description, "Mô tả", 100000, false);
         Money(input.BasePrice); if (input.SalePrice is not null) { Money(input.SalePrice.Value); if (input.SalePrice > input.BasePrice) throw new BusinessException("Giá khuyến mãi vượt giá gốc"); }
         if (input.Variants is null || input.ImageUrls is null || input.Variants.Any(x => x is null) || input.ImageUrls.Any(x => x is null) || input.Variants.Count is < 1 or > 100 || input.ImageUrls.Count > 5 || !input.Variants.Any(x => x.IsActive) || input.Variants.Select(x => x.SKU).Distinct().Count() != input.Variants.Count) throw new BusinessException("Biến thể hoặc bộ ảnh không hợp lệ (tối đa 5 ảnh)");
         foreach (var url in input.ImageUrls) Url(url, true);
@@ -143,7 +143,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         var freeFormSpecifications = ProductSpecificationRules.IsFreeForm(input.Specifications ?? ProductSpecificationRules.ParseValues(product.Specifications));
         foreach (var v in input.Variants) ProductSpecificationRules.ValidateValues(ProductSpecificationRules.ParseValues(v.Attributes), definitions, "variant", freeFormSpecifications);
         if (input.Specifications is not null) product.Specifications = JsonSerializer.Serialize(input.Specifications, ProductSpecificationRules.JsonOptions);
-        product.CategoryId = input.CategoryId; product.Name = input.Name; product.Slug = input.Slug; product.SKU = input.SKU; product.Description = input.Description; product.ShortDescription = input.ShortDescription;
+        product.CategoryId = input.CategoryId; product.Name = input.Name; product.Slug = input.Slug; product.SKU = input.SKU; product.Description = input.Description;
         if (input.ShippingWeightGrams is <= 0 or > 50000 || input.ShippingLengthCm is <= 0 or > 200 || input.ShippingWidthCm is <= 0 or > 200 || input.ShippingHeightCm is <= 0 or > 200) throw new BusinessException("Kích thước hoặc khối lượng vận chuyển không hợp lệ");
         product.ShippingWeightGrams = input.ShippingWeightGrams ?? product.ShippingWeightGrams;
         product.ShippingLengthCm = input.ShippingLengthCm ?? product.ShippingLengthCm; product.ShippingWidthCm = input.ShippingWidthCm ?? product.ShippingWidthCm; product.ShippingHeightCm = input.ShippingHeightCm ?? product.ShippingHeightCm;

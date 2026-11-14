@@ -8,7 +8,7 @@ public sealed record SellerProductOptionsDto(IReadOnlyList<SellerProductChoiceDt
 public sealed record SellerCreateVariantInput(string Name, decimal Price, int Stock, decimal? SalePrice = null);
 public sealed record SellerCreateProductInput(Guid RequestId, Guid BrandId, Guid CategoryId, string Name, decimal Price,
     int Stock, IReadOnlyList<string> ImageUrls, int ShippingWeightGrams, int ShippingLengthCm, int ShippingWidthCm,
-    int ShippingHeightCm, string Description = "", string ShortDescription = "", decimal? SalePrice = null,
+    int ShippingHeightCm, string Description = "", decimal? SalePrice = null,
     bool IsActive = true, IReadOnlyDictionary<string, JsonElement>? Specifications = null,
     IReadOnlyDictionary<string, JsonElement>? VariantAttributes = null,
     IReadOnlyList<SellerCreateVariantInput>? Variants = null, string? SpecificationText = null, bool UseOtherBrand = false);

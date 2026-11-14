@@ -14,7 +14,6 @@ public sealed class SellerCreateProductValidator : AbstractValidator<SellerCreat
         RuleFor(x => x.CategoryId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(250);
         RuleFor(x => x.Description).NotNull().MaximumLength(20000);
-        RuleFor(x => x.ShortDescription).NotNull().MaximumLength(2000);
         RuleFor(x => x.Price).InclusiveBetween(1, 9007199254740991m).Must(value => value == decimal.Truncate(value)).When(x => x.Variants is null);
         RuleFor(x => x.SalePrice).Must(value => value is null || value >= 1 && value <= 9007199254740991m && value == decimal.Truncate(value.Value)).When(x => x.Variants is null);
         RuleFor(x => x).Must(value => value.SalePrice is null || value.SalePrice <= value.Price).WithMessage("Giá khuyến mãi không được vượt quá giá bán.").When(x => x.Variants is null);

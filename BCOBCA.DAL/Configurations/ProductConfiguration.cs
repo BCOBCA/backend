@@ -19,7 +19,6 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(x => x.Name).HasColumnType("varchar(250)").IsRequired();
         builder.Property(x => x.Slug).HasColumnType("varchar(280)").IsRequired();
         builder.Property(x => x.SKU).HasColumnType("varchar(100)").IsRequired();
-        builder.Property(x => x.ShortDescription).HasColumnType("text").IsRequired();
         builder.Property(x => x.Description).HasColumnType("text").IsRequired();
         builder.Property(x => x.Specifications).HasColumnType("jsonb").HasDefaultValue("{}").IsRequired();
         builder.ToTable(t => t.HasCheckConstraint("CK_Products_Specifications_Object", "jsonb_typeof(\"Specifications\") = 'object'"));

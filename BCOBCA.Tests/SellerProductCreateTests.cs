@@ -32,7 +32,7 @@ public sealed class SellerProductCreateTests
             var choices = await service.ProductOptionsAsync(owner.Id, shop.Id, default);
             Assert.Contains(choices.Brands, b => b.Id == brand.Id); Assert.Contains(choices.Categories, c => c.Id == category.Id);
             var input = new SellerCreateProductInput(Guid.NewGuid(), brand.Id, category.Id, " Trà sen Tây Hồ ", 150000, 12,
-                ["https://images.example.test/tea.png"], 300, 20, 15, 10, "Mô tả thật", "Trà sen", 120000, false,
+                ["https://images.example.test/tea.png"], 300, 20, 15, 10, "Mô tả thật", 120000, false,
                 JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""{"origin":"Việt Nam"}"""),
                 JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""{"size":"M"}"""));
             await Assert.ThrowsAsync<BusinessException>(() => service.CreateProductAsync(other.Id, shop.Id, input, default));

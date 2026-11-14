@@ -1,0 +1,6 @@
+# Remove product short description
+
+- Product entity/configuration, seller/admin DTOs, validation and write mappings no longer contain `ShortDescription`. One `Description` plus independent free-form product specifications remains. JSON clients should stop sending `shortDescription`; unknown legacy properties are ignored.
+- EF migration `20261114084206_RemoveProductShortDescription` copies nonempty ShortDescription to Description only when Description is whitespace/empty, then physically drops `Products.ShortDescription`. Existing detailed descriptions are preserved. Historical migrations remain unchanged; current snapshot removes the property.
+- Down recreates a required text column with empty default; original separate short values are not recoverable without a backup. Deploy API/model and migration together; old binaries still expect the removed column. No production DB mutation or deployment performed.
+- Verification: 16 backend tests covering actual local migration Down/Up with existing products, preserved data, absent physical column, snapshot consistency, seller create/variants/other-brand HTTP/domain and legacy typed specification rules. All database operations used localhost:55433 scratch databases, removed by the test fixture.
