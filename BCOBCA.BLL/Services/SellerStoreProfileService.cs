@@ -27,9 +27,12 @@ public sealed partial class SellerService
         var branches = await store.Set<StoreBranch>().AsNoTracking().Where(b => b.StoreId == storeId)
             .OrderByDescending(b => b.IsMain).ThenBy(b => b.Name).ThenBy(b => b.Id)
             .Select(b => new SellerBranchProfileDto(b.Id, b.Name, b.Phone, b.Address, b.ProvinceCode, b.WardCode, b.IsMain, b.IsActive, b.Latitude, b.Longitude, b.ProvinceName, b.WardName, b.IsPickup, b.IsReturn)).ToListAsync(ct);
-        var verification = await store.Set<StoreVerification>().AsNoTracking().Where(v => v.StoreId == storeId)
+        var application = await store.Set<StoreVerification>().AsNoTracking().Where(v => v.StoreId == storeId)
             .OrderByDescending(v => v.CreatedAt).ThenByDescending(v => v.Id)
-            .Select(v => new SellerVerificationDto(v.LegalName, v.TaxCode, v.RepresentativeName, v.Status, v.RejectionReason, v.UpdatedAt)).FirstOrDefaultAsync(ct);
+            .FirstOrDefaultAsync(ct);
+        var verification = application is null ? null : new SellerVerificationDto(application.LegalName, application.TaxCode,
+            application.RepresentativeName, application.Status, application.RejectionReason, application.UpdatedAt,
+            application.Id, VerificationDocuments.Summaries(application.Documents), application.CreatedAt);
         return new(shop.Id, shop.Name, shop.Slug, shop.Description, shop.LogoUrl, shop.CoverUrl, shop.Email, shop.Phone,
             shop.Website, shop.Provinces, shop.Status, shop.IsVerified, shop.VerifiedAt, shop.CreatedAt, shop.UpdatedAt,
             await store.Set<StoreFollower>().CountAsync(f => f.StoreId == storeId, ct), categories, branches,

@@ -36,6 +36,10 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICatalogService, CatalogService>();
 builder.Services.AddScoped<IDealerService, DealerService>();
 builder.Services.AddScoped<ISellerService, SellerService>();
+builder.Services.AddScoped<ISellerVerificationService, SellerVerificationService>();
+builder.Services.AddHttpClient<IVerificationDocumentStorage, CloudinaryVerificationStorage>(client => client.Timeout = TimeSpan.FromSeconds(30))
+    .RemoveAllLoggers()
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<IDealerCatalogService, DealerCatalogService>();
 builder.Services.AddScoped<IMemberService, MemberService>();
 builder.Services.AddScoped<ILoyaltyConfigurationService, LoyaltyConfigurationService>();

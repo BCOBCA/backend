@@ -11,7 +11,8 @@ public sealed record SellerBranchProfileDto(Guid Id, string Name, string Phone, 
 public sealed record SellerBranchInput(string Name, string Phone, string Address, string ProvinceCode, string WardCode, DateTimeOffset UpdatedAt);
 public sealed record SellerPickupBranchInput(Guid BranchId, DateTimeOffset UpdatedAt);
 public sealed record SellerVerificationDto(string LegalName, string TaxCode, string RepresentativeName,
-    short Status, string? RejectionReason, DateTimeOffset UpdatedAt);
+    short Status, string? RejectionReason, DateTimeOffset UpdatedAt, Guid Id = default,
+    IReadOnlyList<VerificationDocumentDto>? Documents = null, DateTimeOffset? SubmittedAt = null);
 public sealed record SellerStoreProfileDto(Guid Id, string Name, string Slug, string Description, string LogoUrl,
     string CoverUrl, string Email, string Phone, string Website, string? Provinces, short Status, bool IsVerified,
     DateTimeOffset? VerifiedAt, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, int FollowerCount,
