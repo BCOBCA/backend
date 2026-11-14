@@ -66,8 +66,15 @@ public sealed class SellerProductCreateHttpTests
             using var detailJson = JsonDocument.Parse(await detailResponse.Content.ReadAsStringAsync());
             Assert.Equal(id, detailJson.RootElement.GetProperty("data").GetProperty("product").GetProperty("id").GetGuid());
             Assert.Single(detailJson.RootElement.GetProperty("data").GetProperty("variants").EnumerateArray());
+            var sectionInput = new SellerProductSectionInput(detailJson.RootElement.GetProperty("data").GetProperty("updatedAt").GetDateTimeOffset(), Description: "HTTP updated description");
+            using var sectionResponse = await client.PutAsJsonAsync($"{route}/{id}/description", sectionInput);
+            Assert.Equal(HttpStatusCode.OK, sectionResponse.StatusCode);
+            using var sectionJson = JsonDocument.Parse(await sectionResponse.Content.ReadAsStringAsync());
+            Assert.Equal("HTTP updated description", sectionJson.RootElement.GetProperty("data").GetProperty("description").GetString());
+            Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"{route}/{id}/description", sectionInput)).StatusCode);
             client.DefaultRequestHeaders.Remove("X-Test-Account"); client.DefaultRequestHeaders.Add("X-Test-Account", other.Id.ToString());
             Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"{route}/{id}")).StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync($"{route}/{id}/description", sectionInput)).StatusCode);
             client.DefaultRequestHeaders.Remove("X-Test-Account"); client.DefaultRequestHeaders.Add("X-Test-Account", owner.Id.ToString());
             using var retry = await client.PostAsJsonAsync(route, input); Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
             await using var check = new ApplicationDbContext(options); var product = await check.Products.SingleAsync();

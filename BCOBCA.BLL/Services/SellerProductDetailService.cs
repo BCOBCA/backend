@@ -22,6 +22,6 @@ public sealed partial class SellerService
         return new(summary, product.SKU, product.Description, images, variants,
             ProductSpecificationRules.BuildGroups(ProductSpecificationRules.ParseValues(product.Specifications), definitions),
             product.ShippingWeightGrams, product.ShippingLengthCm, product.ShippingWidthCm, product.ShippingHeightCm,
-            product.CreatedAt, product.UpdatedAt);
+            product.CreatedAt, product.UpdatedAt, product.CategoryId);
     }
 }
