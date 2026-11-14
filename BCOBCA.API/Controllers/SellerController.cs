@@ -43,7 +43,7 @@ public sealed class SellerController(ISellerService seller) : ControllerBase
     public async Task<IActionResult> ProductOptions(Guid storeId, CancellationToken ct)
         => Ok(ApiResponse<SellerProductOptionsDto>.Ok(await seller.ProductOptionsAsync(AccountId, storeId, ct)));
 
-    [HttpPost("stores/{storeId:guid}/products"), RequestSizeLimit(256 * 1024)]
+    [HttpPost("stores/{storeId:guid}/products"), RequestSizeLimit(2 * 1024 * 1024)]
     public async Task<IActionResult> CreateProduct(Guid storeId, SellerCreateProductInput input, CancellationToken ct)
         => StatusCode(201, ApiResponse<SellerProductDto>.Ok(await seller.CreateProductAsync(AccountId, storeId, input, ct)));
 

@@ -99,7 +99,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
     {
         Text(input.Name, "Tên sản phẩm", 250); Slug(input.Slug, 280); Text(input.SKU, "SKU", 100); Text(input.Description, "Mô tả", 100000, false); Text(input.ShortDescription, "Mô tả ngắn", 2000, false);
         Money(input.BasePrice); if (input.SalePrice is not null) { Money(input.SalePrice.Value); if (input.SalePrice > input.BasePrice) throw new BusinessException("Giá khuyến mãi vượt giá gốc"); }
-        if (input.Variants is null || input.ImageUrls is null || input.Variants.Any(x => x is null) || input.ImageUrls.Any(x => x is null) || input.Variants.Count is < 1 or > 100 || input.ImageUrls.Count > 20 || !input.Variants.Any(x => x.IsActive) || input.Variants.Select(x => x.SKU).Distinct().Count() != input.Variants.Count) throw new BusinessException("Biến thể hoặc bộ ảnh không hợp lệ");
+        if (input.Variants is null || input.ImageUrls is null || input.Variants.Any(x => x is null) || input.ImageUrls.Any(x => x is null) || input.Variants.Count is < 1 or > 100 || input.ImageUrls.Count > 5 || !input.Variants.Any(x => x.IsActive) || input.Variants.Select(x => x.SKU).Distinct().Count() != input.Variants.Count) throw new BusinessException("Biến thể hoặc bộ ảnh không hợp lệ (tối đa 5 ảnh)");
         foreach (var url in input.ImageUrls) Url(url, true);
         foreach (var v in input.Variants)
         {
@@ -111,6 +111,25 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
             catch (JsonException) { throw new BusinessException("Thuộc tính biến thể phải là JSON object"); }
         }
         await using var tx = await store.BeginTransactionAsync(ct);
+        if (input.UseOtherBrand)
+        {
+            if (id is not null || input.BrandId != Guid.Empty || input.StoreId is null)
+                throw new BusinessException("Lựa chọn thương hiệu khác chỉ áp dụng khi tạo sản phẩm cho cửa hàng.");
+            await StoreAccess(accountId, input.StoreId.Value, ct);
+            var ownerId = await store.Set<Store>().Where(s => s.Id == input.StoreId).Select(s => s.OwnerAccountId).SingleAsync(ct);
+            var slug = $"seller-other-{input.StoreId.Value:N}";
+            var fallback = await store.Set<Brand>().SingleOrDefaultAsync(b => b.Slug == slug, ct);
+            if (fallback is null)
+            {
+                fallback = new Brand { Name = "Khác", Slug = slug, OwnerAccountId = ownerId, Status = 1, IsVerified = false,
+                    CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+                store.Set<Brand>().Add(fallback);
+                await store.SaveChangesAsync(ct);
+            }
+            if (fallback.IsDeleted || fallback.Status != 1 || fallback.OwnerAccountId != ownerId || fallback.IsVerified)
+                throw new BusinessException("Lựa chọn thương hiệu khác hiện không khả dụng.");
+            input = input with { BrandId = fallback.Id };
+        }
         if (!await store.Set<Brand>().AnyAsync(x => x.Id == input.BrandId, ct) || !await store.Set<Category>().AnyAsync(x => x.Id == input.CategoryId, ct)) throw new BusinessException("Thương hiệu hoặc danh mục không tồn tại");
         var product = id is null ? new Product { BrandId = input.BrandId, CreatedAt = DateTimeOffset.UtcNow } : await store.Set<Product>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy sản phẩm", 404);
         var owningStore = product.StoreId ?? input.StoreId ?? throw new BusinessException("Cần chọn cửa hàng đăng bán sản phẩm");
@@ -121,7 +140,8 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         var definitions = await ProductSpecificationRules.ResolveDefinitionsAsync(store, input.CategoryId, ct);
         if (id is null || input.Specifications is not null || product.CategoryId != input.CategoryId)
             ProductSpecificationRules.ValidateValues(input.Specifications ?? ProductSpecificationRules.ParseValues(product.Specifications), definitions, "product");
-        foreach (var v in input.Variants) ProductSpecificationRules.ValidateValues(ProductSpecificationRules.ParseValues(v.Attributes), definitions, "variant");
+        var freeFormSpecifications = ProductSpecificationRules.IsFreeForm(input.Specifications ?? ProductSpecificationRules.ParseValues(product.Specifications));
+        foreach (var v in input.Variants) ProductSpecificationRules.ValidateValues(ProductSpecificationRules.ParseValues(v.Attributes), definitions, "variant", freeFormSpecifications);
         if (input.Specifications is not null) product.Specifications = JsonSerializer.Serialize(input.Specifications, ProductSpecificationRules.JsonOptions);
         product.CategoryId = input.CategoryId; product.Name = input.Name; product.Slug = input.Slug; product.SKU = input.SKU; product.Description = input.Description; product.ShortDescription = input.ShortDescription;
         if (input.ShippingWeightGrams is <= 0 or > 50000 || input.ShippingLengthCm is <= 0 or > 200 || input.ShippingWidthCm is <= 0 or > 200 || input.ShippingHeightCm is <= 0 or > 200) throw new BusinessException("Kích thước hoặc khối lượng vận chuyển không hợp lệ");

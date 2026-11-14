@@ -45,9 +45,25 @@ public static class ProductSpecificationRules
         catch (JsonException) { throw new BusinessException("Thông số sản phẩm phải là một đối tượng JSON."); }
     }
 
-    public static void ValidateValues(IReadOnlyDictionary<string, JsonElement> values, IReadOnlyList<CategoryAttributeDefinitionDto> definitions, string scope)
+    public static bool IsFreeForm(IReadOnlyDictionary<string, JsonElement> values) => values.ContainsKey("free_text");
+
+    public static void ValidateValues(IReadOnlyDictionary<string, JsonElement> values, IReadOnlyList<CategoryAttributeDefinitionDto> definitions, string scope, bool freeFormVariants = false)
     {
+        if (scope == "product" && IsFreeForm(values))
+        {
+            if (values.Count != 1 || values["free_text"].ValueKind != JsonValueKind.String || values["free_text"].GetString()!.Length > 20000)
+                throw new BusinessException("Thông số tự do phải là văn bản, tối đa 20.000 ký tự.");
+            return;
+        }
         if (values.Count > 100 || JsonSerializer.Serialize(values, JsonOptions).Length > 64000) throw new BusinessException("Thông số vượt giới hạn cho phép.");
+        if (scope == "variant" && freeFormVariants)
+        {
+            foreach (var (key, value) in values)
+                if (!ValidKey(key) || value.ValueKind is not (JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False or JsonValueKind.Null)
+                    || value.ValueKind == JsonValueKind.String && value.GetString()!.Length > 4000)
+                    throw new BusinessException("Thuộc tính phân loại không hợp lệ.");
+            return;
+        }
         var fields = definitions.Where(d => d.Scope == scope).ToDictionary(d => d.Key, StringComparer.Ordinal);
         // Legacy variant objects retain their existing contract when no variant schema exists.
         if (scope == "variant" && fields.Count == 0) return;
@@ -101,6 +117,11 @@ public static class ProductSpecificationRules
 
     public static IReadOnlyList<ProductSpecificationGroupDto> BuildGroups(IReadOnlyDictionary<string, JsonElement> values, IReadOnlyList<CategoryAttributeDefinitionDto> definitions)
     {
+        if (IsFreeForm(values))
+        {
+            ValidateValues(values, definitions, "product");
+            return HasValue(values["free_text"]) ? [new("Thông tin sản phẩm", [new("free_text", "Chi tiết sản phẩm", values["free_text"])])] : [];
+        }
         var fields = definitions.Where(d => d.Scope == "product").ToArray();
         var rows = new List<(string Group, ProductSpecificationDto Item)>();
         foreach (var field in fields)

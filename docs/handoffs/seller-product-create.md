@@ -1,5 +1,7 @@
 # Seller product creation
 
+> Updated requirements: see [flexible products](seller-product-variants.md). This update supersedes the original 8-image, typed-field and single-variant scope below.
+
 - Authenticated `GET /api/seller/stores/{storeId}/product-options` returns active brands and categories with parent IDs, excluding deleted brands and categories beneath inactive ancestors. Active account and active owned seller store are required.
 - `POST /api/seller/stores/{storeId}/products` accepts `SellerCreateProductInput`, returns 201 with `SellerProductDto`. Body limit 256 KiB. Route supplies ownership; privileged admin/ownership fields are absent from the input and ignored if forged.
 - Required: request UUID, brand/category, name <=250, positive integer VND price, nonnegative int stock, 1–8 distinct HTTPS images, shipping weight 1–50000 g and each dimension 1–200 cm. Optional descriptions, sale price <= price, visibility and typed product/variant attributes. Existing specification rules enforce category requirements and types.

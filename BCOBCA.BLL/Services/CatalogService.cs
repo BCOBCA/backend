@@ -26,7 +26,7 @@ public sealed class CatalogService(ICommerceStore store) : ICatalogService
 
     public async Task<PageResult<BrandDto>> BrandsAsync(CatalogQuery query, CancellationToken ct)
     {
-        var source = store.Set<Brand>().AsNoTracking().Where(x => x.Status == 1);
+        var source = store.Set<Brand>().AsNoTracking().Where(x => x.Status == 1 && !x.Slug.StartsWith("seller-other-"));
         if (!string.IsNullOrWhiteSpace(query.Search)) source = source.Where(x => x.Name.ToLower().Contains(query.Search.ToLower()));
         return await PageAsync(source.OrderBy(x => x.Name).ThenBy(x => x.Id).Select(x => new BrandDto(x.Id, x.Name, x.Slug, x.LogoUrl, x.CoverUrl, x.Description, x.Website, x.Phone)), query, ct);
     }

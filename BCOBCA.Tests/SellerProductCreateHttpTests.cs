@@ -64,6 +64,21 @@ public sealed class SellerProductCreateHttpTests
             await using var check = new ApplicationDbContext(options); var product = await check.Products.SingleAsync();
             Assert.Equal(id, product.Id); Assert.Equal(shop.Id, product.StoreId); Assert.False(product.IsFeatured);
             Assert.Equal(1, await check.ProductVariants.CountAsync()); Assert.Equal(1, await check.Set<InventoryMovement>().CountAsync());
+            var flexible = input with { RequestId = Guid.NewGuid(), SpecificationText = "Material: cotton\nCare: hand wash", Variants = [new("White / M", 60000, 2), new("White / L", 80000, 4, 70000)] };
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, (await client.PostAsJsonAsync(route, flexible with { ImageUrls = Enumerable.Range(1, 6).Select(n => $"https://images.example.test/{n}.png").ToArray() })).StatusCode);
+            using var flexibleResponse = await client.PostAsJsonAsync(route, flexible);
+            Assert.Equal(HttpStatusCode.Created, flexibleResponse.StatusCode);
+            using var flexibleJson = JsonDocument.Parse(await flexibleResponse.Content.ReadAsStringAsync());
+            var flexibleData = flexibleJson.RootElement.GetProperty("data");
+            Assert.Equal(2, flexibleData.GetProperty("variantCount").GetInt32());
+            Assert.Equal(60000, flexibleData.GetProperty("price").GetDecimal());
+            Assert.Equal(6, flexibleData.GetProperty("stock").GetInt32());
+            var flexibleProductId = flexibleData.GetProperty("id").GetGuid();
+            Assert.Equal(70000, (await check.ProductVariants.AsNoTracking().SingleAsync(v => v.ProductId == flexibleProductId && v.VariantName == "White / L")).SalePrice);
+            Assert.Equal(flexible.SpecificationText, JsonDocument.Parse((await check.Products.AsNoTracking().SingleAsync(p => p.Id == flexibleProductId)).Specifications).RootElement.GetProperty("free_text").GetString());
+            using var otherResponse = await client.PostAsJsonAsync(route, input with { RequestId = Guid.NewGuid(), BrandId = Guid.Empty, UseOtherBrand = true });
+            Assert.Equal(HttpStatusCode.Created, otherResponse.StatusCode);
+            Assert.Equal(1, await check.Brands.CountAsync(b => b.Slug == $"seller-other-{shop.Id:N}" && b.OwnerAccountId == owner.Id && !b.IsVerified));
             await app.StopAsync();
         });
     }

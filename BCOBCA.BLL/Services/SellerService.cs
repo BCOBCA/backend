@@ -41,11 +41,13 @@ public sealed partial class SellerService(ICommerceStore store, GhnQuoteClient? 
         .Where(p => p.StoreId == storeId && !p.IsDeleted);
 
     private IQueryable<SellerProductDto> ProjectProducts(IQueryable<Product> source) => source
-        .Select(p => new SellerProductDto(p.Id, p.Name, p.SalePrice ?? p.BasePrice,
+        .Select(p => new SellerProductDto(p.Id, p.Name,
+            store.Set<ProductVariant>().Where(v => v.ProductId == p.Id && v.IsActive).OrderByDescending(v => v.StockQuantity > v.ReservedQuantity)
+                .ThenBy(v => v.SalePrice ?? v.Price).ThenBy(v => v.Id).Select(v => (decimal?)(v.SalePrice ?? v.Price)).FirstOrDefault() ?? p.SalePrice ?? p.BasePrice,
             Math.Max(0, store.Set<ProductVariant>().Where(v => v.ProductId == p.Id && v.IsActive).Sum(v => (int?)(v.StockQuantity - v.ReservedQuantity)) ?? 0),
             p.Status == 1, store.Set<Category>().Where(c => c.Id == p.CategoryId).Select(c => c.Name).FirstOrDefault() ?? "",
             store.Set<ProductImage>().Where(i => i.ProductId == p.Id).OrderByDescending(i => i.IsPrimary).ThenBy(i => i.SortOrder).ThenBy(i => i.Id)
-                .Select(i => i.ImageUrl).FirstOrDefault() ?? ""));
+                .Select(i => i.ImageUrl).FirstOrDefault() ?? "", Math.Max(1, store.Set<ProductVariant>().Count(v => v.ProductId == p.Id && v.IsActive))));
 
     // Historical mixed-store orders cannot expose another seller's lines or financial totals.
     private IQueryable<Order> Orders(Guid storeId) => store.Set<Order>().AsNoTracking()

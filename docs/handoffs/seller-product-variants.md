@@ -1,0 +1,7 @@
+# Seller variants and plain specifications
+
+- `SellerCreateProductInput` appends optional `Variants` and `SpecificationText`; old typed inputs remain supported. New seller form sends text (empty allowed) and optional 1–100 named rows. Each row owns price, sale price and stock. Validate normalized unique names, integer VND, total stock int32, 1–5 distinct HTTPS images. POST body limit: 2 MiB.
+- Existing JSON stores `{ "free_text": "..." }`, bounded to 20,000 characters. This explicit mode skips category-required typed fields. Read projection emits one plain-text group; no HTML interpretation. Legacy typed specification validation is unchanged.
+- Reuse catalog transaction/ledger/audit. Stable request-based SKU and indexed variant SKUs preserve idempotent retry. Ownership comes from authenticated store route. No schema migration or production mutation.
+- Options expose `supportsVariants`, `supportsFreeText`, `maxImages = 5` and category slugs. Deploy before seller changes; UI blocks unsafe writes to old servers. Product DTO appends `variantCount`; price is cheapest available active variant, falling back to cheapest active.
+- Validation: 6 seller product tests including actual HTTP binding, forged ownership, retry, six-image rejection, independent prices and plain text; 14 existing specification/variant-mapping tests. All database tests used localhost scratch databases. No deployment.
