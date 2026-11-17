@@ -66,12 +66,23 @@ public sealed partial class SellerService
             case "variants":
             case "stock":
                 var rows = input.Variants;
-                var existing = await store.Set<ProductVariant>().Where(v => v.ProductId == id).ToListAsync(ct);
-                if (rows is null || rows.Count is < 1 or > 100 || rows.Any(r => r is null) || rows.Count != existing.Count
-                    || rows.Select(r => r.Id).Distinct().Count() != rows.Count || rows.Any(r => !existing.Any(v => v.Id == r.Id)))
+                var existing = await store.Set<ProductVariant>().Where(v => v.ProductId == id && v.IsActive).ToListAsync(ct);
+                var removedIds = input.RemovedVariantIds ?? [];
+                if (rows is null || rows.Count is < 1 or > 100 || rows.Any(r => r is null)
+                    || rows.Where(r => r.Id is not null).Select(r => r.Id).Distinct().Count() != rows.Count(r => r.Id is not null)
+                    || rows.Any(r => r.Id is not null && !existing.Any(v => v.Id == r.Id))
+                    || removedIds.Count > 100 || removedIds.Distinct().Count() != removedIds.Count
+                    || removedIds.Any(removed => !existing.Any(v => v.Id == removed) || rows.Any(r => r.Id == removed))
+                    || rows.Count(r => r.Id is not null) + removedIds.Count != existing.Count
+                    || section == "stock" && (removedIds.Count != 0 || rows.Any(r => r.Id is null)))
                     throw new BusinessException("Danh sách phân loại đã thay đổi hoặc không thuộc sản phẩm. Vui lòng tải lại.");
                 if (section == "variants")
                 {
+                    if (existing.Any(v => removedIds.Contains(v.Id) && v.ReservedQuantity > 0))
+                        throw new BusinessException("Không thể xóa phân loại đang giữ hàng cho đơn. Vui lòng xử lý đơn trước.", 409);
+                    if (rows.Any(r => r.Id is null && r.Stock is null or < 0)
+                        || rows.Sum(r => r.Id is null ? (long)r.Stock!.Value : existing.Single(v => v.Id == r.Id).StockQuantity) > int.MaxValue)
+                        throw new BusinessException("Tồn kho ban đầu phải là số nguyên không âm; tổng tồn không vượt 2.147.483.647.");
                     var names = rows.Select(r => SectionText(r.Name, 150, true)).ToArray();
                     if (names.Any(name => name.Any(char.IsControl)) || names.Select(name => Regex.Replace(name, @"\s+", " ").Normalize().ToUpperInvariant()).Distinct().Count() != rows.Count)
                         throw new BusinessException("Tên phân loại không hợp lệ hoặc bị trùng.");
@@ -80,9 +91,16 @@ public sealed partial class SellerService
                         if (row.Price is null or < 1 or > 9007199254740991m || decimal.Truncate(row.Price.Value) != row.Price.Value
                             || row.SalePrice is not null && (row.SalePrice < 1 || row.SalePrice > row.Price || decimal.Truncate(row.SalePrice.Value) != row.SalePrice.Value))
                             throw new BusinessException("Giá phải là số nguyên dương; giá khuyến mãi không vượt giá bán.");
-                        var variant = existing.Single(v => v.Id == row.Id);
+                        var variant = row.Id is null ? new ProductVariant { ProductId = id, SKU = $"SV-{Guid.NewGuid():N}", IsActive = true, StockQuantity = row.Stock!.Value }
+                            : existing.Single(v => v.Id == row.Id);
                         variant.VariantName = row.Name!.Trim(); variant.Price = row.Price.Value; variant.SalePrice = row.SalePrice;
+                        if (row.Id is null)
+                        {
+                            store.Set<ProductVariant>().Add(variant); existing.Add(variant);
+                            if (variant.StockQuantity > 0) store.Set<InventoryMovement>().Add(new InventoryMovement { VariantId = variant.Id, Type = "ADJUSTMENT", Quantity = variant.StockQuantity, CreatedAt = DateTimeOffset.UtcNow });
+                        }
                     }
+                    foreach (var variant in existing.Where(v => removedIds.Contains(v.Id))) variant.IsActive = false;
                 }
                 else
                 {
