@@ -21,4 +21,5 @@ public interface ISellerService
     Task<SellerProductDto> CreateProductAsync(Guid accountId, Guid storeId, SellerCreateProductInput input, CancellationToken ct);
     Task<PageResult<SellerOrderDto>> OrdersAsync(Guid accountId, Guid storeId, CatalogQuery query, CancellationToken ct);
     Task<SellerOrderDto> OrderAsync(Guid accountId, Guid storeId, Guid id, CancellationToken ct);
+    Task<SellerOrderDto> UpdateOrderStatusAsync(Guid accountId, Guid storeId, Guid id, OrderStatusRequest input, CancellationToken ct);
 }

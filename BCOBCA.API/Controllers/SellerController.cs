@@ -79,4 +79,8 @@ public sealed class SellerController(ISellerService seller) : ControllerBase
     [HttpGet("stores/{storeId:guid}/orders/{id:guid}")]
     public async Task<IActionResult> Order(Guid storeId, Guid id, CancellationToken ct)
         => Ok(ApiResponse<SellerOrderDto>.Ok(await seller.OrderAsync(AccountId, storeId, id, ct)));
+
+    [HttpPut("stores/{storeId:guid}/orders/{id:guid}/status")]
+    public async Task<IActionResult> UpdateOrderStatus(Guid storeId, Guid id, OrderStatusRequest input, CancellationToken ct)
+        => Ok(ApiResponse<SellerOrderDto>.Ok(await seller.UpdateOrderStatusAsync(AccountId, storeId, id, input, ct)));
 }
