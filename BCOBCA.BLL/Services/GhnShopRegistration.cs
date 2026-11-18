@@ -122,11 +122,7 @@ public sealed partial class GhnQuoteClient
 
     private static int ShopInt(JsonElement item, string key) => item.ValueKind == JsonValueKind.Object && item.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var id) ? id : 0;
     private static string ShopString(JsonElement item, string key) => item.ValueKind == JsonValueKind.Object && item.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()! : "";
-    private static string ShopPhone(string phone)
-    {
-        var digits = phone.Trim().TrimStart('+');
-        return digits.Length == 11 && digits.StartsWith("84", StringComparison.Ordinal) ? "0" + digits[2..] : digits;
-    }
+    private static string ShopPhone(string phone) => ShippingContact.NormalizePhone(phone);
     private static string LocationName(string name) => string.Concat(name.Normalize(NormalizationForm.FormD)
         .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark && char.IsLetterOrDigit(c))).ToLowerInvariant().Replace('đ', 'd');
 }

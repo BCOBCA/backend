@@ -34,7 +34,7 @@ public sealed partial class SellerService
 
     public async Task<SellerStoreProfileDto> SaveBranchAsync(Guid accountId, Guid storeId, Guid? branchId, SellerBranchInput input, CancellationToken ct)
     {
-        input = input with { Name = input.Name?.Trim() ?? "", Phone = input.Phone?.Trim() ?? "", Address = input.Address?.Trim() ?? "", ProvinceCode = input.ProvinceCode?.Trim() ?? "", WardCode = input.WardCode?.Trim() ?? "" };
+        input = input with { Name = input.Name?.Trim() ?? "", Phone = ShippingContact.NormalizePhone(input.Phone), Address = input.Address?.Trim() ?? "", ProvinceCode = input.ProvinceCode?.Trim() ?? "", WardCode = input.WardCode?.Trim() ?? "" };
         await new SellerBranchValidator().ValidateAndThrowAsync(input, ct);
         await using var tx = await store.BeginTransactionAsync(ct);
         var shop = await BranchStoreAsync(accountId, storeId, input.UpdatedAt, ct);
@@ -44,8 +44,21 @@ public sealed partial class SellerService
             : new StoreBranch { StoreId = storeId };
         // Verify before mutating a tracked branch, so a rejected address leaves it unchanged.
         var names = await BranchLocationAsync(new StoreBranch { ProvinceCode = input.ProvinceCode, WardCode = input.WardCode }, ct);
-        if (branch.IsPickup)
+        if (branch.IsPickup || input.SetAsPickup)
             await EnsurePickupShippingAsync(shop, new(input.Name, input.Phone, input.Address, names.Province, names.Ward), ct);
+        if (input.SetAsPickup || input.SetAsReturn)
+        {
+            var previous = await store.Set<StoreBranch>().Where(b => b.StoreId == storeId && b.Id != branch.Id &&
+                ((input.SetAsPickup && b.IsPickup) || (input.SetAsReturn && b.IsReturn))).ToListAsync(ct);
+            foreach (var value in previous)
+            {
+                if (input.SetAsPickup) value.IsPickup = false;
+                if (input.SetAsReturn) value.IsReturn = false;
+                value.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+            // Clear previous flags before setting the new ones; both saves share this transaction.
+            if (previous.Count > 0) await store.SaveChangesAsync(ct);
+        }
         if (branch.Address != input.Address || branch.ProvinceCode != input.ProvinceCode || branch.WardCode != input.WardCode)
         {
             branch.Latitude = null; branch.Longitude = null;
@@ -53,6 +66,8 @@ public sealed partial class SellerService
         branch.Name = input.Name; branch.Phone = input.Phone; branch.Address = input.Address;
         branch.ProvinceCode = input.ProvinceCode; branch.WardCode = input.WardCode;
         branch.ProvinceName = names.Province; branch.WardName = names.Ward;
+        if (input.SetAsPickup) branch.IsPickup = true;
+        if (input.SetAsReturn) branch.IsReturn = true;
         branch.UpdatedAt = shop.UpdatedAt = DateTimeOffset.UtcNow;
         if (!branchId.HasValue) store.Set<StoreBranch>().Add(branch);
         await store.SaveChangesAsync(ct);
@@ -94,15 +109,17 @@ public sealed partial class SellerService
         var shop = await BranchStoreAsync(accountId, storeId, input.UpdatedAt, ct);
         var branch = await store.Set<StoreBranch>().SingleOrDefaultAsync(b => b.Id == input.BranchId && b.StoreId == storeId && b.IsActive, ct)
             ?? throw new BusinessException("Không tìm thấy chi nhánh đang hoạt động của cửa hàng.", 404);
-        await new SellerBranchValidator().ValidateAndThrowAsync(new(branch.Name, branch.Phone, branch.Address, branch.ProvinceCode, branch.WardCode, input.UpdatedAt), ct);
+        var phone = ShippingContact.NormalizePhone(branch.Phone);
+        await new SellerBranchValidator().ValidateAndThrowAsync(new(branch.Name, phone, branch.Address, branch.ProvinceCode, branch.WardCode, input.UpdatedAt), ct);
         var names = await BranchLocationAsync(branch, ct);
         if (!returns)
-            await EnsurePickupShippingAsync(shop, new(branch.Name, branch.Phone, branch.Address, names.Province, names.Ward), ct);
+            await EnsurePickupShippingAsync(shop, new(branch.Name, phone, branch.Address, names.Province, names.Ward), ct);
         var previous = await store.Set<StoreBranch>().Where(b => b.StoreId == storeId && (returns ? b.IsReturn : b.IsPickup) && b.Id != branch.Id).ToListAsync(ct);
         foreach (var value in previous) { if (returns) value.IsReturn = false; else value.IsPickup = false; value.UpdatedAt = DateTimeOffset.UtcNow; }
         // Flush the previous flag before setting a new one; the unique index is immediate.
         if (previous.Count > 0) await store.SaveChangesAsync(ct);
         if (returns) branch.IsReturn = true; else branch.IsPickup = true;
+        branch.Phone = phone;
         branch.ProvinceName = names.Province; branch.WardName = names.Ward;
         branch.UpdatedAt = shop.UpdatedAt = DateTimeOffset.UtcNow;
         await store.SaveChangesAsync(ct);

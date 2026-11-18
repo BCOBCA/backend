@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using BCOBCA.BLL.Common;
 using BCOBCA.BLL.DTOs;
 using BCOBCA.BLL.Services;
@@ -144,6 +145,46 @@ public sealed class SellerAutomaticShippingTests
         Assert.Null((await db.Stores.SingleAsync()).GhnTestShopId);
         Assert.True((await db.StoreBranches.SingleAsync()).IsReturn);
         Assert.False((await db.StoreBranches.SingleAsync()).IsPickup);
+    }
+
+    private static SellerBranchInput CreateInput(Fixture fixture, bool pickup, bool returns) => JsonSerializer.Deserialize<SellerBranchInput>(
+        JsonSerializer.Serialize(new { name = "Kho mới", phone = GhnShopRegistrationTests.Pickup.Phone, address = GhnShopRegistrationTests.Pickup.Address,
+            provinceCode = "79", wardCode = "26734", updatedAt = fixture.Shop.UpdatedAt, setAsPickup = pickup, setAsReturn = returns }), new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task CreatesAddressAndReplacesRequestedWarehouseRolesAtomically(bool pickup, bool returns)
+    {
+        await using var fixture = new Fixture(); await fixture.InitializeAsync(alreadySelected: true);
+        await using var db = new ApplicationDbContext(fixture.Options);
+        var previous = await db.StoreBranches.SingleAsync(); previous.IsReturn = true; await db.SaveChangesAsync();
+        using var provider = new Provider(); using var http = new HttpClient(provider);
+        var service = new SellerService(new CommerceStore(db), new GhnQuoteClient(http, GhnShopRegistrationTests.Config()));
+        var result = await service.SaveBranchAsync(fixture.Owner.Id, fixture.Shop.Id, null, CreateInput(fixture, pickup, returns), default);
+        var created = result.Branches.Single(b => b.Name == "Kho mới");
+        Assert.Equal(pickup, created.IsPickup); Assert.Equal(returns, created.IsReturn);
+        Assert.Equal(pickup ? created.Id : previous.Id, Assert.Single(result.Branches, b => b.IsPickup).Id);
+        Assert.Equal(returns ? created.Id : previous.Id, Assert.Single(result.Branches, b => b.IsReturn).Id);
+        Assert.Equal(pickup ? 1 : 0, provider.Carrier.Creates);
+        Assert.Equal(pickup ? 456 : (int?)null, (await db.Stores.SingleAsync()).GhnTestShopId);
+    }
+
+    [Fact]
+    public async Task FailedPickupCreationLeavesPreviousRolesAndBranchListUnchanged()
+    {
+        await using var fixture = new Fixture(); await fixture.InitializeAsync(alreadySelected: true);
+        using var provider = new Provider(); provider.Carrier.FailCreate = true; using var http = new HttpClient(provider);
+        await using (var db = new ApplicationDbContext(fixture.Options))
+        {
+            var service = new SellerService(new CommerceStore(db), new GhnQuoteClient(http, GhnShopRegistrationTests.Config()));
+            await Assert.ThrowsAsync<BusinessException>(() => service.SaveBranchAsync(fixture.Owner.Id, fixture.Shop.Id, null, CreateInput(fixture, true, true), default));
+        }
+        await using var saved = new ApplicationDbContext(fixture.Options);
+        Assert.Equal(fixture.Branch.Id, (await saved.StoreBranches.SingleAsync()).Id);
+        Assert.True((await saved.StoreBranches.SingleAsync()).IsPickup);
+        Assert.Null((await saved.Stores.SingleAsync()).GhnTestShopId);
     }
 
     [Fact]
