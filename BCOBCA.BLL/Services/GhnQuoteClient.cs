@@ -10,7 +10,7 @@ namespace BCOBCA.BLL.Services;
 public sealed record GhnPickup(string Name, string Phone, string Address, string Province, string Ward);
 public sealed record GhnPackage(int ShopId, int Weight, int Length, int Width, int Height, decimal MerchandiseTotal, IReadOnlyList<object> Items, GhnPickup? Pickup = null, GhnPickup? Return = null);
 
-public sealed class GhnQuoteClient(HttpClient client, IConfiguration config)
+public sealed partial class GhnQuoteClient(HttpClient client, IConfiguration config)
 {
     public const string PreviewUrl = "https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/preview";
 

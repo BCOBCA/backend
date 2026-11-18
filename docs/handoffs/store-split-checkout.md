@@ -10,13 +10,13 @@
 
 1. Requires .NET 10. Apply reviewed migrations SplitCheckoutByStore and StoreVoucherAndGhnTestShipping using `dotnet tool run dotnet-ef database update --project BCOBCA.DAL --startup-project BCOBCA.API`. Implementation tests migrated disposable databases only; business databases were not migrated.
 2. Set Shipping__Ghn__TestToken in backend/.env to a token from the GHN sandbox account at https://developer.ghn.dev. Keep the token backend-only and out of git. Restart the backend after configuration.
-3. As admin, bind each registered sandbox pickup warehouse using `PUT /api/admin/stores/{id}/shipping-test` with `{ "ghnTestShopId": 123 }`. Verify the pickup address matches the store. Ordinary sellers cannot rebind warehouse IDs.
+3. Selecting or saving a pickup automatically registers and binds a missing `GhnTestShopId`. Existing bindings are reused. The sandbox account needs an active shop to authorize registration. Admin `PUT /api/admin/stores/{id}/shipping-test` remains a manual override; ordinary sellers cannot submit arbitrary warehouse IDs. See [automatic registration](automatic-ghn-shop.md) for validation status and retry behavior.
 4. Product endpoints accept optional shippingWeightGrams (1-50,000), shippingLengthCm/shippingWidthCm/shippingHeightCm (1-200). Omitted values preserve existing metadata. Package estimate sums weights, uses max length/width and stacked heights. Missing/oversized parcels cannot be quoted.
 5. Existing voucher endpoint accepts storeId. Owners may issue ordinary seller coupons only within their store; platform/point/level rules require admin. Existing claimed/used-code edit restrictions remain.
 
 ## Carrier boundary
 
-GhnQuoteClient calls only `https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/preview`. No production switch, shipment booking or create-order call. Resolve existing Vietnamese two-level province/ward codes to names before sending is_new_to_address=true. The registered GHN test ShopId supplies the pickup origin; quote each store's parcel and after-discount merchandise COD separately.
+Quotes use only `https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/preview`. Pickup activation additionally reads the staging shop/address catalogues and registers a missing shop. No production switch, shipment booking or create-order call. Resolve existing Vietnamese two-level province/ward codes to names before sending is_new_to_address=true. The registered GHN test ShopId supplies the pickup origin; explicit selected pickup/return branches override it. Quote each store's parcel and after-discount merchandise COD separately.
 
 Validate HTTP/API status, fee, empty preview order code and ETA. Token goes only to GHN; redirects disabled. Missing credentials/metadata or invalid quotes fail closed. OrderService requires IShippingQuoteService; fixed quotes exist only in TestOrders fixtures.
 

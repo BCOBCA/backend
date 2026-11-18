@@ -12,7 +12,9 @@ public sealed partial class SellerService
     private async Task<Store> BranchStoreAsync(Guid accountId, Guid storeId, DateTimeOffset updatedAt, CancellationToken ct)
     {
         await CheckProfileAccess(accountId, storeId, ct);
-        var version = await store.Set<Store>().Where(s => s.Id == storeId).Select(s => s.UpdatedAt).SingleAsync(ct);
+        // Lock before calling GHN: concurrent selections must not both register an unbound store.
+        var version = await store.Set<Store>().FromSqlInterpolated($"SELECT * FROM \"Stores\" WHERE \"Id\" = {storeId} FOR UPDATE")
+            .Select(s => s.UpdatedAt).SingleAsync(ct);
         if (version != updatedAt) throw new BusinessException("Thông tin cửa hàng vừa thay đổi. Vui lòng tải lại trước khi lưu.", 409);
         return await store.Set<Store>().SingleAsync(s => s.Id == storeId, ct);
     }
@@ -42,6 +44,8 @@ public sealed partial class SellerService
             : new StoreBranch { StoreId = storeId };
         // Verify before mutating a tracked branch, so a rejected address leaves it unchanged.
         var names = await BranchLocationAsync(new StoreBranch { ProvinceCode = input.ProvinceCode, WardCode = input.WardCode }, ct);
+        if (branch.IsPickup)
+            await EnsurePickupShippingAsync(shop, new(input.Name, input.Phone, input.Address, names.Province, names.Ward), ct);
         if (branch.Address != input.Address || branch.ProvinceCode != input.ProvinceCode || branch.WardCode != input.WardCode)
         {
             branch.Latitude = null; branch.Longitude = null;
@@ -92,6 +96,8 @@ public sealed partial class SellerService
             ?? throw new BusinessException("Không tìm thấy chi nhánh đang hoạt động của cửa hàng.", 404);
         await new SellerBranchValidator().ValidateAndThrowAsync(new(branch.Name, branch.Phone, branch.Address, branch.ProvinceCode, branch.WardCode, input.UpdatedAt), ct);
         var names = await BranchLocationAsync(branch, ct);
+        if (!returns)
+            await EnsurePickupShippingAsync(shop, new(branch.Name, branch.Phone, branch.Address, names.Province, names.Ward), ct);
         var previous = await store.Set<StoreBranch>().Where(b => b.StoreId == storeId && (returns ? b.IsReturn : b.IsPickup) && b.Id != branch.Id).ToListAsync(ct);
         foreach (var value in previous) { if (returns) value.IsReturn = false; else value.IsPickup = false; value.UpdatedAt = DateTimeOffset.UtcNow; }
         // Flush the previous flag before setting a new one; the unique index is immediate.
@@ -103,5 +109,12 @@ public sealed partial class SellerService
         var result = await ProfileAsync(accountId, storeId, ct);
         await tx.CommitAsync(ct);
         return result;
+    }
+
+    private async Task EnsurePickupShippingAsync(Store shop, GhnPickup pickup, CancellationToken ct)
+    {
+        if (shop.GhnTestShopId is > 0) return;
+        if (shipping is null) throw new BusinessException("Chưa thể kích hoạt giao hàng GHN. Vui lòng lưu lại kho lấy hàng để thử lại.", 503);
+        shop.GhnTestShopId = await shipping.GetOrRegisterShopAsync(shop.Id, pickup, ct);
     }
 }
