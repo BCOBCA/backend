@@ -41,9 +41,20 @@ public sealed class SellerReadTests
             var mixed = new Order { UserId = buyer.Id, OrderCode = "SELLER-MIXED", Status = "COMPLETED", PaymentStatus = "PAID", TotalAmount = 999999, IdempotencyKey = "seller-mixed", CreatedAt = DateTimeOffset.UtcNow };
             db.AddRange(ownerA, ownerB, buyerAccount, buyer, shopA, shopB, brand, category, productA, productB, variant, completed, mixed);
             db.AddRange(
-                new OrderItem { OrderId = completed.Id, ProductId = productA.Id, BrandId = brand.Id, StoreId = shopA.Id, ProductName = "Historical tea", SKU = "A", Quantity = 2, UnitPrice = 100000, DiscountAmount = 20000, TotalPrice = 180000 },
+                new OrderItem { OrderId = completed.Id, ProductId = productA.Id, VariantId = variant.Id, BrandId = brand.Id, StoreId = shopA.Id, ProductName = "Historical tea", SKU = "A", Quantity = 2, UnitPrice = 100000, DiscountAmount = 20000, TotalPrice = 180000 },
                 new OrderItem { OrderId = mixed.Id, ProductId = productA.Id, BrandId = brand.Id, StoreId = shopA.Id, ProductName = "A", SKU = "A", Quantity = 1, UnitPrice = 100000, TotalPrice = 100000 },
                 new OrderItem { OrderId = mixed.Id, ProductId = productB.Id, BrandId = brand.Id, StoreId = shopB.Id, ProductName = "B", SKU = "B", Quantity = 1, UnitPrice = 90000, TotalPrice = 90000 });
+            completed.CreatedAt = new DateTimeOffset(2026, 11, 18, 3, 0, 0, TimeSpan.Zero);
+            completed.Note = "Gọi trước khi giao\nĐóng gói cẩn thận";
+            completed.RecipientName = "Người nhận";
+            completed.RecipientPhone = "0901234567";
+            completed.ShippingAddress = "Địa chỉ đã lưu lúc đặt hàng";
+            completed.ConfirmedAt = completed.CreatedAt.AddMinutes(5);
+            completed.CompletedAt = completed.CreatedAt.AddDays(2);
+            db.AddRange(new ProductImage { ProductId = productA.Id, ImageUrl = "https://example.test/tea.jpg", IsPrimary = true },
+                new Payment { OrderId = completed.Id, PaymentMethod = "BANK_TRANSFER", Status = "PAID", Amount = completed.TotalAmount, Currency = "VND", CreatedAt = completed.CreatedAt, PaidAt = completed.CreatedAt.AddMinutes(1) },
+                new Shipment { OrderId = completed.Id, Carrier = "GHN", TrackingCode = "GHN-123", Status = "DELIVERED", ShippedAt = completed.CreatedAt.AddDays(1), DeliveredAt = completed.CompletedAt },
+                new OrderStatusHistory { OrderId = completed.Id, OldStatus = "SHIPPING", NewStatus = "COMPLETED", Note = "Người nhận đã nhận đủ hàng", CreatedAt = completed.CompletedAt.Value });
             await db.SaveChangesAsync();
             var service = new SellerService(new CommerceStore(db));
             Assert.Equal(shopA.Id, Assert.Single(await service.StoresAsync(ownerA.Id, default)).Id);
@@ -58,6 +69,18 @@ public sealed class SellerReadTests
             Assert.Equal(200000m, detail.Total);
             Assert.Equal(20000m, detail.Discount);
             Assert.Equal("Historical tea", Assert.Single(detail.Items).Name);
+            Assert.Equal(completed.Note, detail.Note);
+            Assert.Equal("PAID", detail.PaymentStatus);
+            Assert.Equal("BANK_TRANSFER", detail.PaymentMethod);
+            Assert.Equal(completed.ConfirmedAt, detail.ConfirmedAt);
+            Assert.Equal(completed.CompletedAt, detail.CompletedAt);
+            Assert.Equal("A", detail.Items[0].Sku);
+            Assert.Equal("Tea", detail.Items[0].VariantName);
+            Assert.Equal(20000m, detail.Items[0].Discount);
+            Assert.Equal("https://example.test/tea.jpg", detail.Items[0].ImageUrl);
+            Assert.Equal("GHN-123", Assert.Single(detail.Shipments!).TrackingCode);
+            Assert.Equal("Người nhận đã nhận đủ hàng", Assert.Single(detail.History!).Note);
+            Assert.Equal(completed.ShippingAddress, detail.Address);
             var summary = await service.SummaryAsync(ownerA.Id, shopA.Id, default);
             Assert.Equal(180000m, summary.Revenue);
             Assert.Equal(1, summary.TotalOrders);

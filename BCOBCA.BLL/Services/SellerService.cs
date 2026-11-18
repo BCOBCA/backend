@@ -89,8 +89,29 @@ public sealed partial class SellerService(ICommerceStore store, GhnQuoteClient? 
     public async Task<SellerOrderDto> OrderAsync(Guid accountId, Guid storeId, Guid id, CancellationToken ct)
     {
         await CheckAccess(accountId, storeId, ct);
-        return await ProjectOrders(Orders(storeId).Where(o => o.Id == id)).SingleOrDefaultAsync(ct)
+        var order = await Orders(storeId).SingleOrDefaultAsync(o => o.Id == id, ct)
             ?? throw new BusinessException("Không tìm thấy đơn hàng của cửa hàng", 404);
+        var payment = await store.Set<Payment>().AsNoTracking().Where(p => p.OrderId == id)
+            .OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id)
+            .Select(p => new { p.PaymentMethod, p.PaidAt }).FirstOrDefaultAsync(ct);
+        var items = await store.Set<OrderItem>().AsNoTracking().Where(i => i.OrderId == id).OrderBy(i => i.Id)
+            .Select(i => new SellerItemDto(i.ProductId, i.ProductName, i.Quantity, i.UnitPrice, i.TotalPrice,
+                i.Id, i.VariantId, i.SKU,
+                store.Set<ProductVariant>().Where(v => v.Id == i.VariantId && v.ProductId == i.ProductId).Select(v => v.VariantName).FirstOrDefault(),
+                store.Set<ProductImage>().Where(p => p.ProductId == i.ProductId).OrderByDescending(p => p.IsPrimary).ThenBy(p => p.SortOrder).ThenBy(p => p.Id).Select(p => p.ImageUrl).FirstOrDefault(),
+                i.DiscountAmount)).ToListAsync(ct);
+        var shipments = await store.Set<Shipment>().AsNoTracking().Where(s => s.OrderId == id).OrderBy(s => s.Id)
+            .Select(s => new ShipmentDto(s.Id, s.Carrier, s.TrackingCode, s.Status, s.ShippedAt, s.DeliveredAt)).ToListAsync(ct);
+        var history = await store.Set<OrderStatusHistory>().AsNoTracking().Where(h => h.OrderId == id).OrderBy(h => h.CreatedAt).ThenBy(h => h.Id)
+            .Select(h => new OrderHistoryDto(h.OldStatus, h.NewStatus, h.Note, h.CreatedAt)).ToListAsync(ct);
+        var vouchers = await (from applied in store.Set<OrderVoucherApplication>().AsNoTracking()
+                              join voucher in store.Set<Voucher>() on applied.VoucherId equals voucher.Id
+                              where applied.OrderId == id
+                              orderby voucher.Code
+                              select new SellerOrderVoucherDto(voucher.Code, voucher.Name, voucher.DiscountType, applied.DiscountAmount)).ToListAsync(ct);
+        return new SellerOrderDto(order.Id, order.OrderCode, order.Status, order.RecipientName, order.RecipientPhone, order.ShippingAddress, order.CreatedAt,
+            order.Subtotal, order.DiscountAmount, order.ShippingFee, order.ShippingDiscountAmount, order.TotalAmount, items,
+            order.PaymentStatus, payment?.PaymentMethod, order.Note, payment?.PaidAt, order.ConfirmedAt, order.CompletedAt, order.CancelledAt, shipments, history, vouchers);
     }
 
     public async Task<SellerSummaryDto> SummaryAsync(Guid accountId, Guid storeId, CancellationToken ct)
