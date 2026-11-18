@@ -5,6 +5,7 @@ namespace BCOBCA.BLL.Interfaces;
 
 public interface IOrderService
 {
+    Task ApplyCarrierStatusAsync(Guid orderId, string status, bool codCollected, CancellationToken ct);
     Task<CartDto> CartAsync(Guid userId, CancellationToken ct);
     Task AddAsync(Guid userId, CartItemRequest input, CancellationToken ct);
     Task UpdateAsync(Guid userId, Guid itemId, UpdateCartRequest input, CancellationToken ct);

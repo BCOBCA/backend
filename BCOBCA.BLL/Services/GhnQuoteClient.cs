@@ -66,7 +66,7 @@ public sealed partial class GhnQuoteClient(HttpClient client, IConfiguration con
             if (data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("code", out var code) || code.ValueKind != JsonValueKind.Number || !code.TryGetInt32(out var status) || status != 200 || !data.TryGetProperty("data", out var result) || result.ValueKind != JsonValueKind.Object || !result.TryGetProperty("total_fee", out var total) || total.ValueKind != JsonValueKind.Number || !total.TryGetInt32(out var fee) || fee < 0) throw new BusinessException("Phí giao hàng chưa được xác nhận. Vui lòng thử lại", 503);
             if (!result.TryGetProperty("order_code", out var orderCode) || orderCode.ValueKind != JsonValueKind.String || orderCode.GetString() != "") throw new BusinessException("Báo giá giao hàng chưa được xác nhận", 503);
             DateTimeOffset? eta = result.TryGetProperty("expected_delivery_time", out var delivery) && delivery.ValueKind == JsonValueKind.String && delivery.TryGetDateTimeOffset(out var date) ? date : null;
-            return new(fee, eta);
+            return new(fee, eta, new(package.ShopId, JsonSerializer.Serialize(body)));
         }
         catch (HttpRequestException) { throw new BusinessException("Không kết nối được dịch vụ giao hàng. Vui lòng thử lại", 503); }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested) { throw new BusinessException("Dịch vụ giao hàng phản hồi chậm. Vui lòng thử lại", 503); }

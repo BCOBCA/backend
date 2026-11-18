@@ -122,11 +122,28 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
                 store.Set<InventoryReservation>().Add(new InventoryReservation { OrderId = child.Id, VariantId = line.VariantId!.Value, Quantity = line.Quantity, Status = "HELD", ExpiresAt = now.AddHours(config.GetValue<int>("Checkout:ReservationHours")), CreatedAt = now });
             }
             store.Set<Order>().Add(child);
+            if (pricing.Rates[amounts.StoreId].Draft is { } draft)
+            {
+                if (child.TotalAmount is < 0 or > 50000000 || decimal.Truncate(child.TotalAmount) != child.TotalAmount)
+                    throw new BusinessException("Tổng tiền thu COD cần là số nguyên đồng trong hạn mức GHN", 409);
+                var payload = System.Text.Json.Nodes.JsonNode.Parse(draft.RequestJson)!.AsObject();
+                payload["client_order_code"] = child.OrderCode;
+                // Shop pays GHN; collect the exact checkout total once, including shipping/discounts.
+                payload["payment_type_id"] = 1;
+                payload["cod_amount"] = child.TotalAmount;
+                payload["note"] = child.Note;
+                store.Set<Shipment>().Add(new Shipment { OrderId = child.Id, Carrier = "GHN", Status = "PENDING",
+                    GhnShopId = draft.ShopId, RequestJson = payload.ToJsonString() });
+            }
             await AffiliateSources.CaptureAsync(store, child, childLines, affiliateVisitToken ?? input.AffiliateVisitToken, ct);
             foreach (var group in childLines.GroupBy(x => x.BrandId)) store.Set<SellerOrder>().Add(new SellerOrder { OrderId = child.Id, BrandId = group.Key, StoreId = amounts.StoreId, Status = "PENDING", Subtotal = group.Sum(x => x.UnitPrice * x.Quantity), DiscountAmount = group.Sum(x => x.DiscountAmount), TotalAmount = group.Sum(x => x.TotalPrice), CreatedAt = now });
             store.Set<Payment>().Add(new Payment { OrderId = child.Id, PaymentMethod = "COD", Amount = child.TotalAmount, Currency = "VND", Status = "PENDING", CreatedAt = now });
             store.Set<OrderStatusHistory>().Add(new OrderStatusHistory { OrderId = child.Id, OldStatus = "", NewStatus = "PENDING", Note = "Tạo đơn hàng", CreatedAt = now });
             await UserNotifications.AddAsync(store, userId, "ORDER_CREATED", "Đã tạo đơn hàng " + child.OrderCode, "Đơn hàng của bạn đang chờ xác nhận.", "Order", child.Id, ct);
+            var ownerAccountId = await store.Set<Store>().Where(s => s.Id == amounts.StoreId).Select(s => s.OwnerAccountId).SingleAsync(ct);
+            var buyerAccountId = await store.Set<User>().Where(u => u.Id == userId).Select(u => u.AccountId).SingleAsync(ct);
+            if (ownerAccountId != buyerAccountId) await UserNotifications.AddAccountAsync(store, ownerAccountId, "ORDER_CREATED", "Đơn hàng mới " + child.OrderCode,
+                "Có đơn hàng mới đang chờ shop xác nhận.", "Order", child.Id, ct);
             children.Add(child);
         }
         foreach (var appliedVoucher in voucherSelection.Applied)
@@ -291,10 +308,23 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         return 1;
     }
 
+    public async Task ApplyCarrierStatusAsync(Guid orderId, string status, bool codCollected, CancellationToken ct)
+    {
+        var order = await store.Set<Order>().SingleAsync(o => o.Id == orderId, ct);
+        if (GhnLifecycleRules.HasPickedUp(status) && order.Status is "CONFIRMED" or "READY")
+        {
+            if (order.Status == "CONFIRMED") await ChangeAsync(order, "READY", null, false, ct);
+            await ChangeAsync(order, "SHIPPING", null, false, ct);
+        }
+        if (status == "delivered" && codCollected && order.Status == "SHIPPING") await ChangeAsync(order, "COMPLETED", null, true, ct);
+        if (status == "cancel" && order.Status is "PENDING" or "CONFIRMED" or "READY" && order.PaymentStatus == "UNPAID")
+            await ChangeAsync(order, "CANCELLED", null, false, ct);
+    }
+
     private async Task ChangeAsync(Order order, string status, Guid? accountId, bool confirmCod, CancellationToken ct)
     {
         if (!CommerceRules.CanTransition(order.Status, status)) throw new BusinessException("Chuyển trạng thái không hợp lệ", 409);
-        await using var tx = await store.BeginTransactionAsync(ct);
+        await using var tx = store.HasTransaction ? null : await store.BeginTransactionAsync(ct);
         var now = DateTimeOffset.UtcNow;
         if (status == "CANCELLED" && order.PaymentStatus != "UNPAID") throw new BusinessException("Cần quy trình hoàn tiền cho đơn đã thanh toán", 409);
         if (status is "CANCELLED" or "COMPLETED")
@@ -346,6 +376,6 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         foreach (var seller in await store.Set<SellerOrder>().Where(x => x.OrderId == order.Id).ToListAsync(ct)) seller.Status = status;
         await store.SaveChangesAsync(ct);
         if (status == "COMPLETED") await finance.AccrueOrderAsync(order.Id, ct);
-        await tx.CommitAsync(ct);
+        if (tx is not null) await tx.CommitAsync(ct);
     }
 }

@@ -5,6 +5,11 @@ using BCOBCA.DAL.Context;
 using BCOBCA.DAL.Entities;
 using BCOBCA.DAL.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Configuration;
+using BCOBCA.BLL.Interfaces;
+using System.Net;
+using System.Text.Json;
 using Npgsql;
 using Xunit;
 
@@ -93,6 +98,9 @@ public sealed class SellerReadTests
             db.Add(pending);
             db.Add(new OrderItem { OrderId = pending.Id, ProductId = productA.Id, BrandId = brand.Id, StoreId = shopA.Id, ProductName = "Tea", SKU = "A", Quantity = 1 });
             db.Add(new SellerOrder { OrderId = pending.Id, StoreId = shopA.Id, BrandId = brand.Id, Status = "PENDING", CreatedAt = pending.CreatedAt });
+            db.Add(new Payment { OrderId = pending.Id, PaymentMethod = "COD", Status = "PENDING", Amount = 0, Currency = "VND", CreatedAt = pending.CreatedAt });
+            var queued = new Shipment { OrderId = pending.Id, Carrier = "GHN", Status = "PENDING", GhnShopId = 123, RequestJson = "{\"client_order_code\":\"SELLER-PENDING\",\"cod_amount\":0}" };
+            db.Add(queued);
             await db.SaveChangesAsync();
             await Assert.ThrowsAsync<BusinessException>(() => service.UpdateOrderStatusAsync(ownerB.Id, shopA.Id, pending.Id, new("CONFIRMED"), default));
             await Assert.ThrowsAsync<BusinessException>(() => service.UpdateOrderStatusAsync(ownerA.Id, shopA.Id, mixed.Id, new("CONFIRMED"), default));
@@ -102,13 +110,87 @@ public sealed class SellerReadTests
             Assert.Equal("CONFIRMED", confirmed.Status);
             Assert.NotNull(confirmed.ConfirmedAt);
             await Assert.ThrowsAsync<BusinessException>(() => service.UpdateOrderStatusAsync(ownerA.Id, shopA.Id, pending.Id, new("CONFIRMED"), default));
-            var shipped = await service.UpdateOrderStatusAsync(ownerA.Id, shopA.Id, pending.Id, new("SHIPPING"), default);
-            Assert.Equal("SHIPPING", shipped.Status);
-            Assert.Equal(new[] { "CONFIRMED", "READY", "SHIPPING" }, shipped.History!.Select(h => h.NewStatus));
-            Assert.All(await db.Set<OrderStatusHistory>().Where(h => h.OrderId == pending.Id).ToListAsync(), h => Assert.Equal(ownerA.Id, h.ChangedByAccountId));
+            await Assert.ThrowsAsync<BusinessException>(() => service.UpdateOrderStatusAsync(ownerA.Id, shopA.Id, pending.Id, new("SHIPPING"), default));
+            var repository = new CommerceStore(db);
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Shipping:Ghn:TestToken"] = "test-only" }).Build();
+            var handler = new CarrierHandler();
+            using var http = new HttpClient(handler);
+            var client = new GhnQuoteClient(http, config);
+            var orderService = new OrderService(repository, config, new FinanceService(repository, config), new GhnShippingQuoteService(repository, client));
+            var fulfillment = new GhnFulfillmentService(repository, client, orderService);
+            Assert.True(await fulfillment.CreateOneAsync(default));
+            Assert.False(await fulfillment.CreateOneAsync(default));
+            Assert.Equal(1, handler.Created);
+            Assert.Equal("CONFIRMED", pending.Status);
+            var at = DateTimeOffset.UtcNow.AddSeconds(-20);
+            await Assert.ThrowsAsync<BusinessException>(() => fulfillment.CallbackAsync(new(999, "GHN-NEW", pending.OrderCode, "switch_status", "picked", at), default));
+            await fulfillment.CallbackAsync(new(123, "GHN-NEW", pending.OrderCode, "switch_status", "picking", at), default);
+            Assert.Equal("CONFIRMED", pending.Status);
+            var picked = new GhnCallback(123, "GHN-NEW", pending.OrderCode, "switch_status", "picked", at.AddSeconds(1));
+            await fulfillment.CallbackAsync(picked, default);
+            var historyCount = await db.Set<OrderStatusHistory>().CountAsync(h => h.OrderId == pending.Id);
+            await fulfillment.CallbackAsync(picked, default);
+            await fulfillment.CallbackAsync(picked with { Status = "picking", Time = at }, default);
+            Assert.Equal(historyCount, await db.Set<OrderStatusHistory>().CountAsync(h => h.OrderId == pending.Id));
+            Assert.Equal("SHIPPING", pending.Status);
             Assert.Equal("SHIPPING", (await db.Set<SellerOrder>().SingleAsync(s => s.OrderId == pending.Id)).Status);
             Assert.Equal("UNPAID", pending.PaymentStatus);
+            await fulfillment.CallbackAsync(picked with { Status = "delivery_fail", Time = at.AddSeconds(2) }, default);
+            await fulfillment.CallbackAsync(picked with { Status = "delivered", Time = at.AddSeconds(3) }, default);
+            Assert.Equal("SHIPPING", pending.Status); // A delivery callback alone does not prove COD collection.
+            db.Add(new UserMembership { UserId = buyer.Id, TierId = await db.Set<MembershipTier>().OrderBy(t => t.SortOrder).Select(t => t.Id).FirstAsync(), MemberCode = "LIFECYCLE", JoinedAt = DateTimeOffset.UtcNow });
+            await db.SaveChangesAsync();
+            handler.Collected = true;
+            await fulfillment.CallbackAsync(picked with { Type = "cod", Status = "delivered", Time = at.AddSeconds(4) }, default);
+            Assert.Equal("COMPLETED", pending.Status);
+            Assert.Equal("PAID", pending.PaymentStatus);
+            Assert.Equal("delivered", queued.Status);
+            await fulfillment.CallbackAsync(picked with { Status = "picking", Time = at.AddSeconds(5) }, default);
+            Assert.Equal("delivered", queued.Status);
+            Assert.Single(await db.Set<PaymentTransaction>().Where(p => p.PaymentId == db.Set<Payment>().Where(p => p.OrderId == pending.Id).Select(p => p.Id).Single()).ToListAsync());
+            var notificationCount = await db.Set<Notification>().CountAsync(n => n.RecipientAccountId == buyerAccount.Id && n.TargetId == pending.Id);
+            await fulfillment.CallbackAsync(picked with { Type = "cod", Status = "delivered", Time = at.AddSeconds(4) }, default);
+            Assert.Equal(notificationCount, await db.Set<Notification>().CountAsync(n => n.RecipientAccountId == buyerAccount.Id && n.TargetId == pending.Id));
             await Assert.ThrowsAsync<BusinessException>(() => service.UpdateOrderStatusAsync(ownerA.Id, shopA.Id, pending.Id, new("SHIPPING"), default));
+
+            var protection = new EphemeralDataProtectionProvider();
+            var notifications = new LiveNotificationService(repository, protection);
+            var family = Guid.NewGuid();
+            await notifications.RegisterAsync(buyerAccount.Id, family, new("ExpoPushToken[test-device]", "android"), true, default);
+            var device = await db.Set<DeviceToken>().SingleAsync();
+            Assert.DoesNotContain("test-device", device.ProtectedToken!);
+            await using (var tx = await repository.BeginTransactionAsync(default))
+            {
+                await UserNotifications.AddAsync(repository, buyer.Id, "ORDER_STATUS", "Order", "Changed", "Order", pending.Id, default);
+                await repository.SaveChangesAsync(); await tx.CommitAsync();
+            }
+            Assert.Single(await db.Set<PushDelivery>().ToListAsync());
+            Assert.NotEmpty((await notifications.WaitAsync(buyerAccount.Id, null, default)).Items);
+            Assert.DoesNotContain((await notifications.WaitAsync(ownerB.Id, null, default)).Items, n => n.TargetId == pending.Id);
+            using var pushHttp = new HttpClient(new NoPushHandler());
+            var pushes = new PushDeliveryService(repository, pushHttp, new EphemeralDataProtectionProvider(), config);
+            Assert.True(await pushes.DeliverOneAsync(default)); // No live session: never send to a logged-out device.
+            Assert.Equal("REVOKED", (await db.Set<PushDelivery>().SingleAsync()).Status);
+            await notifications.RegisterAsync(buyerAccount.Id, family, new("ExpoPushToken[test-device]", "android"), false, default);
+            Assert.False(device.Enabled);
+            db.Add(new RefreshToken { AccountId = buyerAccount.Id, FamilyId = family, TokenHash = Guid.NewGuid().ToString(), CreatedAt = DateTimeOffset.UtcNow, ExpiresAt = DateTimeOffset.UtcNow.AddDays(1) });
+            await db.SaveChangesAsync();
+            await notifications.RegisterAsync(buyerAccount.Id, family, new("ExpoPushToken[test-device]", "android"), true, default);
+            await UserNotifications.AddAsync(repository, buyer.Id, "ORDER_STATUS", "Order", "Push test", "Order", pending.Id, default);
+            await repository.SaveChangesAsync();
+            using var validPushHttp = new HttpClient(new PushHandler());
+            var validPush = new PushDeliveryService(repository, validPushHttp, protection, config);
+            Assert.True(await validPush.DeliverOneAsync(default));
+            var ticket = await db.Set<PushDelivery>().SingleAsync(p => p.Status == "RECEIPT");
+            Assert.Equal("ticket-test", ticket.TicketId);
+            ticket.NextAttemptAt = DateTimeOffset.UtcNow.AddSeconds(-1); await db.SaveChangesAsync();
+            Assert.True(await validPush.DeliverOneAsync(default));
+            Assert.Equal("SENT", ticket.Status);
+            await UserNotifications.AddAsync(repository, buyer.Id, "ORDER_STATUS", "Order", "Before switch", "Order", pending.Id, default);
+            await repository.SaveChangesAsync();
+            await notifications.RegisterAsync(ownerB.Id, Guid.NewGuid(), new("ExpoPushToken[test-device]", "android"), true, default);
+            Assert.True(await pushes.DeliverOneAsync(default));
+            Assert.Equal(2, await db.Set<PushDelivery>().CountAsync(p => p.Status == "REVOKED"));
             shopA.DeletedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();
             Assert.Empty(await service.StoresAsync(ownerA.Id, default));
@@ -119,6 +201,37 @@ public sealed class SellerReadTests
             NpgsqlConnection.ClearAllPools();
             await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{database}\" WITH (FORCE)", admin);
             await drop.ExecuteNonQueryAsync();
+        }
+    }
+
+    private sealed class CarrierHandler : HttpMessageHandler
+    {
+        public int Created { get; private set; }
+        public bool Collected { get; set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Assert.Equal("dev-online-gateway.ghn.vn", request.RequestUri!.Host);
+            object data;
+            if (request.RequestUri.AbsolutePath.EndsWith("/create")) { Created++; data = new { order_code = "GHN-NEW" }; }
+            else data = new { order_code = "GHN-NEW", shop_id = 123, status = "delivered", is_cod_collected = Collected, cod_amount = 0 };
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new { code = 200, data }), System.Text.Encoding.UTF8, "application/json") });
+        }
+    }
+    private sealed class NoPushHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+            => throw new InvalidOperationException("Revoked device must never receive push.");
+    }
+    private sealed class PushHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Assert.Equal("exp.host", request.RequestUri!.Host);
+            var payload = await request.Content!.ReadAsStringAsync(ct);
+            var receipt = request.RequestUri.AbsolutePath.EndsWith("getReceipts");
+            Assert.Contains(receipt ? "ticket-test" : "ExpoPushToken[test-device]", payload);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(receipt
+                ? "{\"data\":{\"ticket-test\":{\"status\":\"ok\"}}}" : "{\"data\":{\"status\":\"ok\",\"id\":\"ticket-test\"}}", System.Text.Encoding.UTF8, "application/json") };
         }
     }
 }

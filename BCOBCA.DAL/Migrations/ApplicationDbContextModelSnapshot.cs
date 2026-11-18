@@ -1074,9 +1074,18 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamptz");
 
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Platform")
                         .IsRequired()
                         .HasColumnType("varchar(20)");
+
+                    b.Property<string>("ProtectedToken")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("SessionFamilyId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
@@ -2072,6 +2081,45 @@ namespace BCOBCA.DAL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BCOBCA.DAL.Entities.PushDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("DeviceTokenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TicketId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceTokenId");
+
+                    b.HasIndex("NotificationId", "DeviceTokenId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("PushDeliveries", (string)null);
+                });
+
             modelBuilder.Entity("BCOBCA.DAL.Entities.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2520,11 +2568,26 @@ namespace BCOBCA.DAL.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(100)");
 
+                    b.Property<int>("CreationAttempts")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset?>("DeliveredAt")
                         .HasColumnType("timestamptz");
 
+                    b.Property<int?>("GhnShopId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ProviderUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestJson")
+                        .HasColumnType("jsonb");
 
                     b.Property<DateTimeOffset?>("ShippedAt")
                         .HasColumnType("timestamptz");
@@ -2539,10 +2602,48 @@ namespace BCOBCA.DAL.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("OrderId")
+                        .IsUnique()
+                        .HasFilter("\"Carrier\" = 'GHN' AND \"RequestJson\" IS NOT NULL");
+
+                    b.HasIndex("Carrier", "TrackingCode")
+                        .IsUnique()
+                        .HasFilter("\"Carrier\" = 'GHN' AND \"TrackingCode\" <> ''");
+
                     b.HasIndex("OrderId", "Carrier", "TrackingCode")
                         .IsUnique();
 
                     b.ToTable("Shipments", (string)null);
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.ShipmentEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ShipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShipmentId", "Type", "OccurredAt")
+                        .IsUnique();
+
+                    b.ToTable("ShipmentEvents", (string)null);
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.Store", b =>
@@ -3754,6 +3855,21 @@ namespace BCOBCA.DAL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("BCOBCA.DAL.Entities.PushDelivery", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.DeviceToken", null)
+                        .WithMany()
+                        .HasForeignKey("DeviceTokenId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BCOBCA.DAL.Entities.Notification", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BCOBCA.DAL.Entities.RefreshToken", b =>
                 {
                     b.HasOne("BCOBCA.DAL.Entities.Account", null)
@@ -3879,6 +3995,15 @@ namespace BCOBCA.DAL.Migrations
                     b.HasOne("BCOBCA.DAL.Entities.Order", null)
                         .WithMany()
                         .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BCOBCA.DAL.Entities.ShipmentEvent", b =>
+                {
+                    b.HasOne("BCOBCA.DAL.Entities.Shipment", null)
+                        .WithMany()
+                        .HasForeignKey("ShipmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

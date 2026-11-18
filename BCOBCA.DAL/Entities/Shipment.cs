@@ -9,4 +9,9 @@ public sealed class Shipment
     public string Status { get; set; } = "";
     public DateTimeOffset? ShippedAt { get; set; }
     public DateTimeOffset? DeliveredAt { get; set; }
+    public int? GhnShopId { get; set; }
+    public string? RequestJson { get; set; }
+    public DateTimeOffset? ProviderUpdatedAt { get; set; }
+    public DateTimeOffset? NextAttemptAt { get; set; }
+    public int CreationAttempts { get; set; }
 }

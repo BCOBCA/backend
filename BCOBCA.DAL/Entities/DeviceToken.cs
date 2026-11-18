@@ -6,5 +6,8 @@ public sealed class DeviceToken
     public Guid AccountId { get; set; }
     public string TokenHash { get; set; } = "";
     public string Platform { get; set; } = "";
+    public string? ProtectedToken { get; set; }
+    public bool Enabled { get; set; }
+    public Guid? SessionFamilyId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

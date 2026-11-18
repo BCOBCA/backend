@@ -18,5 +18,8 @@ public sealed class ShipmentConfiguration : IEntityTypeConfiguration<Shipment>
         builder.Property(x => x.Status).HasColumnType("varchar(30)").IsRequired();
         builder.Property(x => x.ShippedAt).HasColumnType("timestamptz");
         builder.Property(x => x.DeliveredAt).HasColumnType("timestamptz");
+        builder.Property(x => x.RequestJson).HasColumnType("jsonb");
+        builder.HasIndex(x => x.OrderId).IsUnique().HasFilter("\"Carrier\" = 'GHN' AND \"RequestJson\" IS NOT NULL");
+        builder.HasIndex(x => new { x.Carrier, x.TrackingCode }).IsUnique().HasFilter("\"Carrier\" = 'GHN' AND \"TrackingCode\" <> ''");
     }
 }
