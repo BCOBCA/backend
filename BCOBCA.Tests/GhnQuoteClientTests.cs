@@ -18,6 +18,38 @@ public sealed class GhnQuoteClientTests
     private static readonly GhnPackage Package = new(123, 500, 20, 15, 10, 250000, [new { name = "Test item", quantity = 1, weight = 500, length = 20, width = 15, height = 10 }]);
     private static IConfiguration Config(string? token = "test-token") => new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Shipping:Ghn:TestToken"] = token }).Build();
 
+    [Theory]
+    [InlineData("61900.00", "61900")]
+    [InlineData("0.00", "0")]
+    [InlineData("50000000.00", "50000000")]
+    public async Task ShipmentCreationSendsWholeDongAsJsonIntegerIncludingExistingSnapshots(string storedAmount, string expected)
+    {
+        var payload = "{\"cod_amount\":" + storedAmount + ",\"client_order_code\":\"BCA-TEST\",\"payment_type_id\":1}";
+        using var http = new HttpClient(new Handler(async request => {
+            Assert.Equal("https://dev-online-gateway.ghn.vn/shiip/public-api/v2/shipping-order/create", request.RequestUri!.AbsoluteUri);
+            using var body = JsonDocument.Parse(await request.Content!.ReadAsStringAsync());
+            Assert.Equal(expected, body.RootElement.GetProperty("cod_amount").GetRawText());
+            Assert.Equal("BCA-TEST", body.RootElement.GetProperty("client_order_code").GetString());
+            Assert.Equal(1, body.RootElement.GetProperty("payment_type_id").GetInt32());
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"code":200,"data":{"order_code":"GHN-TEST"}}""") };
+        }));
+        Assert.Equal("GHN-TEST", await new GhnQuoteClient(http, Config()).CreateShipmentAsync(123, payload, default));
+    }
+
+    [Theory]
+    [InlineData("61900.50")]
+    [InlineData("-1")]
+    [InlineData("50000001")]
+    [InlineData("\"61900\"")]
+    [InlineData("null")]
+    public async Task ShipmentCreationNeverRoundsOrSendsInvalidCod(string amount)
+    {
+        var called = false;
+        using var http = new HttpClient(new Handler(_ => { called = true; throw new InvalidOperationException("Unexpected carrier request"); }));
+        await Assert.ThrowsAsync<BusinessException>(() => new GhnQuoteClient(http, Config()).CreateShipmentAsync(123, "{\"cod_amount\":" + amount + "}", default));
+        Assert.False(called);
+    }
+
     [Fact]
     public async Task CallsOnlyStagingPreviewWithItsStoreAndDoesNotCreateAnOrder()
     {

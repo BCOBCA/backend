@@ -33,6 +33,19 @@ public sealed partial class GhnQuoteClient
 
     public async Task<string> CreateShipmentAsync(int shopId, string payload, CancellationToken ct)
     {
+        // Existing snapshots can contain decimal scale from PostgreSQL money columns.
+        // GHN's create endpoint decodes COD into an integer and rejects 61900.00.
+        try
+        {
+            var body = System.Text.Json.Nodes.JsonNode.Parse(payload)?.AsObject();
+            if (body?["cod_amount"] is not System.Text.Json.Nodes.JsonValue value || !value.TryGetValue<decimal>(out var amount)
+                || amount is < 0 or > 50000000 || decimal.Truncate(amount) != amount)
+                throw new BusinessException("Tổng tiền thu COD cần là số nguyên đồng trong hạn mức GHN", 409);
+            body["cod_amount"] = (int)amount;
+            payload = body.ToJsonString();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        { throw new BusinessException("Dữ liệu tạo vận đơn GHN không hợp lệ", 409); }
         var data = await SendOrderAsync(HttpMethod.Post, "create", shopId, payload, ct);
         if (!data.TryGetProperty("order_code", out var code) || code.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(code.GetString()) || code.GetString()!.Length > 100)
             throw new BusinessException("GHN chưa cấp mã vận đơn hợp lệ", 503);

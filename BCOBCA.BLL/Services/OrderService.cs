@@ -130,7 +130,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
                 payload["client_order_code"] = child.OrderCode;
                 // Shop pays GHN; collect the exact checkout total once, including shipping/discounts.
                 payload["payment_type_id"] = 1;
-                payload["cod_amount"] = child.TotalAmount;
+                payload["cod_amount"] = (int)child.TotalAmount;
                 payload["note"] = child.Note;
                 store.Set<Shipment>().Add(new Shipment { OrderId = child.Id, Carrier = "GHN", Status = "PENDING",
                     GhnShopId = draft.ShopId, RequestJson = payload.ToJsonString() });
