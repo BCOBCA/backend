@@ -30,6 +30,8 @@ public sealed class ReviewImagesJsonTests
             await using var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(scratch.ConnectionString).Options);
             var migrator = db.GetService<IMigrator>();
             await migrator.MigrateAsync(Before);
+            // This historical schema still requires ShortDescription; the current Product model does not map it.
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Products\" ALTER COLUMN \"ShortDescription\" SET DEFAULT ''");
             var account = new Account { Email = "review-json@example.test", Status = 1 };
             var user = new User { AccountId = account.Id, Nickname = "Reviewer", ReferralCode = "REVIEW-JSON" };
             var brand = new Brand { OwnerAccountId = account.Id, Name = "Brand", Slug = "review-json", Status = 1 };
@@ -83,8 +85,9 @@ public sealed class ReviewImagesJsonTests
             string[] replacement = [urls[2], urls[0]];
             await service.SaveAsync(user.Id, item.Id, new ReviewInput(5, "Existing review", replacement), default);
             var changed = (await service.MyReviewAsync(user.Id, item.Id, default))!;
-            Assert.Equal(replacement, changed.ImageUrls); Assert.Equal(0, changed.Status); Assert.NotEqual(revision, changed.Revision);
-            Assert.Equal(replacement, (await service.PendingAsync(account.Id, new CatalogQuery(), default)).Items.Single().ImageUrls);
+            Assert.Equal(replacement, changed.ImageUrls); Assert.Equal(1, changed.Status); Assert.NotEqual(revision, changed.Revision);
+            Assert.Empty((await service.PendingAsync(account.Id, new CatalogQuery(), default)).Items);
+            Assert.Equal(replacement, (await service.ReviewsAsync(product.Id, new CatalogQuery(), default)).Items.Single(r => r.Id == reviewId).ImageUrls);
             await service.SaveAsync(user.Id, item.Id, new ReviewInput(5, "Existing review"), default);
             Assert.Empty((await service.MyReviewAsync(user.Id, item.Id, default))!.ImageUrls);
             Assert.Equal("[]", (await db.ProductReviews.AsNoTracking().SingleAsync(r => r.Id == reviewId)).ImageUrls);

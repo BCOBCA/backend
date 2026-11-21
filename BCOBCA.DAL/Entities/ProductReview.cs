@@ -9,6 +9,8 @@ public sealed class ProductReview
     public short Rating { get; set; }
     public string Content { get; set; } = "";
     public string ImageUrls { get; set; } = "[]";
+    public string? ReplyContent { get; set; }
+    public DateTimeOffset? RepliedAt { get; set; }
     public short Status { get; set; }
     public Guid Revision { get; set; } = Guid.NewGuid();
     public uint Version { get; set; }

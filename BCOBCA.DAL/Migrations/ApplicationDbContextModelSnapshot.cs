@@ -1992,6 +1992,13 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<short>("Rating")
                         .HasColumnType("smallint");
 
+                    b.Property<DateTimeOffset?>("RepliedAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<string>("ReplyContent")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<Guid>("Revision")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")

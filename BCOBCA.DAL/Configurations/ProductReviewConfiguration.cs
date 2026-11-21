@@ -18,6 +18,8 @@ public sealed class ProductReviewConfiguration : IEntityTypeConfiguration<Produc
         builder.HasOne<OrderItem>().WithMany().HasForeignKey(x => x.OrderItemId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.Rating).HasColumnType("smallint").IsRequired();
         builder.Property(x => x.Content).HasColumnType("text").IsRequired();
+        builder.Property(x => x.ReplyContent).HasMaxLength(2000);
+        builder.Property(x => x.RepliedAt).HasColumnType("timestamptz");
         builder.Property(x => x.ImageUrls).HasColumnType("jsonb").HasDefaultValue("[]").IsRequired();
         builder.ToTable(t => t.HasCheckConstraint("CK_ProductReviews_ImageUrls_Array", "jsonb_typeof(\"ImageUrls\") = 'array'"));
         builder.Property(x => x.Status).HasColumnType("smallint").IsRequired();

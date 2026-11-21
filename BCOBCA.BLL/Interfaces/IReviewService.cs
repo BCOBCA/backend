@@ -10,4 +10,6 @@ public interface IReviewService
     Task<Guid> SaveAsync(Guid userId, Guid orderItemId, ReviewInput input, CancellationToken ct);
     Task<PageResult<ReviewDto>> PendingAsync(Guid accountId, CatalogQuery query, CancellationToken ct);
     Task ModerateAsync(Guid accountId, Guid id, short status, Guid expectedRevision, CancellationToken ct);
+    Task<PageResult<SellerReviewDto>> SellerReviewsAsync(Guid accountId, Guid storeId, SellerReviewQuery query, CancellationToken ct);
+    Task<ReviewDto> ReplyAsync(Guid accountId, Guid storeId, Guid id, ReviewReplyInput input, CancellationToken ct);
 }

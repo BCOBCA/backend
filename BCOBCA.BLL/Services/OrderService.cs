@@ -250,7 +250,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
     }
 
     private IQueryable<OrderSummaryDto> Summaries(IQueryable<Order> source) => source.Select(x => new OrderSummaryDto(x.Id, x.OrderCode, x.Status, x.PaymentStatus, x.TotalAmount, x.CreatedAt,
-        (from line in store.Set<OrderItem>() join seller in store.Set<Store>().IgnoreQueryFilters() on line.StoreId equals seller.Id where line.OrderId == x.Id orderby line.Id select seller.Name).FirstOrDefault()));
+        (from line in store.Set<OrderItem>() join seller in store.Set<Store>().IgnoreQueryFilters() on line.StoreId equals seller.Id where line.OrderId == x.Id orderby line.Id select seller.Name).FirstOrDefault(), null, x.Status != "CANCELLED" && (x.CompletedAt != null || store.Set<Shipment>().Any(s => s.OrderId == x.Id && s.DeliveredAt != null))));
 
     private async Task<OrderDto> CheckoutResultAsync(Guid userId, Order order, CancellationToken ct)
     {
@@ -272,7 +272,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         var shipments = await store.Set<Shipment>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.ShippedAt).Take(50).Select(x => new ShipmentDto(x.Id, x.Carrier, x.TrackingCode, x.Status, x.ShippedAt, x.DeliveredAt)).ToListAsync(ct);
         var history = await store.Set<OrderStatusHistory>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.CreatedAt).Select(x => new OrderHistoryDto(x.OldStatus, x.NewStatus, x.Note, x.CreatedAt)).ToListAsync(ct);
         var paymentMethod = await store.Set<Payment>().AsNoTracking().Where(x => x.OrderId == id).Select(x => x.PaymentMethod).FirstOrDefaultAsync(ct);
-        return new(order.Id, order.OrderCode, order.Status, order.PaymentStatus, order.Subtotal, order.DiscountAmount, order.ShippingFee, order.TotalAmount, order.RecipientName, order.RecipientPhone, order.ShippingAddress, order.CreatedAt, items, shipments, history, order.ShippingDiscountAmount, paymentMethod, order.CheckoutGroupId);
+        return new(order.Id, order.OrderCode, order.Status, order.PaymentStatus, order.Subtotal, order.DiscountAmount, order.ShippingFee, order.TotalAmount, order.RecipientName, order.RecipientPhone, order.ShippingAddress, order.CreatedAt, items, shipments, history, order.ShippingDiscountAmount, paymentMethod, order.CheckoutGroupId, CanReview: order.Status != "CANCELLED" && (order.CompletedAt != null || shipments.Any(s => s.DeliveredAt != null)));
     }
 
     public async Task<OrderDto?> FindRequestAsync(Guid userId, string key, CancellationToken ct)
