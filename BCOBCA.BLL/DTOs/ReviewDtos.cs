@@ -6,4 +6,4 @@ public sealed record ReviewDto(Guid Id, Guid ProductId, string DisplayName, shor
 public sealed record ReviewModerationRequest(short Status, Guid ExpectedRevision);
 public sealed record ReviewReplyInput(string Content, Guid ExpectedRevision);
 public sealed record SellerReviewQuery(int Page = 1, int PageSize = 20, int? Rating = null, bool? Replied = null, Guid? ProductId = null, string? Search = null, DateTimeOffset? From = null, DateTimeOffset? To = null);
-public sealed record SellerReviewDto(Guid Id, Guid ProductId, string ProductName, string? ProductImageUrl, string VariantName, string OrderCode, string DisplayName, short Rating, string Content, IReadOnlyList<string> ImageUrls, DateTimeOffset CreatedAt, Guid Revision, ReviewReplyDto? Reply);
+public sealed record SellerReviewDto(Guid Id, Guid ProductId, string ProductName, string? ProductImageUrl, string VariantName, string OrderCode, string DisplayName, short Rating, string Content, IReadOnlyList<string> ImageUrls, DateTimeOffset CreatedAt, Guid Revision, ReviewReplyDto? Reply, Guid OrderId = default);

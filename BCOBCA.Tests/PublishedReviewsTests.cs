@@ -56,6 +56,7 @@ public sealed class PublishedReviewsTests
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(Guid.NewGuid(), item.Id, new(5, "Other buyer"), default));
             var listed = await service.SellerReviewsAsync(owner.Id, shop.Id, new(Rating: 5, Replied: false, Search: "review001"), default);
             var sellerReview = Assert.Single(listed.Items);
+            Assert.Equal(order.Id, sellerReview.OrderId);
             Assert.Null(sellerReview.Reply);
             await Assert.ThrowsAsync<BusinessException>(() => service.SellerReviewsAsync(buyer.Id, shop.Id, new(), default));
             var foreignShop = new Store { OwnerAccountId = buyer.Id, Name = "Other", Slug = "other-review-shop", StoreType = 1, Status = 1 };

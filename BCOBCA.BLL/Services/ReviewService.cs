@@ -105,7 +105,7 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
             images.FirstOrDefault(i => i.ProductId == x.review.ProductId)?.ImageUrl, x.item.VariantId.HasValue ? variants.GetValueOrDefault(x.item.VariantId.Value, "") : "", x.order.OrderCode,
             !x.user.IsDeleted && x.user.Nickname != "" ? x.user.Nickname : "Khách hàng", x.review.Rating, x.review.Content,
             JsonSerializer.Deserialize<string[]>(x.review.ImageUrls)!, x.review.CreatedAt, x.review.Revision,
-            x.review.ReplyContent == null || x.review.RepliedAt == null ? null : new ReviewReplyDto(x.review.ReplyContent, x.shop.Name, x.review.RepliedAt.Value))).ToArray(), page, size, count);
+            x.review.ReplyContent == null || x.review.RepliedAt == null ? null : new ReviewReplyDto(x.review.ReplyContent, x.shop.Name, x.review.RepliedAt.Value), x.order.Id)).ToArray(), page, size, count);
     }
 
     public async Task<ReviewDto> ReplyAsync(Guid accountId, Guid storeId, Guid id, ReviewReplyInput input, CancellationToken ct)
