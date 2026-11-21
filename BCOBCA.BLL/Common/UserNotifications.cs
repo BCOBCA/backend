@@ -6,7 +6,7 @@ namespace BCOBCA.BLL.Common;
 
 public static class UserNotifications
 {
-    public static async Task AddAsync(ICommerceStore store, Guid userId, string type, string title, string body, string targetType, Guid targetId, CancellationToken ct)
+    public static async Task AddAsync(ICommerceStore store, Guid userId, string type, string title, string body, string targetType, Guid targetId, CancellationToken ct, string? sellerBody = null)
     {
         var accountId = await store.Set<User>().IgnoreQueryFilters().Where(x => x.Id == userId).Select(x => x.AccountId).SingleAsync(ct);
         await AddAccountAsync(store, accountId, type, title, body, targetType, targetId, ct);
@@ -14,7 +14,7 @@ public static class UserNotifications
         {
             var owners = await (from line in store.Set<OrderItem>() join shop in store.Set<Store>() on line.StoreId equals shop.Id
                 where line.OrderId == targetId && shop.OwnerAccountId != accountId select shop.OwnerAccountId).Distinct().ToArrayAsync(ct);
-            foreach (var owner in owners) await AddAccountAsync(store, owner, type, title, body, targetType, targetId, ct);
+            foreach (var owner in owners) await AddAccountAsync(store, owner, type, title, sellerBody ?? body, targetType, targetId, ct);
         }
     }
 

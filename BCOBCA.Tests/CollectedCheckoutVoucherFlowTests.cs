@@ -78,7 +78,7 @@ public sealed class CollectedCheckoutVoucherFlowTests
             Assert.Equal(2, await db.OrderVoucherApplications.CountAsync(x => x.OrderId == order.Id));
             Assert.Equal(460000, (await db.Payments.SingleAsync(x => x.OrderId == order.Id)).Amount);
             Assert.All(await db.UserVouchers.Where(x => x.VoucherId == fixedVoucher.Id || x.VoucherId == shipping.Id).ToListAsync(), x => Assert.Equal("USED", x.Status));
-            await orders.CancelAsync(buyer.User.Id, order.Id, default);
+            await orders.CancelAsync(buyer.User.Id, order.Id, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             Assert.All(await db.UserVouchers.Where(x => x.VoucherId == fixedVoucher.Id || x.VoucherId == shipping.Id).ToListAsync(), x => Assert.Equal("AVAILABLE", x.Status));
             Assert.Equal(0, await db.VoucherUsages.CountAsync(x => x.OrderId == order.Id && x.Status == "APPLIED"));
             product.IsDeleted = true;

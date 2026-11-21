@@ -76,7 +76,7 @@ public sealed class ShippingVoucherFlowTests
             config["Checkout:ShippingFee"] = "50000";
             var paidOrder = await orders.CheckoutAsync(buyer.User.Id, "paid-shipping", new(address.Id, VoucherCode: paid.Code, ExpectedTotal: 520000), default);
             Assert.Equal(30000, paidOrder.ShippingDiscountAmount);
-            await orders.CancelAsync(buyer.User.Id, paidOrder.Id, default);
+            await orders.CancelAsync(buyer.User.Id, paidOrder.Id, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             Assert.Equal("AVAILABLE", (await db.UserVouchers.SingleAsync(x => x.VoucherId == paid.Id && x.UserId == buyer.User.Id)).Status);
             Assert.Equal(1050, member.AvailablePoints);
             var refunds = new RefundSettlementService(store, config);

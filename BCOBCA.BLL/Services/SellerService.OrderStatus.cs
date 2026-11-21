@@ -15,8 +15,16 @@ public sealed partial class SellerService
         if (!await Orders(storeId).AnyAsync(o => o.Id == id, ct))
             throw new BusinessException("Không tìm thấy đơn hàng", 404);
         var order = await store.Set<Order>().SingleAsync(o => o.Id == id, ct);
+        if (input.Status == "CANCELLED" && !input.ConfirmCodCollected)
+        {
+            if (orders is null) throw new InvalidOperationException("Order service is required for seller cancellation.");
+            await orders.CancelBySellerAsync(accountId, storeId, id, new(input.Reason ?? ""), ct);
+            var cancelled = await OrderAsync(accountId, storeId, id, ct);
+            await tx.CommitAsync(ct);
+            return cancelled;
+        }
         if (input.ConfirmCodCollected || input.Status != "CONFIRMED")
-            throw new BusinessException("Shop chỉ được xác nhận đơn. Trạng thái vận chuyển do GHN cập nhật.", 400);
+            throw new BusinessException("Shop chỉ được xác nhận hoặc hủy đơn đang chờ xác nhận. Trạng thái vận chuyển do GHN cập nhật.", 400);
         if (!await store.Set<Shipment>().AnyAsync(s => s.OrderId == id && s.Carrier == "GHN" && s.GhnShopId > 0 && s.RequestJson != null, ct))
             throw new BusinessException("Đơn chưa có dữ liệu vận chuyển GHN đã lưu. Vui lòng liên hệ hỗ trợ.", 409);
         if (!CommerceRules.CanTransition(order.Status, "CONFIRMED"))
@@ -31,7 +39,8 @@ public sealed partial class SellerService
         foreach (var sellerOrder in await store.Set<SellerOrder>().Where(s => s.OrderId == id).ToListAsync(ct))
             sellerOrder.Status = order.Status;
         await UserNotifications.AddAsync(store, order.UserId, "ORDER_STATUS", "Đơn hàng " + order.OrderCode,
-            "Shop đã xác nhận đơn hàng. Đang chuẩn bị vận chuyển GHN.", "Order", id, ct);
+            "Đơn hàng của bạn đã được xác nhận. Cửa hàng đang chuẩn bị vận chuyển GHN.", "Order", id, ct,
+            "Bạn đã xác nhận đơn hàng. Đang chuẩn bị vận chuyển GHN.");
         await store.SaveChangesAsync(ct);
         var result = await OrderAsync(accountId, storeId, id, ct);
         await tx.CommitAsync(ct);

@@ -34,7 +34,7 @@ public sealed class OrdersController(IOrderService orders, IAuthService auth) : 
     [HttpGet("orders/requests/{key}")]
     public async Task<IActionResult> FindRequest(string key, CancellationToken ct) => Ok(ApiResponse<OrderDto?>.Ok(await orders.FindRequestAsync(await UserId(ct), key, ct)));
     [HttpPost("orders/{id:guid}/cancel")]
-    public async Task<IActionResult> Cancel(Guid id, CancellationToken ct) { await orders.CancelAsync(await UserId(ct), id, ct); return Ok(ApiResponse<object>.Ok(new { })); }
+    public async Task<IActionResult> Cancel(Guid id, CancelOrderRequest input, CancellationToken ct) { await orders.CancelAsync(await UserId(ct), id, input, ct); return Ok(ApiResponse<object>.Ok(new { })); }
     [Authorize(Roles = "Admin,SuperAdmin"), HttpPut("orders/{id:guid}/status")]
     public async Task<IActionResult> Transition(Guid id, OrderStatusRequest input, CancellationToken ct) { await orders.TransitionAsync(Guid.Parse(User.FindFirst("sub")!.Value), id, input, ct); return Ok(ApiResponse<object>.Ok(new { })); }
 }

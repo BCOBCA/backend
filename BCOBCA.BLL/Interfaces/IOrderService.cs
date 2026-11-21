@@ -15,7 +15,8 @@ public interface IOrderService
     Task<PageResult<OrderSummaryDto>> OrdersAsync(Guid userId, CatalogQuery query, CancellationToken ct);
     Task<OrderDto> OrderAsync(Guid userId, Guid id, CancellationToken ct);
     Task<OrderDto?> FindRequestAsync(Guid userId, string key, CancellationToken ct);
-    Task CancelAsync(Guid userId, Guid id, CancellationToken ct);
+    Task CancelAsync(Guid userId, Guid id, CancelOrderRequest input, CancellationToken ct);
+    Task CancelBySellerAsync(Guid accountId, Guid storeId, Guid id, CancelOrderRequest input, CancellationToken ct);
     Task TransitionAsync(Guid accountId, Guid orderId, OrderStatusRequest input, CancellationToken ct);
     Task<int> ExpireOneReservationAsync(CancellationToken ct);
 }

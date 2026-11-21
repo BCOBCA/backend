@@ -140,7 +140,7 @@ public sealed class StoreSplitCheckoutFlowTests
             }
             await Assert.ThrowsAsync<BusinessException>(() => service.CheckoutAsync(buyer.User.Id, "split-checkout", input with { Note = "Different" }, default));
             var beneficiary = await db.OrderItems.SingleAsync(x => x.DiscountAmount > 0);
-            await service.CancelAsync(buyer.User.Id, beneficiary.OrderId, default);
+            await service.CancelAsync(buyer.User.Id, beneficiary.OrderId, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             Assert.Equal("AVAILABLE", (await db.UserVouchers.SingleAsync(x => x.VoucherId == voucher.Id)).Status);
             Assert.Equal("USED", (await db.UserVouchers.SingleAsync(x => x.VoucherId == shipping.Id)).Status);
             foreach (var child in children.Where(x => x.Id != beneficiary.OrderId))
@@ -148,7 +148,7 @@ public sealed class StoreSplitCheckoutFlowTests
                 var unchanged = await service.OrderAsync(buyer.User.Id, child.Id, default);
                 Assert.Equal("PENDING", unchanged.Status);
                 Assert.Equal(child.TotalAmount, unchanged.TotalAmount);
-                await service.CancelAsync(buyer.User.Id, child.Id, default);
+                await service.CancelAsync(buyer.User.Id, child.Id, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             }
             Assert.All(await db.UserVouchers.ToListAsync(), x => Assert.Equal("AVAILABLE", x.Status));
             Assert.All(await db.VoucherUsages.ToListAsync(), x => Assert.Equal("RELEASED", x.Status));
@@ -177,7 +177,7 @@ public sealed class StoreSplitCheckoutFlowTests
                 await db.SaveChangesAsync();
                 foreach (var status in new[] { "CONFIRMED", "READY", "SHIPPING" }) await service.TransitionAsync(owner.User.AccountId, childIds[0], new(status), default);
                 await service.TransitionAsync(owner.User.AccountId, childIds[0], new("COMPLETED", true), default);
-                await service.CancelAsync(buyer.User.Id, childIds[1], default);
+                await service.CancelAsync(buyer.User.Id, childIds[1], new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
                 var surviving = await service.OrderAsync(buyer.User.Id, childIds[2], default);
                 Assert.Equal("PENDING", surviving.Status);
                 Assert.Equal("UNPAID", surviving.PaymentStatus);

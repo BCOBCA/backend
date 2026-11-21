@@ -282,12 +282,34 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         return order is null ? null : await CheckoutResultAsync(userId, order, ct);
     }
 
-    public async Task CancelAsync(Guid userId, Guid id, CancellationToken ct)
+    public async Task CancelAsync(Guid userId, Guid id, CancelOrderRequest input, CancellationToken ct)
     {
+        var reason = OrderCancellationReasons.Buyer(input.Reason);
+        await using var tx = await store.BeginTransactionAsync(ct);
         var order = await store.Set<Order>().SingleOrDefaultAsync(x => x.Id == id && x.UserId == userId, ct) ?? throw new BusinessException("Không tìm thấy đơn hàng", 404);
         if (order.Status == "CANCELLED") return;
         if (order.Status != "PENDING" || order.PaymentStatus != "UNPAID") throw new BusinessException("Đơn hàng không thể tự hủy ở trạng thái hiện tại", 409);
-        await ChangeAsync(order, "CANCELLED", null, false, ct);
+        var accountId = await store.Set<User>().Where(x => x.Id == userId).Select(x => x.AccountId).SingleAsync(ct);
+        await ChangeAsync(order, "CANCELLED", accountId, false, ct, "Người mua đã hủy đơn với lý do: " + reason,
+            "Bạn đã hủy đơn thành công với lý do: " + reason, "Khách hàng đã hủy đơn với lý do: " + reason);
+        await tx.CommitAsync(ct);
+    }
+
+    public async Task CancelBySellerAsync(Guid accountId, Guid storeId, Guid id, CancelOrderRequest input, CancellationToken ct)
+    {
+        var reason = OrderCancellationReasons.Seller(input.Reason);
+        await using var tx = store.HasTransaction ? null : await store.BeginTransactionAsync(ct);
+        if (!await store.Set<Store>().AnyAsync(s => s.Id == storeId && s.OwnerAccountId == accountId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null, ct)
+            || !await store.Set<OrderItem>().AnyAsync(i => i.OrderId == id && i.StoreId == storeId, ct)
+            || await store.Set<OrderItem>().AnyAsync(i => i.OrderId == id && (i.StoreId == null || i.StoreId != storeId), ct))
+            throw new BusinessException("Không tìm thấy đơn hàng thuộc cửa hàng của bạn", 404);
+        var order = await store.Set<Order>().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new BusinessException("Không tìm thấy đơn hàng", 404);
+        if (order.Status == "CANCELLED") return;
+        if (order.Status != "PENDING" || order.PaymentStatus != "UNPAID")
+            throw new BusinessException("Cửa hàng chỉ được hủy đơn chưa thanh toán và đang chờ xác nhận.", 409);
+        await ChangeAsync(order, "CANCELLED", accountId, false, ct, "Cửa hàng đã hủy đơn với lý do: " + reason,
+            "Cửa hàng đã hủy đơn của bạn với lý do: " + reason, "Bạn đã hủy đơn của khách hàng với lý do: " + reason);
+        if (tx is not null) await tx.CommitAsync(ct);
     }
 
     public async Task TransitionAsync(Guid accountId, Guid orderId, OrderStatusRequest input, CancellationToken ct)
@@ -321,7 +343,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
             await ChangeAsync(order, "CANCELLED", null, false, ct);
     }
 
-    private async Task ChangeAsync(Order order, string status, Guid? accountId, bool confirmCod, CancellationToken ct)
+    private async Task ChangeAsync(Order order, string status, Guid? accountId, bool confirmCod, CancellationToken ct, string? note = null, string? buyerMessage = null, string? sellerMessage = null)
     {
         if (!CommerceRules.CanTransition(order.Status, status)) throw new BusinessException("Chuyển trạng thái không hợp lệ", 409);
         await using var tx = store.HasTransaction ? null : await store.BeginTransactionAsync(ct);
@@ -369,10 +391,10 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
         if (status == "CONFIRMED") order.ConfirmedAt = now;
         if (status is "COMPLETED" or "CANCELLED")
             foreach (var shipment in await store.Set<Shipment>().Where(x => x.OrderId == order.Id && x.Status != "CANCELLED").ToListAsync(ct)) { shipment.Status = status == "COMPLETED" ? "DELIVERED" : "CANCELLED"; if (status == "COMPLETED") shipment.DeliveredAt = now; }
-        store.Set<OrderStatusHistory>().Add(new OrderStatusHistory { OrderId = order.Id, OldStatus = order.Status, NewStatus = status, ChangedByAccountId = accountId, CreatedAt = now });
+        store.Set<OrderStatusHistory>().Add(new OrderStatusHistory { OrderId = order.Id, OldStatus = order.Status, NewStatus = status, ChangedByAccountId = accountId, Note = note ?? "", CreatedAt = now });
         order.Status = status;
-        var label = status switch { "CONFIRMED" => "Đã xác nhận", "READY" => "Sẵn sàng giao", "SHIPPING" => "Đang giao", "COMPLETED" => "Hoàn thành", "CANCELLED" => "Đã hủy", _ => status };
-        await UserNotifications.AddAsync(store, order.UserId, "ORDER_STATUS", "Đơn hàng " + order.OrderCode, label, "Order", order.Id, ct);
+        var label = status switch { "CONFIRMED" => "Đơn hàng của bạn đã được xác nhận.", "READY" => "Đơn hàng của bạn đã sẵn sàng giao.", "SHIPPING" => "Đơn hàng của bạn đang được giao.", "COMPLETED" => "Đơn hàng của bạn đã hoàn thành.", "CANCELLED" => "Đơn hàng của bạn đã được hủy.", _ => status };
+        await UserNotifications.AddAsync(store, order.UserId, "ORDER_STATUS", "Đơn hàng " + order.OrderCode, buyerMessage ?? label, "Order", order.Id, ct, sellerMessage);
         foreach (var seller in await store.Set<SellerOrder>().Where(x => x.OrderId == order.Id).ToListAsync(ct)) seller.Status = status;
         await store.SaveChangesAsync(ct);
         if (status == "COMPLETED") await finance.AccrueOrderAsync(order.Id, ct);

@@ -78,7 +78,7 @@ public sealed class VoucherRedemptionFlowTests
             Assert.Equal(30000, (await orders.PreviewAsync(buyer.User.Id, new(redeem.Code), default)).DiscountAmount);
             var address = await members.SaveAddressAsync(buyer.User.Id, null, new("Buyer", "0901234567", "79", "001", "Test address", true), default);
             var order = await orders.CheckoutAsync(buyer.User.Id, "redeem-checkout", new(address.Id, VoucherCode: redeem.Code), default);
-            await orders.CancelAsync(buyer.User.Id, order.Id, default);
+            await orders.CancelAsync(buyer.User.Id, order.Id, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             Assert.Equal("AVAILABLE", claim.Status); Assert.Equal(500, buyerPoints.AvailablePoints);
             await members.ClaimAsync(buyer.User.Id, redeem.Id, default); Assert.Equal(500, buyerPoints.AvailablePoints);
             await orders.AddAsync(poor.User.Id, new(product.Id, variant.Id, 1), default);

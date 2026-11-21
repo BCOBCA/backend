@@ -129,7 +129,7 @@ public sealed class PostgresFlowTests
             Assert.DoesNotContain((await memberService.VouchersAsync(created.User.Id, new CatalogQuery(), default)).Items, x => x.Id == voucher.Id);
             await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => orderService.CheckoutAsync(created.User.Id, "test-idempotency", checkout with { Note = "Changed" }, default));
             await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => orderService.OrderAsync(Guid.NewGuid(), order.Id, default));
-            foreach (var child in order.CheckoutOrders!) await orderService.CancelAsync(created.User.Id, child.Id, default);
+            foreach (var child in order.CheckoutOrders!) await orderService.CancelAsync(created.User.Id, child.Id, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             Assert.All(await db.ProductVariants.ToListAsync(), x => Assert.Equal(0, x.ReservedQuantity));
             Assert.All(await db.InventoryReservations.ToListAsync(), x => Assert.Equal("RELEASED", x.Status));
             Assert.Equal("CANCELLED", (await orderService.OrderAsync(created.User.Id, order.Id, default)).Status);

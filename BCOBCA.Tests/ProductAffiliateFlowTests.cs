@@ -147,7 +147,7 @@ public sealed class ProductAffiliateFlowTests
             Assert.Equal(0, (await db.AffiliateWallets.SingleAsync(x => x.AffiliateProfileId == commission.AffiliateProfileId)).DebtBalance);
             await orders.AddAsync(buyer.User.Id, new(product.Id, variant.Id, 1), default);
             var cancelled = await orders.CheckoutAsync(buyer.User.Id, "cancelled-affiliate", new(address.Id), default, visit.Token);
-            await orders.CancelAsync(buyer.User.Id, cancelled.Id, default);
+            await orders.CancelAsync(buyer.User.Id, cancelled.Id, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             Assert.Equal(2, await db.AffiliateCommissions.CountAsync());
             await using (var tx = await store.BeginTransactionAsync(default))
             {
