@@ -108,4 +108,5 @@ Bổ sung storefront đại lý ngày 2026-11-07: hai endpoint công khai bên d
 | POST | `/api/services/requests` |
 | GET | `/api/services/{id}` |
 | GET | `/api/vouchers` |
+| GET | `/api/vouchers/mine` |
 | POST | `/api/vouchers/{id}/claim` |

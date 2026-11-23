@@ -24,7 +24,7 @@ public sealed class VoucherRedemptionFlowTests
         await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{databaseName}\"", admin)) await create.ExecuteNonQueryAsync();
         try
         {
-            var connection = new NpgsqlConnectionStringBuilder(admin.ConnectionString) { Database = databaseName }.ConnectionString;
+            var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("ConnectionStrings__Default")) { Database = databaseName }.ConnectionString;
             var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).Options;
             await using var db = new ApplicationDbContext(options); await db.Database.MigrateAsync();
             Assert.False(db.Database.HasPendingModelChanges());
@@ -75,11 +75,23 @@ public sealed class VoucherRedemptionFlowTests
             var claim = await db.UserVouchers.SingleAsync(x => x.UserId == buyer.User.Id && x.VoucherId == redeem.Id);
             var debit = await db.PointTransactions.SingleAsync(x => x.MembershipId == buyerPoints.Id && x.Type == "VOUCHER_REDEEM");
             Assert.Equal(-500, debit.Points); Assert.Equal(claim.Id, debit.ReferenceId);
+            var mine = await members.MyVouchersAsync(buyer.User.Id, new(), default);
+            Assert.Single(mine.Items);
+            Assert.Equal(claim.Id, mine.Items[0].Id);
+            Assert.Equal("AVAILABLE", mine.Items[0].Status);
+            Assert.Equal(500, mine.Items[0].PointCost);
+            Assert.Empty((await members.MyVouchersAsync(poor.User.Id, new(), default)).Items);
+            Assert.Single((await members.MyVouchersAsync(buyer.User.Id, new(Status: "REDEEMED"), default)).Items);
+            Assert.Empty((await members.MyVouchersAsync(buyer.User.Id, new(Status: "COLLECTED"), default)).Items);
+            Assert.Empty((await members.MyVouchersAsync(buyer.User.Id, new(Page: 2, PageSize: 1), default)).Items);
+            await Assert.ThrowsAsync<BusinessException>(() => members.MyVouchersAsync(buyer.User.Id, new(Status: "INVALID"), default));
             Assert.Equal(30000, (await orders.PreviewAsync(buyer.User.Id, new(redeem.Code), default)).DiscountAmount);
             var address = await members.SaveAddressAsync(buyer.User.Id, null, new("Buyer", "0901234567", "79", "001", "Test address", true), default);
             var order = await orders.CheckoutAsync(buyer.User.Id, "redeem-checkout", new(address.Id, VoucherCode: redeem.Code), default);
+            Assert.Equal("USED", (await members.MyVouchersAsync(buyer.User.Id, new(Status: "USED"), default)).Items.Single().Status);
             await orders.CancelAsync(buyer.User.Id, order.Id, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             Assert.Equal("AVAILABLE", claim.Status); Assert.Equal(500, buyerPoints.AvailablePoints);
+            Assert.Equal("AVAILABLE", (await members.MyVouchersAsync(buyer.User.Id, new(Status: "AVAILABLE"), default)).Items.Single().Status);
             await members.ClaimAsync(buyer.User.Id, redeem.Id, default); Assert.Equal(500, buyerPoints.AvailablePoints);
             await orders.AddAsync(poor.User.Id, new(product.Id, variant.Id, 1), default);
             await Assert.ThrowsAsync<BusinessException>(() => orders.PreviewAsync(poor.User.Id, new(levelOffer.Code), default));
@@ -106,6 +118,9 @@ public sealed class VoucherRedemptionFlowTests
             await Assert.ThrowsAsync<BusinessException>(() => adminCatalog.SaveVoucherAsync(buyer.User.AccountId, null, input with { Code = "INVALID", PointCost = -1 }, default));
             limited.Status = "INACTIVE"; await db.SaveChangesAsync();
             await Assert.ThrowsAsync<BusinessException>(() => members.ClaimAsync(poor.User.Id, limited.Id, default));
+            await db.Vouchers.Where(x => x.Id == redeem.Id).ExecuteUpdateAsync(set => set.SetProperty(x => x.ExpiresAt, DateTimeOffset.UtcNow.AddDays(-1)));
+            Assert.Equal(redeem.Id, (await members.MyVouchersAsync(buyer.User.Id, new(Status: "EXPIRED"), default)).Items.Single().VoucherId);
+            Assert.Contains((await members.MyVouchersAsync(buyer.User.Id, new(), default)).Items, x => x.VoucherId == redeem.Id && x.Status == "EXPIRED");
         }
         finally
         {

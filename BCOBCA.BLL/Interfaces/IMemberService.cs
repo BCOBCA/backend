@@ -10,6 +10,7 @@ public interface IMemberService
     Task<CheckInProgramDto> CheckInProgramAsync(CancellationToken ct);
     Task<PageResult<PointDto>> PointsAsync(Guid userId, CatalogQuery query, CancellationToken ct);
     Task<PageResult<VoucherDto>> VouchersAsync(Guid? userId, CatalogQuery query, CancellationToken ct);
+    Task<PageResult<OwnedVoucherDto>> MyVouchersAsync(Guid userId, CatalogQuery query, CancellationToken ct);
     Task ClaimAsync(Guid userId, Guid voucherId, CancellationToken ct);
     Task<PageResult<CatalogItemDto>> FavoritesAsync(Guid userId, CatalogQuery query, CancellationToken ct);
     Task FavoriteAsync(Guid userId, Guid productId, bool value, CancellationToken ct);

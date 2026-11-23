@@ -24,6 +24,8 @@ public sealed class MemberController(IMemberService member, IAuthService auth) :
     public async Task<IActionResult> Vouchers([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<VoucherDto>>.Ok(await member.VouchersAsync(User.Identity?.IsAuthenticated == true ? await UserId(ct) : null, query, ct)));
     [HttpPost("vouchers/{id:guid}/claim")]
     public async Task<IActionResult> Claim(Guid id, CancellationToken ct) { await member.ClaimAsync(await UserId(ct), id, ct); return Ok(ApiResponse<object>.Ok(new { })); }
+    [HttpGet("vouchers/mine")]
+    public async Task<IActionResult> MyVouchers([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<OwnedVoucherDto>>.Ok(await member.MyVouchersAsync(await UserId(ct), query, ct)));
     [HttpGet("favorites")]
     public async Task<IActionResult> Favorites([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<CatalogItemDto>>.Ok(await member.FavoritesAsync(await UserId(ct), query, ct)));
     [HttpPut("favorites/{id:guid}")]

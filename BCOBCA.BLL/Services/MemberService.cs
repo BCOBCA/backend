@@ -72,6 +72,31 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
                 store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id), x.PointCost, x.MinLevel, x.IsFlashSale)), query, ct);
     }
 
+    public async Task<PageResult<OwnedVoucherDto>> MyVouchersAsync(Guid userId, CatalogQuery query, CancellationToken ct)
+    {
+        if (query.Status is not (null or "AVAILABLE" or "COLLECTED" or "REDEEMED" or "USED" or "EXPIRED"))
+            throw new BusinessException("Bộ lọc ưu đãi không hợp lệ", 400);
+        var now = DateTimeOffset.UtcNow;
+        var source = from claim in store.Set<UserVoucher>().AsNoTracking()
+                     join voucher in store.Set<Voucher>().AsNoTracking() on claim.VoucherId equals voucher.Id
+                     where claim.UserId == userId
+                     select new { Claim = claim, Voucher = voucher,
+                         Status = claim.Status == "USED" ? "USED" : voucher.ExpiresAt <= now ? "EXPIRED"
+                             : claim.Status != "AVAILABLE" || voucher.Status != "ACTIVE" && voucher.Status != "MEMBER_OFFER" ? "UNAVAILABLE"
+                             : voucher.StartsAt > now ? "UPCOMING" : "AVAILABLE" };
+        source = query.Status switch
+        {
+            "COLLECTED" => source.Where(x => x.Voucher.PointCost == 0),
+            "REDEEMED" => source.Where(x => x.Voucher.PointCost > 0),
+            not null => source.Where(x => x.Status == query.Status),
+            _ => source,
+        };
+        return await PageAsync(source.OrderByDescending(x => x.Claim.ClaimedAt).ThenBy(x => x.Claim.Id)
+            .Select(x => new OwnedVoucherDto(x.Claim.Id, x.Voucher.Id, x.Voucher.Code, x.Voucher.Name, x.Voucher.Description,
+                x.Voucher.DiscountType, x.Voucher.DiscountValue, x.Voucher.MaxDiscount, x.Voucher.MinOrderAmount, x.Voucher.ExpiresAt,
+                x.Status, x.Voucher.PointCost, x.Voucher.MinLevel, x.Claim.ClaimedAt, x.Claim.UsedAt)), query, ct);
+    }
+
     public async Task ClaimAsync(Guid userId, Guid voucherId, CancellationToken ct)
     {
         await using var tx = await store.BeginTransactionAsync(ct);
