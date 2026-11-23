@@ -67,7 +67,8 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
         var now = DateTimeOffset.UtcNow;
         return await PageAsync(store.Set<Voucher>().AsNoTracking().Where(x => (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1 || x.DiscountType == "SHIPPING")) && x.StartsAt <= now && x.ExpiresAt > now
                 && (x.UsageLimit == null || (x.PointCost > 0 ? store.Set<UserVoucher>().Count(v => v.VoucherId == x.Id) : store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.Status == "APPLIED")) < x.UsageLimit || store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id))
-                && store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.UserId == userId && u.Status == "APPLIED") < x.PerUserLimit)
+                && store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.UserId == userId && u.Status == "APPLIED") < x.PerUserLimit
+                && (query.Status != "UNCLAIMED" || !store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id)))
             .OrderBy(x => x.ExpiresAt).ThenBy(x => x.Id).Select(x => new VoucherDto(x.Id, x.Code, x.Name, x.Description, x.DiscountType, x.DiscountValue, x.MaxDiscount, x.MinOrderAmount, x.ExpiresAt,
                 store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id), x.PointCost, x.MinLevel, x.IsFlashSale)), query, ct);
     }

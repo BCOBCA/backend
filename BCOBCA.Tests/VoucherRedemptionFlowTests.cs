@@ -80,6 +80,9 @@ public sealed class VoucherRedemptionFlowTests
             Assert.Equal(claim.Id, mine.Items[0].Id);
             Assert.Equal("AVAILABLE", mine.Items[0].Status);
             Assert.Equal(500, mine.Items[0].PointCost);
+            var unclaimed = await members.VouchersAsync(buyer.User.Id, new(Status: "UNCLAIMED", PageSize: 100), default);
+            Assert.DoesNotContain(unclaimed.Items, x => x.Id == redeem.Id);
+            Assert.All(unclaimed.Items, x => Assert.False(x.Claimed));
             Assert.Empty((await members.MyVouchersAsync(poor.User.Id, new(), default)).Items);
             Assert.Single((await members.MyVouchersAsync(buyer.User.Id, new(Status: "REDEEMED"), default)).Items);
             Assert.Empty((await members.MyVouchersAsync(buyer.User.Id, new(Status: "COLLECTED"), default)).Items);
@@ -89,9 +92,11 @@ public sealed class VoucherRedemptionFlowTests
             var address = await members.SaveAddressAsync(buyer.User.Id, null, new("Buyer", "0901234567", "79", "001", "Test address", true), default);
             var order = await orders.CheckoutAsync(buyer.User.Id, "redeem-checkout", new(address.Id, VoucherCode: redeem.Code), default);
             Assert.Equal("USED", (await members.MyVouchersAsync(buyer.User.Id, new(Status: "USED"), default)).Items.Single().Status);
+            Assert.Empty((await members.MyVouchersAsync(buyer.User.Id, new(Status: "AVAILABLE"), default)).Items);
             await orders.CancelAsync(buyer.User.Id, order.Id, new(BCOBCA.BLL.Common.OrderCancellationReasons.BuyerChoices[0]), default);
             Assert.Equal("AVAILABLE", claim.Status); Assert.Equal(500, buyerPoints.AvailablePoints);
             Assert.Equal("AVAILABLE", (await members.MyVouchersAsync(buyer.User.Id, new(Status: "AVAILABLE"), default)).Items.Single().Status);
+            Assert.DoesNotContain((await members.VouchersAsync(buyer.User.Id, new(Status: "UNCLAIMED", PageSize: 100), default)).Items, x => x.Id == redeem.Id);
             await members.ClaimAsync(buyer.User.Id, redeem.Id, default); Assert.Equal(500, buyerPoints.AvailablePoints);
             await orders.AddAsync(poor.User.Id, new(product.Id, variant.Id, 1), default);
             await Assert.ThrowsAsync<BusinessException>(() => orders.PreviewAsync(poor.User.Id, new(levelOffer.Code), default));
