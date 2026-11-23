@@ -5,6 +5,7 @@ using BCOBCA.BLL.Interfaces;
 using BCOBCA.DAL.Entities;
 using BCOBCA.DAL.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace BCOBCA.BLL.Services;
 
@@ -47,20 +48,23 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
         await using var tx = await store.BeginTransactionAsync(ct);
         var item = await PurchasedItem(userId, orderItemId, ct);
         var review = await store.Set<ProductReview>().SingleOrDefaultAsync(x => x.UserId == userId && x.OrderItemId == orderItemId, ct);
-        var isNew = review is null;
-        if (review is null) { review = new ProductReview { UserId = userId, OrderItemId = orderItemId, ProductId = item.ProductId, CreatedAt = DateTimeOffset.UtcNow }; store.Set<ProductReview>().Add(review); }
-        if (review.Rating == input.Rating && review.Content == input.Content.Trim() && JsonSerializer.Deserialize<string[]>(review.ImageUrls)!.SequenceEqual(images)) return review.Id;
+        if (review is not null) throw new BusinessException("Bạn đã đánh giá sản phẩm này. Mỗi sản phẩm trong đơn chỉ được đánh giá một lần.", 409);
+        review = new ProductReview { UserId = userId, OrderItemId = orderItemId, ProductId = item.ProductId, CreatedAt = DateTimeOffset.UtcNow };
+        store.Set<ProductReview>().Add(review);
         review.Rating = input.Rating; review.Content = input.Content.Trim(); review.Status = 1; review.Revision = Guid.NewGuid();
         review.ImageUrls = JsonSerializer.Serialize(images);
         var accountId = await store.Set<User>().Where(x => x.Id == userId).Select(x => x.AccountId).SingleAsync(ct);
         store.Set<AuditLog>().Add(new AuditLog { AccountId = accountId, Action = "SUBMIT_REVIEW", EntityType = "ProductReview", EntityId = review.Id, CreatedAt = DateTimeOffset.UtcNow });
-        if (isNew && item.StoreId.HasValue)
+        if (item.StoreId.HasValue)
         {
             var owner = await store.Set<Store>().Where(s => s.Id == item.StoreId && s.Status == 1 && s.DeletedAt == null).Select(s => (Guid?)s.OwnerAccountId).SingleOrDefaultAsync(ct);
             if (owner.HasValue) await UserNotifications.AddAccountAsync(store, owner.Value, "REVIEW_CREATED", "Bạn có đánh giá sản phẩm mới",
                 $"Khách hàng đã đánh giá {input.Rating} sao cho {item.ProductName}.", "StoreReview", item.StoreId.Value, ct);
         }
-        await store.SaveChangesAsync(ct); await tx.CommitAsync(ct); return review.Id;
+        try { await store.SaveChangesAsync(ct); await tx.CommitAsync(ct); }
+        catch (Exception ex) when (DatabaseConflicts.IsConcurrency(ex) || ex is DbUpdateException { InnerException: PostgresException { SqlState: "23505", ConstraintName: "IX_ProductReviews_UserId_OrderItemId" } })
+        { throw new BusinessException("Đánh giá đã được gửi. Vui lòng tải lại để xem đánh giá của bạn.", 409); }
+        return review.Id;
     }
     private async Task CheckStoreAccess(Guid accountId, Guid storeId, CancellationToken ct)
     {

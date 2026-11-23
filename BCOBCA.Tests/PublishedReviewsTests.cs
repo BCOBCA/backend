@@ -46,12 +46,14 @@ public sealed class PublishedReviewsTests
             var orderService = new OrderService(new CommerceStore(db), new ConfigurationBuilder().Build(), null!, null!);
             Assert.True((await orderService.OrderAsync(user.Id, order.Id, default)).CanReview);
             Assert.True(Assert.Single((await orderService.OrdersAsync(user.Id, new(), default)).Items).CanReview);
+            Assert.True(Assert.Single((await orderService.OrderAsync(user.Id, order.Id, default)).Items).HasReview);
+            Assert.True(Assert.Single(Assert.Single((await orderService.OrdersAsync(user.Id, new(), default)).Items).Items!).HasReview);
             var newReviewNotification = await db.Notifications.SingleAsync(n => n.Type == "REVIEW_CREATED");
             Assert.Equal(owner.Id, newReviewNotification.RecipientAccountId);
             Assert.Equal(shop.Id, newReviewNotification.TargetId);
             Assert.Equal("StoreReview", newReviewNotification.TargetType);
             Assert.Equal(1, await db.Set<PushDelivery>().CountAsync(p => p.NotificationId == newReviewNotification.Id));
-            await service.SaveAsync(user.Id, item.Id, new(5, "Good product"), default);
+            Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(user.Id, item.Id, new(5, "Good product"), default))).StatusCode);
             Assert.Equal(1, await db.Notifications.CountAsync(n => n.Type == "REVIEW_CREATED"));
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(Guid.NewGuid(), item.Id, new(5, "Other buyer"), default));
             var listed = await service.SellerReviewsAsync(owner.Id, shop.Id, new(Rating: 5, Replied: false, Search: "review001"), default);
@@ -79,8 +81,11 @@ public sealed class PublishedReviewsTests
             Assert.Single((await service.SellerReviewsAsync(owner.Id, shop.Id, new(Replied: true), default)).Items);
             Assert.Empty((await service.SellerReviewsAsync(owner.Id, shop.Id, new(Rating: 1), default)).Items);
             Assert.Empty((await service.SellerReviewsAsync(owner.Id, shop.Id, new(From: DateTimeOffset.UtcNow.AddDays(1)), default)).Items);
-            await service.SaveAsync(user.Id, item.Id, new(4, "Updated buyer review"), default);
+            Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(user.Id, item.Id, new(4, "Updated buyer review"), default))).StatusCode);
             var edited = Assert.Single((await service.ReviewsAsync(product.Id, new(), default)).Items);
+            Assert.Equal(5, edited.Rating);
+            Assert.Equal("Good product", edited.Content);
+            Assert.Equal(replied.Revision, edited.Revision);
             Assert.Equal(1, edited.Status);
             Assert.Equal("Thank you!", edited.Reply?.Content);
             await service.ReplyAsync(owner.Id, shop.Id, id, new("Updated reply", edited.Revision), default);

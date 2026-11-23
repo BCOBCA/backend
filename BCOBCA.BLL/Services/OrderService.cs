@@ -244,7 +244,8 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
             store.Set<Store>().Where(s => s.Id == x.StoreId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null).Select(s => s.Slug).FirstOrDefault(),
             store.Set<ProductImage>().Where(i => i.ProductId == x.ProductId).OrderByDescending(i => i.IsPrimary).ThenBy(i => i.SortOrder).ThenBy(i => i.Id).Select(i => i.ImageUrl).FirstOrDefault(),
             store.Set<ProductVariant>().Where(v => v.Id == x.VariantId).Select(v => v.VariantName).FirstOrDefault(),
-            store.Set<Brand>().IgnoreQueryFilters().Where(b => b.Id == x.BrandId).Select(b => b.Name).FirstOrDefault()) }).ToListAsync(ct);
+            store.Set<Brand>().IgnoreQueryFilters().Where(b => b.Id == x.BrandId).Select(b => b.Name).FirstOrDefault(),
+            store.Set<ProductReview>().Any(r => r.UserId == userId && r.OrderItemId == x.Id)) }).ToListAsync(ct);
         var grouped = lines.ToLookup(x => x.OrderId, x => x.Item);
         return new(summaries.Select(x => x with { Items = grouped[x.Id].ToArray() }).ToArray(), page, size, await source.CountAsync(ct));
     }
@@ -268,7 +269,8 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
             store.Set<Store>().Where(s => s.Id == x.StoreId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null).Select(s => s.Slug).FirstOrDefault(),
             store.Set<ProductImage>().Where(i => i.ProductId == x.ProductId).OrderByDescending(i => i.IsPrimary).ThenBy(i => i.SortOrder).ThenBy(i => i.Id).Select(i => i.ImageUrl).FirstOrDefault(),
             store.Set<ProductVariant>().Where(v => v.Id == x.VariantId).Select(v => v.VariantName).FirstOrDefault(),
-            store.Set<Brand>().IgnoreQueryFilters().Where(b => b.Id == x.BrandId).Select(b => b.Name).FirstOrDefault())).ToListAsync(ct);
+            store.Set<Brand>().IgnoreQueryFilters().Where(b => b.Id == x.BrandId).Select(b => b.Name).FirstOrDefault(),
+            store.Set<ProductReview>().Any(r => r.UserId == userId && r.OrderItemId == x.Id))).ToListAsync(ct);
         var shipments = await store.Set<Shipment>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.ShippedAt).Take(50).Select(x => new ShipmentDto(x.Id, x.Carrier, x.TrackingCode, x.Status, x.ShippedAt, x.DeliveredAt)).ToListAsync(ct);
         var history = await store.Set<OrderStatusHistory>().AsNoTracking().Where(x => x.OrderId == id).OrderBy(x => x.CreatedAt).Select(x => new OrderHistoryDto(x.OldStatus, x.NewStatus, x.Note, x.CreatedAt)).ToListAsync(ct);
         var paymentMethod = await store.Set<Payment>().AsNoTracking().Where(x => x.OrderId == id).Select(x => x.PaymentMethod).FirstOrDefaultAsync(ct);

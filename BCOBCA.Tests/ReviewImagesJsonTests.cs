@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BCOBCA.BLL.Common;
 using BCOBCA.BLL.DTOs;
 using BCOBCA.BLL.Services;
 using BCOBCA.DAL.Context;
@@ -79,18 +80,18 @@ public sealed class ReviewImagesJsonTests
             await migrator.MigrateAsync();
             var service = new ReviewService(new CommerceStore(db));
             Assert.Equal(urls, (await service.ReviewsAsync(product.Id, new CatalogQuery(), default)).Items.Single(r => r.Id == reviewId).ImageUrls);
-            Assert.Equal(reviewId, await service.SaveAsync(user.Id, item.Id, new ReviewInput(5, "Existing review", urls), default));
+            Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(user.Id, item.Id, new ReviewInput(5, "Existing review", urls), default))).StatusCode);
             var unchanged = (await service.MyReviewAsync(user.Id, item.Id, default))!;
             Assert.Equal(revision, unchanged.Revision); Assert.Equal(1, unchanged.Status);
             string[] replacement = [urls[2], urls[0]];
-            await service.SaveAsync(user.Id, item.Id, new ReviewInput(5, "Existing review", replacement), default);
+            Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(user.Id, item.Id, new ReviewInput(5, "Existing review", replacement), default))).StatusCode);
             var changed = (await service.MyReviewAsync(user.Id, item.Id, default))!;
-            Assert.Equal(replacement, changed.ImageUrls); Assert.Equal(1, changed.Status); Assert.NotEqual(revision, changed.Revision);
+            Assert.Equal(urls, changed.ImageUrls); Assert.Equal(1, changed.Status); Assert.Equal(revision, changed.Revision);
             Assert.Empty((await service.PendingAsync(account.Id, new CatalogQuery(), default)).Items);
-            Assert.Equal(replacement, (await service.ReviewsAsync(product.Id, new CatalogQuery(), default)).Items.Single(r => r.Id == reviewId).ImageUrls);
-            await service.SaveAsync(user.Id, item.Id, new ReviewInput(5, "Existing review"), default);
-            Assert.Empty((await service.MyReviewAsync(user.Id, item.Id, default))!.ImageUrls);
-            Assert.Equal("[]", (await db.ProductReviews.AsNoTracking().SingleAsync(r => r.Id == reviewId)).ImageUrls);
+            Assert.Equal(urls, (await service.ReviewsAsync(product.Id, new CatalogQuery(), default)).Items.Single(r => r.Id == reviewId).ImageUrls);
+            Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(user.Id, item.Id, new ReviewInput(5, "Existing review"), default))).StatusCode);
+            Assert.Equal(urls, (await service.MyReviewAsync(user.Id, item.Id, default))!.ImageUrls);
+            Assert.Equal(urls, JsonSerializer.Deserialize<string[]>((await db.ProductReviews.AsNoTracking().SingleAsync(r => r.Id == reviewId)).ImageUrls));
         }
         finally
         {
