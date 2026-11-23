@@ -30,5 +30,11 @@ public sealed class VoucherConfiguration : IEntityTypeConfiguration<Voucher>
         builder.Property(x => x.IsFlashSale).HasDefaultValue(false);
         builder.ToTable(t => t.HasCheckConstraint("CK_Vouchers_Membership", "\"PointCost\" >= 0 AND \"MinLevel\" BETWEEN 1 AND 10 AND (\"PointCost\" = 0 OR \"PerUserLimit\" = 1)"));
         builder.Property(x => x.Version).IsRowVersion();
+        builder.Property(x => x.CreatedAt).HasColumnType("timestamptz").HasDefaultValueSql("CURRENT_TIMESTAMP");
+        builder.Property(x => x.UpdatedAt).HasColumnType("timestamptz").HasDefaultValueSql("CURRENT_TIMESTAMP");
+        builder.Property(x => x.DisabledAt).HasColumnType("timestamptz");
+        builder.Property(x => x.DisabledReason).HasColumnType("varchar(1000)");
+        builder.HasOne<Account>().WithMany().HasForeignKey(x => x.DisabledByAccountId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.StoreId, x.StartsAt, x.ExpiresAt });
     }
 }

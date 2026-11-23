@@ -19,5 +19,10 @@ public sealed class Voucher
     public long PointCost { get; set; }
     public int MinLevel { get; set; } = 1;
     public bool IsFlashSale { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? DisabledAt { get; set; }
+    public Guid? DisabledByAccountId { get; set; }
+    public string? DisabledReason { get; set; }
     public uint Version { get; set; }
 }

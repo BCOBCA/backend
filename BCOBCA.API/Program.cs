@@ -42,6 +42,7 @@ builder.Services.AddHttpClient<IVerificationDocumentStorage, CloudinaryVerificat
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<IDealerCatalogService, DealerCatalogService>();
 builder.Services.AddScoped<IMemberService, MemberService>();
+builder.Services.AddScoped<IVoucherManagementService, VoucherManagementService>();
 builder.Services.AddScoped<ILoyaltyConfigurationService, LoyaltyConfigurationService>();
 builder.Services.AddScoped<IPlatformFeeConfigurationService, PlatformFeeConfigurationService>();
 builder.Services.AddScoped<IWithdrawalConfigurationService, WithdrawalConfigurationService>();

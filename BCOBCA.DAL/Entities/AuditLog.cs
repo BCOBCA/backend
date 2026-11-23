@@ -8,4 +8,5 @@ public sealed class AuditLog
     public string EntityType { get; set; } = "";
     public Guid? EntityId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+    public string? Details { get; set; }
 }

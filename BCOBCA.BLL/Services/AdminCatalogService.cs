@@ -227,6 +227,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         voucher.MinOrderAmount = input.MinOrderAmount; voucher.PerUserLimit = input.PerUserLimit; voucher.UsageLimit = input.UsageLimit; voucher.StartsAt = input.StartsAt.ToUniversalTime(); voucher.ExpiresAt = input.ExpiresAt.ToUniversalTime(); voucher.Status = input.IsActive ? "ACTIVE" : "INACTIVE";
         if (input.StoreId is { } sellerId && (!await store.Set<Store>().AnyAsync(x => x.Id == sellerId && x.StoreType == 1 && x.Status == 1, ct) || input.DiscountType == "SHIPPING")) throw new BusinessException("Voucher cửa hàng không hợp lệ", 409);
         voucher.StoreId = input.StoreId;
+        voucher.UpdatedAt = DateTimeOffset.UtcNow;
         voucher.PointCost = input.PointCost; voucher.MinLevel = input.MinLevel; voucher.IsFlashSale = input.IsFlashSale;
         // Older releases only recognize ACTIVE and cannot enforce point/level restrictions.
         if (input.IsActive && (input.PointCost > 0 || input.MinLevel > 1 || input.DiscountType == "SHIPPING")) voucher.Status = "MEMBER_OFFER";

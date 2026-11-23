@@ -68,9 +68,12 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
         return await PageAsync(store.Set<Voucher>().AsNoTracking().Where(x => (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1 || x.DiscountType == "SHIPPING")) && x.StartsAt <= now && x.ExpiresAt > now
                 && (x.UsageLimit == null || (x.PointCost > 0 ? store.Set<UserVoucher>().Count(v => v.VoucherId == x.Id) : store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.Status == "APPLIED")) < x.UsageLimit || store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id))
                 && store.Set<VoucherUsage>().Count(u => u.VoucherId == x.Id && u.UserId == userId && u.Status == "APPLIED") < x.PerUserLimit
-                && (query.Status != "UNCLAIMED" || !store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id)))
+                && (query.Status != "UNCLAIMED" || !store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id))
+                && (query.StoreId == null || x.StoreId == query.StoreId)
+                && (x.StoreId == null || store.Set<Store>().Any(s => s.Id == x.StoreId && s.Status == 1 && s.StoreType == 1 && s.DeletedAt == null)))
             .OrderBy(x => x.ExpiresAt).ThenBy(x => x.Id).Select(x => new VoucherDto(x.Id, x.Code, x.Name, x.Description, x.DiscountType, x.DiscountValue, x.MaxDiscount, x.MinOrderAmount, x.ExpiresAt,
-                store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id), x.PointCost, x.MinLevel, x.IsFlashSale)), query, ct);
+                store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id), x.PointCost, x.MinLevel, x.IsFlashSale,
+                x.StoreId, store.Set<Store>().Where(s => s.Id == x.StoreId).Select(s => s.Name).FirstOrDefault())), query, ct);
     }
 
     public async Task<PageResult<OwnedVoucherDto>> MyVouchersAsync(Guid userId, CatalogQuery query, CancellationToken ct)
@@ -83,7 +86,9 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
                      where claim.UserId == userId
                      select new { Claim = claim, Voucher = voucher,
                          Status = claim.Status == "USED" ? "USED" : voucher.ExpiresAt <= now ? "EXPIRED"
-                             : claim.Status != "AVAILABLE" || voucher.Status != "ACTIVE" && voucher.Status != "MEMBER_OFFER" ? "UNAVAILABLE"
+                             : claim.Status != "AVAILABLE" || voucher.Status != "ACTIVE" && voucher.Status != "MEMBER_OFFER"
+                                 || voucher.StoreId != null && !store.Set<Store>().Any(s => s.Id == voucher.StoreId && s.Status == 1 && s.StoreType == 1 && s.DeletedAt == null) ? "UNAVAILABLE"
+                             : voucher.UsageLimit != null && store.Set<VoucherUsage>().Count(u => u.VoucherId == voucher.Id && u.Status == "APPLIED") >= voucher.UsageLimit ? "EXHAUSTED"
                              : voucher.StartsAt > now ? "UPCOMING" : "AVAILABLE" };
         source = query.Status switch
         {
@@ -95,7 +100,8 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
         return await PageAsync(source.OrderByDescending(x => x.Claim.ClaimedAt).ThenBy(x => x.Claim.Id)
             .Select(x => new OwnedVoucherDto(x.Claim.Id, x.Voucher.Id, x.Voucher.Code, x.Voucher.Name, x.Voucher.Description,
                 x.Voucher.DiscountType, x.Voucher.DiscountValue, x.Voucher.MaxDiscount, x.Voucher.MinOrderAmount, x.Voucher.ExpiresAt,
-                x.Status, x.Voucher.PointCost, x.Voucher.MinLevel, x.Claim.ClaimedAt, x.Claim.UsedAt)), query, ct);
+                x.Status, x.Voucher.PointCost, x.Voucher.MinLevel, x.Claim.ClaimedAt, x.Claim.UsedAt, x.Voucher.StoreId,
+                store.Set<Store>().Where(s => s.Id == x.Voucher.StoreId).Select(s => s.Name).FirstOrDefault())), query, ct);
     }
 
     public async Task ClaimAsync(Guid userId, Guid voucherId, CancellationToken ct)
@@ -103,6 +109,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
         await using var tx = await store.BeginTransactionAsync(ct);
         var now = DateTimeOffset.UtcNow;
         var voucher = await store.Set<Voucher>().SingleOrDefaultAsync(x => x.Id == voucherId && (x.Status == "ACTIVE" || x.Status == "MEMBER_OFFER" && (x.PointCost > 0 || x.MinLevel > 1 || x.DiscountType == "SHIPPING")) && x.StartsAt <= now && x.ExpiresAt > now, ct) ?? throw new BusinessException("Voucher không khả dụng", 404);
+        if (voucher.StoreId is { } shop && !await store.Set<Store>().AnyAsync(x => x.Id == shop && x.Status == 1 && x.StoreType == 1 && x.DeletedAt == null, ct)) throw new BusinessException("Cửa hàng không khả dụng", 409);
         if (await store.Set<UserVoucher>().AnyAsync(x => x.UserId == userId && x.VoucherId == voucherId, ct)) return;
         await VoucherEligibility.RequireLevelAsync(store, userId, voucher.MinLevel, ct);
         var usages = store.Set<VoucherUsage>().Where(x => x.VoucherId == voucherId && x.Status == "APPLIED");

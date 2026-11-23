@@ -28,7 +28,7 @@ public static class CheckoutVoucherRules
         if (voucher.Status != "ACTIVE" && !(voucher.Status == "MEMBER_OFFER" && (voucher.PointCost > 0 || voucher.MinLevel > 1 || voucher.DiscountType == "SHIPPING"))) reason = "Voucher không khả dụng";
         else if (voucher.StartsAt > now) reason = "Voucher chưa đến thời gian sử dụng";
         else if (voucher.ExpiresAt <= now) reason = "Voucher đã hết hạn";
-        else if ((requireOwned || voucher.PointCost > 0) && !owned) reason = "Voucher chưa được thu thập hoặc đã dùng hết";
+        else if ((requireOwned || voucher.PointCost > 0 || voucher.StoreId != null) && !owned) reason = "Voucher chưa được thu thập hoặc đã dùng hết";
         else if (level < voucher.MinLevel) reason = $"Ưu đãi dành cho thành viên từ Lv.{voucher.MinLevel}";
         else if (voucher.UsageLimit is not null && totalUses >= voucher.UsageLimit || userUses >= voucher.PerUserLimit) reason = "Voucher đã hết lượt sử dụng";
         else if (eligibleTotal <= 0 || eligibleTotal < voucher.MinOrderAmount) reason = "Đơn hàng chưa đủ điều kiện voucher";

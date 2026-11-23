@@ -25,8 +25,8 @@ public sealed class AdminCatalogController(IAdminCatalogService admin) : Control
     [HttpPut("banners/{id:guid}")] public async Task<IActionResult> PutBanner(Guid id, BannerInput input, CancellationToken ct) => Resource(await admin.SaveBannerAsync(AccountId, id, input, ct));
     [HttpPost("articles")] public async Task<IActionResult> AddArticle(ArticleInput input, CancellationToken ct) => Resource(await admin.SaveArticleAsync(AccountId, null, input, ct));
     [HttpPut("articles/{id:guid}")] public async Task<IActionResult> PutArticle(Guid id, ArticleInput input, CancellationToken ct) => Resource(await admin.SaveArticleAsync(AccountId, id, input, ct));
-    [HttpPost("vouchers")] public async Task<IActionResult> AddVoucher(VoucherInput input, CancellationToken ct) => Resource(await admin.SaveVoucherAsync(AccountId, null, input, ct));
-    [HttpPut("vouchers/{id:guid}")] public async Task<IActionResult> PutVoucher(Guid id, VoucherInput input, CancellationToken ct) => Resource(await admin.SaveVoucherAsync(AccountId, id, input, ct));
+    [Authorize(Roles = "Admin,SuperAdmin"), HttpPost("vouchers")] public async Task<IActionResult> AddVoucher(VoucherInput input, CancellationToken ct) => Resource(await admin.SaveVoucherAsync(AccountId, null, input, ct));
+    [Authorize(Roles = "Admin,SuperAdmin"), HttpPut("vouchers/{id:guid}")] public async Task<IActionResult> PutVoucher(Guid id, VoucherInput input, CancellationToken ct) => Resource(await admin.SaveVoucherAsync(AccountId, id, input, ct));
     [HttpPost("quotations")] public async Task<IActionResult> Quote(QuotationInput input, CancellationToken ct) => Resource(await admin.QuoteAsync(AccountId, input, ct));
     [HttpPut("account-roles")] public async Task<IActionResult> Role(AccountRoleInput input, CancellationToken ct) { await admin.SetRoleAsync(AccountId, input, ct); return Ok(ApiResponse<object>.Ok(new { })); }
 }

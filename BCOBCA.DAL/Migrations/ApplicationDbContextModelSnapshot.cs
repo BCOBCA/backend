@@ -701,6 +701,9 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamptz");
 
+                    b.Property<string>("Details")
+                        .HasColumnType("text");
+
                     b.Property<Guid?>("EntityId")
                         .HasColumnType("uuid");
 
@@ -3179,9 +3182,23 @@ namespace BCOBCA.DAL.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(50)");
 
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamptz")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("DisabledAt")
+                        .HasColumnType("timestamptz");
+
+                    b.Property<Guid?>("DisabledByAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DisabledReason")
+                        .HasColumnType("varchar(1000)");
 
                     b.Property<string>("DiscountType")
                         .IsRequired()
@@ -3231,6 +3248,11 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<Guid?>("StoreId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamptz")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
                     b.Property<int?>("UsageLimit")
                         .HasColumnType("int");
 
@@ -3245,7 +3267,9 @@ namespace BCOBCA.DAL.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.HasIndex("StoreId");
+                    b.HasIndex("DisabledByAccountId");
+
+                    b.HasIndex("StoreId", "StartsAt", "ExpiresAt");
 
                     b.ToTable("Vouchers", null, t =>
                         {
@@ -4146,6 +4170,11 @@ namespace BCOBCA.DAL.Migrations
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.Voucher", b =>
                 {
+                    b.HasOne("BCOBCA.DAL.Entities.Account", null)
+                        .WithMany()
+                        .HasForeignKey("DisabledByAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BCOBCA.DAL.Entities.Store", null)
                         .WithMany()
                         .HasForeignKey("StoreId")

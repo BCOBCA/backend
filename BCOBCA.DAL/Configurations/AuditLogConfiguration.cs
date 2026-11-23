@@ -16,5 +16,6 @@ public sealed class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.Property(x => x.EntityType).HasColumnType("varchar(100)").IsRequired();
         builder.Property(x => x.EntityId).HasColumnType("uuid");
         builder.Property(x => x.CreatedAt).HasColumnType("timestamptz").IsRequired();
+        builder.Property(x => x.Details).HasColumnType("text");
     }
 }
