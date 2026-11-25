@@ -23,7 +23,8 @@ public sealed class DealerService(ICommerceStore store) : IDealerService
         store.Set<StoreBranch>().Count(b => b.StoreId == x.Id && b.IsActive),
         accountId != null && store.Set<StoreFollower>().Any(f => f.StoreId == x.Id && f.AccountId == accountId), x.Provinces,
         store.Set<ProductReview>().Where(r => r.StoreId == x.Id && r.Status == 1).Average(r => (double?)r.Rating),
-        store.Set<ProductReview>().Count(r => r.StoreId == x.Id && r.Status == 1)));
+        store.Set<ProductReview>().Count(r => r.StoreId == x.Id && r.Status == 1),
+        ProductCatalogScope.Available(store).Count(p => p.StoreId == x.Id)));
 
     public async Task<IReadOnlyList<DealerProfileDto>> OwnedAsync(Guid accountId, CancellationToken ct)
         => await store.Set<Store>().AsNoTracking().Where(x => x.OwnerAccountId == accountId && x.StoreType == 1 && x.DeletedAt == null)

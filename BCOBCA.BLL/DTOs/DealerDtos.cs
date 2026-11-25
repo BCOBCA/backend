@@ -1,7 +1,7 @@
 namespace BCOBCA.BLL.DTOs;
 
 public sealed record DealerQuery(int Page = 1, int PageSize = 12, string? Search = null, string? ProvinceCode = null, bool VerifiedOnly = false, string SortBy = "popular", Guid? CategoryId = null);
-public sealed record DealerDto(Guid Id, string Name, string Slug, string LogoUrl, string CoverUrl, string Description, bool IsVerified, int FollowerCount, string LocationLabel, int BranchCount, bool IsFollowing, string? Provinces = null, double? AverageRating = null, int ReviewCount = 0);
+public sealed record DealerDto(Guid Id, string Name, string Slug, string LogoUrl, string CoverUrl, string Description, bool IsVerified, int FollowerCount, string LocationLabel, int BranchCount, bool IsFollowing, string? Provinces = null, double? AverageRating = null, int ReviewCount = 0, int ProductCount = 0);
 public sealed record DealerProfileDto(Guid Id, string Name, string? Provinces, IReadOnlyList<Guid>? CategoryIds = null);
 public sealed record DealerCategoryDto(Guid Id, string Name);
 public sealed record DealerCategoriesInput(Guid[]? CategoryIds);

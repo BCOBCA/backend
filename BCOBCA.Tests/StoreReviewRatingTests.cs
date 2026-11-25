@@ -47,10 +47,12 @@ public sealed class StoreReviewRatingTests
             var dealers = new DealerService(new CommerceStore(db));
             var result = (await dealers.DetailAsync(shop.Slug, null, default)).Dealer;
             Assert.Equal(4, result.ReviewCount);
+            Assert.Equal(1, result.ProductCount);
             Assert.Equal(4d, result.AverageRating);
             var noReviews = (await dealers.DetailAsync(empty.Slug, null, default)).Dealer;
             Assert.Null(noReviews.AverageRating);
             Assert.Equal(0, noReviews.ReviewCount);
+            Assert.Equal(0, noReviews.ProductCount);
 
             // The purchase snapshot remains authoritative if a product later belongs to another store.
             var movedItem = new OrderItem { OrderId = order.Id, ProductId = foreign.Id, BrandId = brand.Id, StoreId = shop.Id, ProductName = foreign.Name, Quantity = 1 };
