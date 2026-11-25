@@ -36,7 +36,7 @@ public static class CheckoutVoucherRules
         else if (voucher.DiscountType is not ("SHIPPING" or "FIXED" or "PERCENT") || voucher.DiscountValue < 0 || voucher.MaxDiscount < 0) reason = "Giá trị giảm giá không hợp lệ";
         var discount = reason is null ? CommerceRules.Discount(voucher.DiscountType == "SHIPPING" ? shippingFee : eligibleTotal, voucher.DiscountType == "SHIPPING" ? "FIXED" : voucher.DiscountType, voucher.DiscountValue, voucher.MaxDiscount) : 0;
         if (reason is null && discount <= 0) reason = "Voucher không tạo ra khoản giảm cho đơn hàng này";
-        return new(voucher.Id, voucher.Code, voucher.Name, voucher.Description, voucher.DiscountType, voucher.DiscountValue, voucher.MaxDiscount, voucher.MinOrderAmount, voucher.ExpiresAt, discount, reason is null, reason);
+        return new(voucher.Id, voucher.Code, voucher.Code, voucher.Description, voucher.DiscountType, voucher.DiscountValue, voucher.MaxDiscount, voucher.MinOrderAmount, voucher.ExpiresAt, discount, reason is null, reason);
     }
 
     public static string[] BestCodes(IEnumerable<CheckoutVoucherDto> options)

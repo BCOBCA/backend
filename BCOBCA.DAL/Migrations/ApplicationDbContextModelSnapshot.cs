@@ -3226,10 +3226,6 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<decimal>("MinOrderAmount")
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("varchar(150)");
-
                     b.Property<int>("PerUserLimit")
                         .HasColumnType("int");
 

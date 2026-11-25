@@ -7,7 +7,7 @@ namespace BCOBCA.Tests;
 public sealed class CheckoutVoucherRulesTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 10, 0, 0, 0, TimeSpan.Zero);
-    private static Voucher Voucher(string code, string type, decimal value) => new() { Code = code, Name = code, DiscountType = type, DiscountValue = value, PerUserLimit = 1, Status = "ACTIVE", StartsAt = Now.AddDays(-1), ExpiresAt = Now.AddDays(1) };
+    private static Voucher Voucher(string code, string type, decimal value) => new() { Code = code, DiscountType = type, DiscountValue = value, PerUserLimit = 1, Status = "ACTIVE", StartsAt = Now.AddDays(-1), ExpiresAt = Now.AddDays(1) };
     private static readonly CheckoutVoucherLine[] Lines = [new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 500000)];
 
     [Fact]

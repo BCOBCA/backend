@@ -45,7 +45,7 @@ public sealed class SellerVoucherFlowTests
             var cv = new ProductVariant { ProductId = c.Id, SKU = "SVC-V", VariantName = "C", Price = 250000, StockQuantity = 20, IsActive = true };
             db.AddRange(brand, category, a, b, c, av, bv, cv); await db.SaveChangesAsync();
             var service = new VoucherManagementService(repo); var members = new MemberService(repo); var now = DateTimeOffset.UtcNow;
-            var input = new SellerVoucherInput("SELLER10", "Giảm 10%", "Shop tự chịu giảm giá", "PERCENT", 10, 20000, 100000, 10, 1, now.AddMinutes(-1), now.AddDays(7), [a.Id]);
+            var input = new SellerVoucherInput("SELLER10", "Shop tự chịu giảm giá", "PERCENT", 10, 20000, 100000, 10, 1, now.AddMinutes(-1), now.AddDays(7), [a.Id]);
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(other.User.AccountId, shop.Id, null, input, default));
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(owner.User.AccountId, shop.Id, null, input with { ProductIds = [b.Id] }, default));
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(owner.User.AccountId, shop.Id, null, input with { MaxDiscount = null }, default));

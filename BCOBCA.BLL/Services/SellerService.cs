@@ -108,7 +108,7 @@ public sealed partial class SellerService(ICommerceStore store, GhnQuoteClient? 
                               join voucher in store.Set<Voucher>() on applied.VoucherId equals voucher.Id
                               where applied.OrderId == id
                               orderby voucher.Code
-                              select new SellerOrderVoucherDto(voucher.Code, voucher.Name, voucher.DiscountType, applied.DiscountAmount)).ToListAsync(ct);
+                              select new SellerOrderVoucherDto(voucher.Code, voucher.Code, voucher.DiscountType, applied.DiscountAmount)).ToListAsync(ct);
         return new SellerOrderDto(order.Id, order.OrderCode, order.Status, order.RecipientName, order.RecipientPhone, order.ShippingAddress, order.CreatedAt,
             order.Subtotal, order.DiscountAmount, order.ShippingFee, order.ShippingDiscountAmount, order.TotalAmount, items,
             order.PaymentStatus, payment?.PaymentMethod, order.Note, payment?.PaidAt, order.ConfirmedAt, order.CompletedAt, order.CancelledAt, shipments, history, vouchers);

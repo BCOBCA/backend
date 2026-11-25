@@ -93,7 +93,7 @@ public sealed class PostgresFlowTests
                 await orderService.AddAsync(created.User.Id, new CartItemRequest(variant.ProductId, variantId, 1), default);
             }
             var checkout = new CheckoutRequest(address.Id);
-            var voucher = new Voucher { Code = "TEST10", Name = "Test-only voucher", DiscountType = "PERCENT", DiscountValue = 10, MinOrderAmount = 1000, PerUserLimit = 1, StartsAt = now.AddMinutes(-1), ExpiresAt = now.AddDays(1), Status = "ACTIVE" };
+            var voucher = new Voucher { Code = "TEST10", DiscountType = "PERCENT", DiscountValue = 10, MinOrderAmount = 1000, PerUserLimit = 1, StartsAt = now.AddMinutes(-1), ExpiresAt = now.AddDays(1), Status = "ACTIVE" };
             db.Vouchers.Add(voucher);
             db.VoucherTargets.Add(new VoucherTarget { VoucherId = voucher.Id, BrandId = (await db.Brands.FirstAsync()).Id });
             await db.SaveChangesAsync();

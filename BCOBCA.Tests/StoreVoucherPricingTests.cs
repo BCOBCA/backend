@@ -8,7 +8,7 @@ public sealed class StoreVoucherPricingTests
 {
     private static readonly DateTimeOffset Now = DateTimeOffset.UtcNow;
     private static OrderItem Line(Guid store, decimal amount) => new() { StoreId = store, ProductId = Guid.NewGuid(), VariantId = Guid.NewGuid(), Quantity = 1, UnitPrice = amount, TotalPrice = amount };
-    private static CheckoutVoucherContext Coupon(string code, decimal value, Guid? store = null, decimal minimum = 0, string type = "FIXED") => new(new Voucher { Code = code, Name = code, StoreId = store, DiscountType = type, DiscountValue = value, MinOrderAmount = minimum, PerUserLimit = 1, StartsAt = Now.AddDays(-1), ExpiresAt = Now.AddDays(1), Status = "ACTIVE" }, [], 0, 0, true);
+    private static CheckoutVoucherContext Coupon(string code, decimal value, Guid? store = null, decimal minimum = 0, string type = "FIXED") => new(new Voucher { Code = code, StoreId = store, DiscountType = type, DiscountValue = value, MinOrderAmount = minimum, PerUserLimit = 1, StartsAt = Now.AddDays(-1), ExpiresAt = Now.AddDays(1), Status = "ACTIVE" }, [], 0, 0, true);
 
     [Fact]
     public void PlatformMinimumUsesWholeCheckoutButDiscountHitsOnlyLargestProduct()

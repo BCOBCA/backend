@@ -93,7 +93,7 @@ public sealed class ProductAffiliateFlowTests
             var member = new MemberService(store);
             var address = await member.SaveAddressAsync(buyer.User.Id, null, new AddressRequest("Buyer", "0901234567", "79", "001", "Test address", true), default);
             var finance = new FinanceService(store, config); var orders = TestOrders.Create(store, config, finance);
-            var voucher = new Voucher { Code = "LESS10", Name = "Discount", DiscountType = "FIXED", DiscountValue = 10000, PerUserLimit = 10, StartsAt = DateTimeOffset.UtcNow.AddDays(-1), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1), Status = "ACTIVE" };
+            var voucher = new Voucher { Code = "LESS10", DiscountType = "FIXED", DiscountValue = 10000, PerUserLimit = 10, StartsAt = DateTimeOffset.UtcNow.AddDays(-1), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1), Status = "ACTIVE" };
             db.Vouchers.Add(voucher); db.VoucherTargets.Add(new VoucherTarget { VoucherId = voucher.Id, ProductId = product.Id }); await db.SaveChangesAsync();
             await orders.AddAsync(buyer.User.Id, new(product.Id, variant.Id, 1), default); await orders.AddAsync(buyer.User.Id, new(unlinked.Id, secondVariant.Id, 1), default);
             var input = new CheckoutRequest(address.Id, VoucherCode: "LESS10");

@@ -74,8 +74,8 @@ public sealed class StoreSplitCheckoutFlowTests
                 db.AddRange(seller, product, variant); products.Add(product); variants.Add(variant);
             }
             var now = DateTimeOffset.UtcNow;
-            var voucher = new Voucher { Code = "SAVE50", Name = "Save 50k", DiscountType = "FIXED", DiscountValue = 50000, MinOrderAmount = 100000, PerUserLimit = 1, UsageLimit = 1, Status = "ACTIVE", StartsAt = now.AddDays(-1), ExpiresAt = now.AddDays(1) };
-            var shipping = new Voucher { Code = "SHIP20", Name = "Shipping", DiscountType = "SHIPPING", DiscountValue = 20000, PerUserLimit = 1, Status = "ACTIVE", StartsAt = now.AddDays(-1), ExpiresAt = now.AddDays(1) };
+            var voucher = new Voucher { Code = "SAVE50", DiscountType = "FIXED", DiscountValue = 50000, MinOrderAmount = 100000, PerUserLimit = 1, UsageLimit = 1, Status = "ACTIVE", StartsAt = now.AddDays(-1), ExpiresAt = now.AddDays(1) };
+            var shipping = new Voucher { Code = "SHIP20", DiscountType = "SHIPPING", DiscountValue = 20000, PerUserLimit = 1, Status = "ACTIVE", StartsAt = now.AddDays(-1), ExpiresAt = now.AddDays(1) };
             db.AddRange(voucher, shipping, new UserVoucher { UserId = buyer.User.Id, VoucherId = voucher.Id, Status = "AVAILABLE", ClaimedAt = now }, new UserVoucher { UserId = buyer.User.Id, VoucherId = shipping.Id, Status = "AVAILABLE", ClaimedAt = now });
             if (sellerTargeted) db.Add(new VoucherTarget { VoucherId = voucher.Id, ProductId = products[0].Id });
             await db.SaveChangesAsync();

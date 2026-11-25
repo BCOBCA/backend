@@ -48,7 +48,7 @@ public sealed class VoucherManagementService(ICommerceStore store) : IVoucherMan
         return rows.Select(x => {
             var v = x.Voucher;
             var status = VoucherLifecycle.Status(v.Status, v.StartsAt, v.ExpiresAt, v.UsageLimit, x.Used, now);
-            return new ManagedVoucherDto(v.Id, v.StoreId, x.StoreName, v.Code, v.Name, v.Description, v.DiscountType, v.DiscountValue, v.MaxDiscount,
+            return new ManagedVoucherDto(v.Id, v.StoreId, x.StoreName, v.Code, v.Code, v.Description, v.DiscountType, v.DiscountValue, v.MaxDiscount,
                 v.MinOrderAmount, v.UsageLimit, v.PerUserLimit, x.Used, x.Claimed, v.StartsAt, v.ExpiresAt, status,
                 targets.Where(t => t.VoucherId == v.Id).Select(t => t.ProductId!.Value).ToArray(),
                 status == "UPCOMING" && x.Claimed == 0 && x.Used == 0, v.CreatedAt, v.UpdatedAt, v.DisabledReason);
@@ -63,7 +63,7 @@ public sealed class VoucherManagementService(ICommerceStore store) : IVoucherMan
         var now = DateTimeOffset.UtcNow;
         var available = source.Where(x => (x.Voucher.Status == "ACTIVE" || x.Voucher.Status == "MEMBER_OFFER") && x.Voucher.ExpiresAt > now && (x.Voucher.UsageLimit == null || x.Used < x.Voucher.UsageLimit));
         var stats = new VoucherStatisticsDto(await available.CountAsync(x => x.Voucher.StartsAt <= now, ct), await available.CountAsync(x => x.Voucher.StartsAt > now, ct), await source.SumAsync(x => (int?)x.Used, ct) ?? 0);
-        if (!string.IsNullOrWhiteSpace(query.Search)) { var search = query.Search.Trim().ToLower(); source = source.Where(x => x.Voucher.Code.ToLower().Contains(search) || x.Voucher.Name.ToLower().Contains(search) || x.StoreName.ToLower().Contains(search)); }
+        if (!string.IsNullOrWhiteSpace(query.Search)) { var search = query.Search.Trim().ToLower(); source = source.Where(x => x.Voucher.Code.ToLower().Contains(search) || x.StoreName.ToLower().Contains(search)); }
         if (query.From is { } from) source = source.Where(x => x.Voucher.ExpiresAt >= from);
         if (query.To is { } to) source = source.Where(x => x.Voucher.StartsAt <= to);
         source = query.Status switch {
@@ -95,8 +95,8 @@ public sealed class VoucherManagementService(ICommerceStore store) : IVoucherMan
     private static void Validate(SellerVoucherInput x)
     {
         if (string.IsNullOrWhiteSpace(x.Code) || !Regex.IsMatch(x.Code.Trim(), "^[a-zA-Z0-9_-]{3,50}$")) throw new BusinessException("Mã voucher cần 3–50 chữ, số, dấu gạch ngang hoặc gạch dưới");
-        if (string.IsNullOrWhiteSpace(x.Name) || x.Name.Trim().Length > 150 || x.Description?.Length > 10000) throw new BusinessException("Tên hoặc mô tả voucher không hợp lệ");
-        if (x.DiscountType is not ("FIXED" or "PERCENT") || x.DiscountValue <= 0 || x.DiscountValue > 9999999999999999.99m || decimal.Round(x.DiscountValue, 2) != x.DiscountValue || x.MinOrderAmount < 0 || x.MinOrderAmount > 9999999999999999.99m || decimal.Round(x.MinOrderAmount, 2) != x.MinOrderAmount || x.MaxDiscount <= 0 || x.MaxDiscount > 9999999999999999.99m || x.MaxDiscount is { } max && decimal.Round(max, 2) != max)
+        if (x.Description?.Length > 10000) throw new BusinessException("Mô tả voucher không hợp lệ");
+        if (x.DiscountType is not ("FIXED" or "PERCENT") || x.DiscountValue <= 0 || x.DiscountValue > 9999999999999999.99m || decimal.Round(x.DiscountValue, 2) != x.DiscountValue || x.MinOrderAmount < 0 || x.MinOrderAmount > 9999999999999999.99m || decimal.Round(x.MinOrderAmount, 2) != x.MinOrderAmount || x.DiscountType == "PERCENT" && (x.MaxDiscount <= 0 || x.MaxDiscount > 9999999999999999.99m || x.MaxDiscount is { } max && decimal.Round(max, 2) != max))
             throw new BusinessException("Giá trị giảm hoặc đơn tối thiểu không hợp lệ");
         if (x.DiscountType == "PERCENT" && (x.DiscountValue > 100 || x.MaxDiscount is null)) throw new BusinessException("Giảm phần trăm cần mức giảm tối đa và không vượt quá 100%");
         if (x.UsageLimit < 1 || x.PerUserLimit < 1 || x.PerUserLimit > x.UsageLimit || x.ExpiresAt <= x.StartsAt || x.ExpiresAt <= DateTimeOffset.UtcNow) throw new BusinessException("Thời gian hoặc số lượt sử dụng không hợp lệ");
@@ -116,8 +116,8 @@ public sealed class VoucherManagementService(ICommerceStore store) : IVoucherMan
         var productIds = input.ProductIds!.ToArray();
         if (await store.Set<Product>().CountAsync(x => productIds.Contains(x.Id) && x.StoreId == storeId && x.Status == 1 && !x.IsDeleted, ct) != productIds.Length)
             throw new BusinessException("Chỉ được chọn sản phẩm đang bán thuộc cửa hàng của bạn", 400);
-        voucher.Code = code; voucher.Name = input.Name.Trim(); voucher.Description = input.Description?.Trim() ?? "";
-        voucher.DiscountType = input.DiscountType; voucher.DiscountValue = input.DiscountValue; voucher.MaxDiscount = input.MaxDiscount;
+        voucher.Code = code; voucher.Description = input.Description?.Trim() ?? "";
+        voucher.DiscountType = input.DiscountType; voucher.DiscountValue = input.DiscountValue; voucher.MaxDiscount = input.DiscountType == "PERCENT" ? input.MaxDiscount : null;
         voucher.MinOrderAmount = input.MinOrderAmount; voucher.UsageLimit = input.UsageLimit; voucher.PerUserLimit = input.PerUserLimit;
         voucher.StartsAt = input.StartsAt.ToUniversalTime(); voucher.ExpiresAt = input.ExpiresAt.ToUniversalTime(); voucher.Status = "ACTIVE"; voucher.UpdatedAt = now;
         if (id is null) store.Set<Voucher>().Add(voucher);

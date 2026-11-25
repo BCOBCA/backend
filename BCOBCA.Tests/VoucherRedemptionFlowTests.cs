@@ -105,7 +105,7 @@ public sealed class VoucherRedemptionFlowTests
             poorPoints.AvailablePoints = 1000; poorPoints.LifetimeEarnedPoints = 1600; poorPoints.PointDebt = 1; await db.SaveChangesAsync();
             await Assert.ThrowsAsync<BusinessException>(() => members.ClaimAsync(poor.User.Id, redeem.Id, default));
             poorPoints.PointDebt = 0; await db.SaveChangesAsync();
-            var limited = new Voucher { Code = "LAST-REWARD", Name = "One reward", DiscountType = "FIXED", DiscountValue = 10000, PointCost = 200, MinLevel = 1, PerUserLimit = 1, UsageLimit = 1, StartsAt = DateTimeOffset.UtcNow.AddMinutes(-1), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1), Status = "ACTIVE" };
+            var limited = new Voucher { Code = "LAST-REWARD", DiscountType = "FIXED", DiscountValue = 10000, PointCost = 200, MinLevel = 1, PerUserLimit = 1, UsageLimit = 1, StartsAt = DateTimeOffset.UtcNow.AddMinutes(-1), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1), Status = "ACTIVE" };
             db.Vouchers.Add(limited); await db.SaveChangesAsync();
             async Task RaceLimited(Guid userId)
             {
@@ -118,7 +118,7 @@ public sealed class VoucherRedemptionFlowTests
             await Assert.ThrowsAsync<BusinessException>(() => members.ClaimAsync(loser, limited.Id, default));
             db.AccountRoles.Add(new AccountRole { AccountId = buyer.User.AccountId, Role = "Admin" }); await db.SaveChangesAsync();
             var adminCatalog = new AdminCatalogService(store);
-            var input = new VoucherInput(redeem.Code, redeem.Name, redeem.Description, redeem.DiscountType, redeem.DiscountValue, redeem.MinOrderAmount, 1, redeem.StartsAt, redeem.ExpiresAt, [], UsageLimit: redeem.UsageLimit, PointCost: 100, MinLevel: 1);
+            var input = new VoucherInput(redeem.Code, redeem.Code, redeem.Description, redeem.DiscountType, redeem.DiscountValue, redeem.MinOrderAmount, 1, redeem.StartsAt, redeem.ExpiresAt, [], UsageLimit: redeem.UsageLimit, PointCost: 100, MinLevel: 1);
             await Assert.ThrowsAsync<BusinessException>(() => adminCatalog.SaveVoucherAsync(buyer.User.AccountId, redeem.Id, input, default));
             await Assert.ThrowsAsync<BusinessException>(() => adminCatalog.SaveVoucherAsync(buyer.User.AccountId, null, input with { Code = "INVALID", PointCost = -1 }, default));
             limited.Status = "INACTIVE"; await db.SaveChangesAsync();

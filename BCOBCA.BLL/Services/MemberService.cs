@@ -71,7 +71,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
                 && (query.Status != "UNCLAIMED" || !store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id))
                 && (query.StoreId == null || x.StoreId == query.StoreId)
                 && (x.StoreId == null || store.Set<Store>().Any(s => s.Id == x.StoreId && s.Status == 1 && s.StoreType == 1 && s.DeletedAt == null)))
-            .OrderBy(x => x.ExpiresAt).ThenBy(x => x.Id).Select(x => new VoucherDto(x.Id, x.Code, x.Name, x.Description, x.DiscountType, x.DiscountValue, x.MaxDiscount, x.MinOrderAmount, x.ExpiresAt,
+            .OrderBy(x => x.ExpiresAt).ThenBy(x => x.Id).Select(x => new VoucherDto(x.Id, x.Code, x.Code, x.Description, x.DiscountType, x.DiscountValue, x.MaxDiscount, x.MinOrderAmount, x.ExpiresAt,
                 store.Set<UserVoucher>().Any(v => v.UserId == userId && v.VoucherId == x.Id), x.PointCost, x.MinLevel, x.IsFlashSale,
                 x.StoreId, store.Set<Store>().Where(s => s.Id == x.StoreId).Select(s => s.Name).FirstOrDefault())), query, ct);
     }
@@ -98,7 +98,7 @@ public sealed class MemberService(ICommerceStore store) : IMemberService
             _ => source,
         };
         return await PageAsync(source.OrderByDescending(x => x.Claim.ClaimedAt).ThenBy(x => x.Claim.Id)
-            .Select(x => new OwnedVoucherDto(x.Claim.Id, x.Voucher.Id, x.Voucher.Code, x.Voucher.Name, x.Voucher.Description,
+            .Select(x => new OwnedVoucherDto(x.Claim.Id, x.Voucher.Id, x.Voucher.Code, x.Voucher.Code, x.Voucher.Description,
                 x.Voucher.DiscountType, x.Voucher.DiscountValue, x.Voucher.MaxDiscount, x.Voucher.MinOrderAmount, x.Voucher.ExpiresAt,
                 x.Status, x.Voucher.PointCost, x.Voucher.MinLevel, x.Claim.ClaimedAt, x.Claim.UsedAt, x.Voucher.StoreId,
                 store.Set<Store>().Where(s => s.Id == x.Voucher.StoreId).Select(s => s.Name).FirstOrDefault())), query, ct);

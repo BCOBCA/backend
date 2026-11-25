@@ -36,7 +36,7 @@ public sealed class CollectedCheckoutVoucherFlowTests
             var product = new Product { StoreId = TestStores.Own(db, brand), Name = "Voucher test", Slug = "voucher-test", SKU = "VC-P", BrandId = brand.Id, CategoryId = category.Id, BasePrice = 500000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
             var variant = new ProductVariant { ProductId = product.Id, SKU = "VC-V", VariantName = "Default", Price = 500000, StockQuantity = 10, IsActive = true };
             var now = DateTimeOffset.UtcNow;
-            Voucher NewVoucher(string code, string type, decimal amount) => new() { Code = code, Name = code, DiscountType = type, DiscountValue = amount, MinOrderAmount = 500000, PerUserLimit = 1, Status = "ACTIVE", StartsAt = now.AddDays(-1), ExpiresAt = now.AddDays(1) };
+            Voucher NewVoucher(string code, string type, decimal amount) => new() { Code = code, DiscountType = type, DiscountValue = amount, MinOrderAmount = 500000, PerUserLimit = 1, Status = "ACTIVE", StartsAt = now.AddDays(-1), ExpiresAt = now.AddDays(1) };
             var fixedVoucher = NewVoucher("COLLECT50", "FIXED", 50000);
             var percent = NewVoucher("COLLECTPERCENT", "PERCENT", 50); percent.MaxDiscount = 20000;
             var shipping = NewVoucher("COLLECTSHIP", "SHIPPING", 20000);

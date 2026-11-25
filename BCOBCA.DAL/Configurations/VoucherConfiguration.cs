@@ -14,7 +14,6 @@ public sealed class VoucherConfiguration : IEntityTypeConfiguration<Voucher>
         builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.Code).HasColumnType("varchar(50)").IsRequired();
         builder.HasIndex(x => x.Code).IsUnique();
-        builder.Property(x => x.Name).HasColumnType("varchar(150)").IsRequired();
         builder.Property(x => x.Description).HasColumnType("text").IsRequired();
         builder.Property(x => x.DiscountType).HasColumnType("varchar(20)").IsRequired();
         builder.Property(x => x.DiscountValue).HasColumnType("numeric(18,2)").IsRequired();
