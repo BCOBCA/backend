@@ -49,7 +49,9 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
         var item = await PurchasedItem(userId, orderItemId, ct);
         var review = await store.Set<ProductReview>().SingleOrDefaultAsync(x => x.UserId == userId && x.OrderItemId == orderItemId, ct);
         if (review is not null) throw new BusinessException("Bạn đã đánh giá sản phẩm này. Mỗi sản phẩm trong đơn chỉ được đánh giá một lần.", 409);
-        review = new ProductReview { UserId = userId, OrderItemId = orderItemId, ProductId = item.ProductId, CreatedAt = DateTimeOffset.UtcNow };
+        var storeId = item.StoreId ?? await store.Set<Product>().IgnoreQueryFilters()
+            .Where(p => p.Id == item.ProductId).Select(p => p.StoreId).SingleAsync(ct);
+        review = new ProductReview { UserId = userId, OrderItemId = orderItemId, ProductId = item.ProductId, StoreId = storeId, CreatedAt = DateTimeOffset.UtcNow };
         store.Set<ProductReview>().Add(review);
         review.Rating = input.Rating; review.Content = input.Content.Trim(); review.Status = 1; review.Revision = Guid.NewGuid();
         review.ImageUrls = JsonSerializer.Serialize(images);

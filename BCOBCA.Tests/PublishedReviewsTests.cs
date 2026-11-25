@@ -100,9 +100,8 @@ public sealed class PublishedReviewsTests
             var secondItem = new OrderItem { OrderId = order.Id, ProductId = product.Id, BrandId = brand.Id, StoreId = shop.Id, Quantity = 1 };
             var hidden = new ProductReview { UserId = user.Id, OrderItemId = secondItem.Id, ProductId = product.Id, Rating = 1, Content = "Rejected", Status = 2 };
             db.AddRange(secondItem, hidden); await db.SaveChangesAsync();
-            var migrations = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
             var migrator = db.GetService<IMigrator>();
-            await migrator.MigrateAsync(migrations[^2]);
+            await migrator.MigrateAsync("20261118074135_PushDeviceSessionBinding");
             await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE \"ProductReviews\" SET \"Status\" = 0 WHERE \"Id\" = {id}");
             await migrator.MigrateAsync();
             db.ChangeTracker.Clear();

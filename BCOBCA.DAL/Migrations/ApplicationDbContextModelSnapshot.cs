@@ -2010,6 +2010,9 @@ namespace BCOBCA.DAL.Migrations
                     b.Property<short>("Status")
                         .HasColumnType("smallint");
 
+                    b.Property<Guid?>("StoreId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
@@ -2024,6 +2027,8 @@ namespace BCOBCA.DAL.Migrations
                     b.HasIndex("OrderItemId");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("StoreId", "Status");
 
                     b.HasIndex("UserId", "OrderItemId")
                         .IsUnique();
@@ -3865,6 +3870,11 @@ namespace BCOBCA.DAL.Migrations
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("BCOBCA.DAL.Entities.Store", null)
+                        .WithMany()
+                        .HasForeignKey("StoreId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("BCOBCA.DAL.Entities.User", null)
                         .WithMany()

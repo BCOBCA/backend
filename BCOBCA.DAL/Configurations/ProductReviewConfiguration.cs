@@ -12,6 +12,9 @@ public sealed class ProductReviewConfiguration : IEntityTypeConfiguration<Produc
         builder.HasKey(x => x.Id);
         builder.Property(x => x.ProductId).HasColumnType("uuid").IsRequired();
         builder.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        builder.Property(x => x.StoreId).HasColumnType("uuid");
+        builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.StoreId, x.Status });
         builder.Property(x => x.UserId).HasColumnType("uuid").IsRequired();
         builder.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.OrderItemId).HasColumnType("uuid").IsRequired();

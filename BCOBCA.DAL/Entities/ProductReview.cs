@@ -4,6 +4,7 @@ public sealed class ProductReview
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid ProductId { get; set; }
+    public Guid? StoreId { get; set; }
     public Guid UserId { get; set; }
     public Guid OrderItemId { get; set; }
     public short Rating { get; set; }
