@@ -15,7 +15,8 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
         select new ReviewDto(review.Id, review.ProductId, !user.IsDeleted && user.Nickname != "" ? user.Nickname : "Khách hàng", review.Rating, review.Content, review.Status, review.CreatedAt,
             JsonSerializer.Deserialize<string[]>(review.ImageUrls, (JsonSerializerOptions?)null)!, review.Revision,
             review.ReplyContent == null || review.RepliedAt == null ? null : new ReviewReplyDto(review.ReplyContent,
-                (from item in store.Set<OrderItem>() join shop in store.Set<Store>().IgnoreQueryFilters() on item.StoreId equals shop.Id where item.Id == review.OrderItemId select shop.Name).FirstOrDefault() ?? "Cửa hàng", review.RepliedAt.Value));
+                store.Set<Store>().IgnoreQueryFilters().Where(shop => shop.Id == review.StoreId).Select(shop => shop.Name).FirstOrDefault()
+                ?? (from item in store.Set<OrderItem>() join shop in store.Set<Store>().IgnoreQueryFilters() on item.StoreId equals shop.Id where item.Id == review.OrderItemId select shop.Name).FirstOrDefault() ?? "Cửa hàng", review.RepliedAt.Value));
     private static async Task<PageResult<T>> Page<T>(IQueryable<T> source, CatalogQuery query, CancellationToken ct)
     {
         var (page, size) = CatalogService.Paging(query);
@@ -35,6 +36,14 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
     {
         if (!await ProductCatalogScope.Available(store).AnyAsync(x => x.Id == productId, ct)) throw new BusinessException("Không tìm thấy sản phẩm", 404);
         return await Page(Project(store.Set<ProductReview>().AsNoTracking().Where(x => x.ProductId == productId && x.Status == 1).OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)), query, ct);
+    }
+    public async Task<PageResult<ReviewDto>> StoreReviewsAsync(Guid storeId, CatalogQuery query, CancellationToken ct)
+    {
+        if (!await store.Set<Store>().AsNoTracking().AnyAsync(x => x.Id == storeId && x.StoreType == 1 && x.Status == 1 && x.DeletedAt == null, ct))
+            throw new BusinessException("Không tìm thấy cửa hàng", 404);
+        return await Page(Project(store.Set<ProductReview>().AsNoTracking()
+            .Where(x => x.StoreId == storeId && x.Status == 1)
+            .OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id)), query, ct);
     }
     public async Task<ReviewDto?> MyReviewAsync(Guid userId, Guid orderItemId, CancellationToken ct)
     {

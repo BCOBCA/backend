@@ -12,6 +12,8 @@ public sealed class ReviewsController(IReviewService reviews, IAuthService auth)
     private Guid AccountId => Guid.Parse(User.FindFirst("sub")!.Value);
     [HttpGet("products/{id:guid}/reviews")]
     public async Task<IActionResult> List(Guid id, [FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<ReviewDto>>.Ok(await reviews.ReviewsAsync(id, query, ct)));
+    [HttpGet("dealers/{id:guid}/reviews")]
+    public async Task<IActionResult> StoreList(Guid id, [FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<ReviewDto>>.Ok(await reviews.StoreReviewsAsync(id, query, ct)));
     [Authorize, HttpGet("order-items/{id:guid}/review")]
     public async Task<IActionResult> Mine(Guid id, CancellationToken ct) => Ok(ApiResponse<ReviewDto?>.Ok(await reviews.MyReviewAsync(await auth.GetUserIdAsync(AccountId, ct), id, ct)));
     [Authorize, HttpPut("order-items/{id:guid}/review")]

@@ -6,6 +6,7 @@ namespace BCOBCA.BLL.Interfaces;
 public interface IReviewService
 {
     Task<PageResult<ReviewDto>> ReviewsAsync(Guid productId, CatalogQuery query, CancellationToken ct);
+    Task<PageResult<ReviewDto>> StoreReviewsAsync(Guid storeId, CatalogQuery query, CancellationToken ct);
     Task<ReviewDto?> MyReviewAsync(Guid userId, Guid orderItemId, CancellationToken ct);
     Task<Guid> SaveAsync(Guid userId, Guid orderItemId, ReviewInput input, CancellationToken ct);
     Task<PageResult<ReviewDto>> PendingAsync(Guid accountId, CatalogQuery query, CancellationToken ct);
