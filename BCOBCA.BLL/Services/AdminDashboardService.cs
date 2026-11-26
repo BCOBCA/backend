@@ -69,8 +69,39 @@ public sealed class AdminDashboardService(ICommerceStore store) : IAdminDashboar
             var date = from.AddDays(i); var point = currentDays.FirstOrDefault(d => d.Date == date);
             return new DashboardDayDto(date, point?.Revenue ?? 0, point?.Orders ?? 0);
         }).ToList();
+        var shops = store.Set<Store>().AsNoTracking().Where(s => s.StoreType == 1 && s.DeletedAt == null);
+        var catalogue = store.Set<Product>().AsNoTracking().Where(p => p.StoreId != null && shops.Any(s => s.Id == p.StoreId));
+        var totalUsers = await users.CountAsync(ct);
+        var totalStores = await shops.CountAsync(ct);
+        var totalProducts = await catalogue.CountAsync(ct);
+        var pendingShops = shops.Where(s => store.Set<StoreVerification>().Any(v => v.StoreId == s.Id && v.Status == 0));
+        var pendingCount = await pendingShops.CountAsync(ct);
+        var liveCount = await shops.CountAsync(s => s.Status == 1 && !store.Set<StoreVerification>().Any(v => v.StoreId == s.Id && v.Status == 0), ct);
+        var feeRows = await (from settlement in store.Set<SellerSettlement>().AsNoTracking()
+            join seller in store.Set<SellerOrder>() on settlement.SellerOrderId equals seller.Id
+            join order in source on seller.OrderId equals order.Id
+            where settlement.CreatedAt >= previousStart && settlement.CreatedAt < end
+                && (settlement.Status == "PENDING" || settlement.Status == "PAID") && order.Status == "COMPLETED" && order.PaymentStatus != "REFUNDED"
+            group settlement by new { settlement.CreatedAt.UtcDateTime.AddHours(7).Year, settlement.CreatedAt.UtcDateTime.AddHours(7).Month, settlement.CreatedAt.UtcDateTime.AddHours(7).Day } into g
+            select new { g.Key.Year, g.Key.Month, g.Key.Day, Amount = g.Sum(s => s.FeeAmount) }).ToListAsync(ct);
+        var fees = feeRows.ToDictionary(r => new DateOnly(r.Year, r.Month, r.Day), r => r.Amount);
+        var platformRevenue = fees.Where(r => r.Key >= from).Sum(r => r.Value);
+        var previousFees = fees.Where(r => r.Key < from).Sum(r => r.Value);
         return new(from, to, new(revenue, ChangePercent(revenue, previousRevenue)), new(orders, ChangePercent(orders, previousOrders)),
             new(decimal.Round(cancellationRate, 1), ChangePercent(cancellationRate, previousRate)), new(newUsers, ChangePercent(newUsers, previousUsers)),
-            new(activeStores, null), new(activeProducts, null), daily, statuses, recent, top);
+            new(activeStores, null), new(activeProducts, null), daily, statuses, recent, top)
+        {
+            TotalUsers = new(totalUsers, ChangePercent(await users.CountAsync(u => u.CreatedAt < end, ct), await users.CountAsync(u => u.CreatedAt < start, ct))),
+            TotalStores = new(totalStores, ChangePercent(await shops.CountAsync(s => s.CreatedAt < end, ct), await shops.CountAsync(s => s.CreatedAt < start, ct))),
+            TotalProducts = new(totalProducts, ChangePercent(await catalogue.CountAsync(p => p.CreatedAt < end, ct), await catalogue.CountAsync(p => p.CreatedAt < start, ct))),
+            Gmv = new(revenue, ChangePercent(revenue, previousRevenue)),
+            PlatformRevenue = new(platformRevenue, ChangePercent(platformRevenue, previousFees)),
+            TradingDaily = daily.Select(d => new DashboardTradingDayDto(d.Date, d.Revenue, fees.GetValueOrDefault(d.Date))).ToList(),
+            StoreStatuses = [new("active", "Đang hoạt động", liveCount), new("pending", "Chờ duyệt hồ sơ", pendingCount), new("inactive", "Ngừng hoạt động", totalStores - liveCount - pendingCount)],
+            Tasks = [new("stores", pendingCount), new("products", null),
+                new("withdrawals", await store.Set<AffiliateWithdrawal>().CountAsync(w => w.Status == "PENDING", ct)),
+                new("refunds", await store.Set<Refund>().CountAsync(r => r.Status == "PENDING" || r.Status == "APPROVED", ct)),
+                new("reports", null), new("support", await store.Set<Feedback>().CountAsync(f => f.Type == "SUPPORT" && f.Status != "RESOLVED" && f.AdminResponse == "", ct))]
+        };
     }
 }

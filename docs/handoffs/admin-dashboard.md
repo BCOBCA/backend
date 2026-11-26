@@ -1,5 +1,8 @@
 # Admin dashboard API
 
+- Reference redesign adds TotalUsers/TotalStores/TotalProducts live metrics, GMV, PlatformRevenue, TradingDaily, StoreStatuses and Tasks while retaining legacy fields. GMV retains completed merchandise revenue semantics. PlatformRevenue is recorded PENDING/PAID settlement FeeAmount, grouped by settlement creation date, excluding refunded/incomplete parent orders. Never infer fees from current configuration.
+- Live store categories prioritize pending verification, then active, then inactive; they sum to current commerce-store total. Live tasks count pending verification stores, pending affiliate withdrawals, PENDING/APPROVED refunds and unanswered SUPPORT feedback. Product moderation and violation reporting are null because those workflows do not exist. Entity-total growth compares retained record counts at range end/start; it cannot reconstruct historical deletions.
+
 - GET `/api/admin/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD`; Admin/SuperAdmin authorization at controller and active-account role check in BLL. Registered IAdminDashboardService / AdminDashboardService. DTOs in AdminDashboardDtos.cs. No database migration/dependency changes.
 - Inclusive dates become [Vietnam midnight, next midnight) UTC boundaries. Default last seven days; range limited to 93 days, year 2000 through today. Aggregate orders by Vietnam calendar date and zero-fill gaps. Previous period has equal length.
 - Revenue is Sum(Subtotal - DiscountAmount) for COMPLETED, non-REFUNDED-payment orders created in the range. Current counts: all orders, new profiles, cancellation/return/refund percentage. Calculate percentage growth on unrounded rates; round only exposed values. Previous zero baseline returns null growth.

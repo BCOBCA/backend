@@ -52,16 +52,33 @@ public sealed class AdminDashboardTests
             var shipping = Order("SHIPPING", start.AddDays(2));
             db.AddRange(previous, Order("CANCELLED", start.AddDays(-2)), Order("PENDING", start.AddDays(-3)), first, last, outside, shipping, Order("PENDING", start.AddDays(1)), Order("CANCELLED", start.AddDays(3)), Order("COMPLETED", start.AddDays(4), 100000, 0, "REFUNDED"));
             foreach (var pair in new[] { (first, 2), (last, 3), (shipping, 99) }) db.Add(new OrderItem { OrderId = pair.Item1.Id, ProductId = product.Id, BrandId = brand.Id, StoreId = shop.Id, ProductName = product.Name, Quantity = pair.Item2, UnitPrice = 100000, TotalPrice = pair.Item2 * 100000 });
+            var sellerOrder = new SellerOrder { OrderId = first.Id, BrandId = brand.Id, StoreId = shop.Id, Status = "COMPLETED", CreatedAt = start };
+            var refundedOrder = Order("COMPLETED", start.AddDays(1), 100000, 0, "REFUNDED");
+            var refundedSeller = new SellerOrder { OrderId = refundedOrder.Id, BrandId = brand.Id, StoreId = shop.Id, CreatedAt = start };
+            db.AddRange(sellerOrder, refundedOrder, refundedSeller,
+                new SellerSettlement { SellerOrderId = sellerOrder.Id, BrandId = brand.Id, StoreId = shop.Id, FeeAmount = 12000, Status = "PENDING", CreatedAt = start },
+                new SellerSettlement { SellerOrderId = refundedSeller.Id, BrandId = brand.Id, StoreId = shop.Id, FeeAmount = 99999, Status = "PAID", CreatedAt = start },
+                new StoreVerification { StoreId = shop.Id, Status = 0 },
+                new Feedback { UserId = user.Id, Type = "SUPPORT", Status = "OPEN", CreatedAt = start });
             await db.SaveChangesAsync();
             var service = new AdminDashboardService(new CommerceStore(db));
             var result = await service.GetAsync(admin.Id, from, to, default);
             Assert.Equal(250000, result.Revenue.Value); Assert.Equal(150, result.Revenue.ChangePercent);
-            Assert.Equal(6, result.Orders.Value); Assert.Equal(100, result.Orders.ChangePercent);
-            Assert.Equal(33.3m, result.CancellationRate.Value); Assert.Equal(0, result.CancellationRate.ChangePercent);
+            Assert.Equal(7, result.Orders.Value); Assert.Equal(133.3m, result.Orders.ChangePercent);
+            Assert.Equal(42.9m, result.CancellationRate.Value); Assert.Equal(28.6m, result.CancellationRate.ChangePercent);
             Assert.Equal(1, result.NewUsers.Value); Assert.Equal(0, result.NewUsers.ChangePercent);
             Assert.Equal(1, result.ActiveStores.Value); Assert.Equal(1, result.ActiveProducts.Value); Assert.Null(result.ActiveStores.ChangePercent);
             Assert.Equal(7, result.Daily.Count); Assert.Equal(200000, result.Daily[0].Revenue); Assert.Equal(50000, result.Daily[^1].Revenue);
-            Assert.Equal(6, result.Statuses.Sum(s => s.Count)); Assert.Equal(2, result.Statuses.Single(s => s.Key == "cancelled").Count);
+            Assert.Equal(7, result.Statuses.Sum(s => s.Count)); Assert.Equal(3, result.Statuses.Single(s => s.Key == "cancelled").Count);
+            Assert.Equal(2, result.TotalUsers.Value);
+            Assert.Equal(1, result.TotalStores.Value); Assert.Equal(1, result.TotalProducts.Value);
+            Assert.Equal(250000, result.Gmv.Value); Assert.Equal(12000, result.PlatformRevenue.Value);
+            Assert.Equal(result.Gmv.Value, result.TradingDaily.Sum(d => d.Gmv));
+            Assert.Equal(result.PlatformRevenue.Value, result.TradingDaily.Sum(d => d.PlatformRevenue));
+            Assert.Equal(1, result.StoreStatuses.Sum(s => s.Count)); Assert.Equal(1, result.StoreStatuses.Single(s => s.Key == "pending").Count);
+            Assert.Equal(1, result.Tasks.Single(t => t.Key == "stores").Count);
+            Assert.Equal(1, result.Tasks.Single(t => t.Key == "support").Count);
+            Assert.Null(result.Tasks.Single(t => t.Key == "products").Count);
             Assert.Equal(5, result.RecentOrders.Count); Assert.Equal("Người mua", result.RecentOrders[0].BuyerName);
             Assert.Equal(5, Assert.Single(result.TopProducts).Sold);
             Assert.Equal(shop.Name, result.RecentOrders.Single(o => o.Id == last.Id).StoreName);
