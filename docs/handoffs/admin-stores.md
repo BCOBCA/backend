@@ -1,0 +1,8 @@
+# Admin stores API
+
+- Admin/SuperAdmin controller plus active-role BLL checks. IAdminStoreService registered in Program. `/api/admin/stores`: GET paged list, GET summary, GET `{id}?days=7|30`, POST internal create, PUT `{id}` edit, PUT `{id}/status`, PUT `{id}/verification`.
+- Commerce stores only (StoreType=1, not deleted). Pending verification takes precedence over active/inactive for list and counter grouping; raw Active remains separate for activity controls. Search uses store/owner/contact; status, verification, joined week/month and sorting run in SQL before DTO projection. Paging is bounded to 50 maximum.
+- Create belongs to acting admin, validates contact/slug/text and creates StoreSettings. Slug collisions return 409. Mutations lock through a conditional UpdatedAt update inside a transaction, reject stale writes with 409, require reasons for status/rejection and append Store audit logs. Verification approval never changes activity status.
+- Detail previews are capped at 20 per section. Sales use only the selected store's SellerOrder.TotalAmount for completed, non-refunded parent orders in Vietnam-date boundaries. Totals never include another store's share of a multi-store order. Product/review counts are live.
+- Private document JSON endpoint `{id}/verifications/{verificationId}/documents/{kind}` checks active admin, commerce store, application/store match, supported kind/type; reads protected storage and returns base64 with no-store. Does not expose public IDs or public URLs.
+- No migrations or dependency changes. AdminStoresTests and existing AdminDashboardTests pass together (16 tests) against isolated PostgreSQL. Deploy the backend alongside the new admin stores UI. The pre-existing `.env.example` deletion remains unrelated.

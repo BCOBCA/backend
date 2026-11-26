@@ -66,6 +66,7 @@ builder.Services.AddScoped<IRefundSettlementService, RefundSettlementService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IAdminOperationsService, AdminOperationsService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+builder.Services.AddScoped<IAdminStoreService, AdminStoreService>();
 builder.Services.AddHostedService<ReservationExpiryWorker>();
 builder.Services.AddHttpClient<CloudinaryImageService>(client => client.Timeout = TimeSpan.FromSeconds(30))
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });

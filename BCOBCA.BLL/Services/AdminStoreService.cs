@@ -1,0 +1,132 @@
+using System.Net.Mail;
+using System.Text.RegularExpressions;
+using BCOBCA.BLL.Common;
+using BCOBCA.BLL.DTOs;
+using BCOBCA.BLL.Interfaces;
+using BCOBCA.DAL.Entities;
+using BCOBCA.DAL.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
+namespace BCOBCA.BLL.Services;
+public sealed class AdminStoreService(ICommerceStore store, IVerificationDocumentStorage documents) : IAdminStoreService
+{
+    private IQueryable<Store> Shops => store.Set<Store>().Where(s => s.StoreType == 1 && s.DeletedAt == null);
+    private IQueryable<Store> Pending => Shops.Where(s => store.Set<StoreVerification>().Any(v => v.StoreId == s.Id && v.Status == 0));
+    private async Task Admin(Guid id, CancellationToken ct)
+    {
+        if (!await store.Set<Account>().AnyAsync(a => a.Id == id && a.Status == 1 && (a.Role == "Admin" || a.Role == "SuperAdmin"), ct))
+            throw new BusinessException("Không có quyền quản lý cửa hàng.", 403);
+    }
+    private IQueryable<AdminStoreRow> Rows(IQueryable<Store> source) => source.Select(s => new AdminStoreRow(s.Id, s.Name, s.Slug, s.LogoUrl,
+        store.Set<User>().Where(u => u.AccountId == s.OwnerAccountId).Select(u => u.FullName).FirstOrDefault()
+            ?? store.Set<Account>().Where(a => a.Id == s.OwnerAccountId).Select(a => a.Email).FirstOrDefault() ?? "—",
+        s.Email, s.Phone, s.CreatedAt, s.UpdatedAt,
+        store.Set<StoreVerification>().Any(v => v.StoreId == s.Id && v.Status == 0) ? "pending" : s.Status == 1 ? "active" : "inactive", s.IsVerified, s.Status == 1));
+
+    public async Task<AdminStoreSummary> SummaryAsync(Guid accountId, CancellationToken ct)
+    {
+        await Admin(accountId, ct);
+        var total = await Shops.CountAsync(ct); var pending = await Pending.CountAsync(ct);
+        var active = await Shops.CountAsync(s => s.Status == 1 && !Pending.Any(p => p.Id == s.Id), ct);
+        var previous = await Shops.CountAsync(s => s.CreatedAt < DateTimeOffset.UtcNow.AddDays(-7), ct);
+        return new(total, pending, active, total - pending - active, AdminDashboardService.ChangePercent(total, previous));
+    }
+    public async Task<PageResult<AdminStoreRow>> ListAsync(Guid accountId, AdminStoreQuery query, CancellationToken ct)
+    {
+        await Admin(accountId, ct);
+        if (query.Page < 1 || query.Page > 100000 || query.PageSize is < 1 or > 50 || query.Search?.Length > 200
+            || query.Status is not ("all" or "pending" or "active" or "inactive") || query.Verification is not ("all" or "verified" or "unverified")
+            || query.Joined is not ("all" or "week" or "month") || query.Sort is not ("newest" or "oldest" or "name")) throw new BusinessException("Bộ lọc cửa hàng không hợp lệ.");
+        var source = Shops.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(query.Search)) { var search = query.Search.Trim().ToLower(); source = source.Where(s => s.Name.ToLower().Contains(search) || s.Phone.Contains(search) || s.Email.ToLower().Contains(search)
+            || store.Set<User>().Any(u => u.AccountId == s.OwnerAccountId && u.FullName.ToLower().Contains(search)) || store.Set<Account>().Any(a => a.Id == s.OwnerAccountId && a.Email.ToLower().Contains(search))); }
+        if (query.Status == "pending") source = source.Where(s => Pending.Any(p => p.Id == s.Id));
+        else if (query.Status != "all") source = source.Where(s => (s.Status == 1) == (query.Status == "active") && !Pending.Any(p => p.Id == s.Id));
+        if (query.Verification != "all") source = source.Where(s => s.IsVerified == (query.Verification == "verified"));
+        if (query.Joined != "all") { var start = new DateTimeOffset(CommerceRules.VietnamDate(DateTimeOffset.UtcNow).AddDays(query.Joined == "week" ? -6 : -29).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)).ToUniversalTime(); source = source.Where(s => s.CreatedAt >= start); }
+        var total = await source.CountAsync(ct);
+        source = query.Sort switch { "oldest" => source.OrderBy(s => s.CreatedAt).ThenBy(s => s.Id), "name" => source.OrderBy(s => s.Name).ThenBy(s => s.Id), _ => source.OrderByDescending(s => s.CreatedAt).ThenBy(s => s.Id) };
+        return new(await Rows(source.Skip((query.Page - 1) * query.PageSize).Take(query.PageSize)).ToListAsync(ct), query.Page, query.PageSize, total);
+    }
+    public async Task<AdminStoreDetail> DetailAsync(Guid accountId, Guid id, int days, CancellationToken ct)
+    {
+        await Admin(accountId, ct);
+        if (days is not (7 or 30)) throw new BusinessException("Khoảng thống kê không hợp lệ.");
+        var shop = await Shops.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, ct) ?? throw new BusinessException("Không tìm thấy cửa hàng.", 404);
+        var row = await Rows(Shops.AsNoTracking().Where(s => s.Id == id)).SingleAsync(ct);
+        var end = new DateTimeOffset(CommerceRules.VietnamDate(DateTimeOffset.UtcNow).AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)).ToUniversalTime(); var start = end.AddDays(-days);
+        var sellerOrders = from seller in store.Set<SellerOrder>().AsNoTracking() join order in store.Set<Order>() on seller.OrderId equals order.Id
+            where seller.StoreId == id && order.CreatedAt >= start && order.CreatedAt < end select new { seller, order };
+        var reviews = store.Set<ProductReview>().AsNoTracking().Where(r => r.StoreId == id && r.Status == 1);
+        var products = store.Set<Product>().AsNoTracking().Where(p => p.StoreId == id);
+        var stats = new AdminStoreStats(await products.CountAsync(ct), await sellerOrders.CountAsync(ct),
+            await sellerOrders.SumAsync(x => x.order.Status == "COMPLETED" && x.order.PaymentStatus != "REFUNDED" ? x.seller.TotalAmount : 0m, ct),
+            await reviews.AverageAsync(r => (double?)r.Rating, ct), await reviews.CountAsync(ct));
+        var verification = await store.Set<StoreVerification>().AsNoTracking().Where(v => v.StoreId == id).OrderByDescending(v => v.Status == 0).ThenByDescending(v => v.CreatedAt).ThenBy(v => v.Id).FirstOrDefaultAsync(ct);
+        var categories = await (from c in store.Set<Category>() join sc in store.Set<StoreCategory>() on c.Id equals sc.CategoryId where sc.StoreId == id select c.Name).ToListAsync(ct);
+        return new(row, shop.Description, string.Join(", ", categories), stats,
+            verification == null ? null : new(verification.Id, verification.LegalName, verification.TaxCode, verification.RepresentativeName, verification.Status, verification.RejectionReason, verification.CreatedAt, VerificationDocuments.Summaries(verification.Documents).Select(d => d.Kind).ToList()),
+            await products.OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id).Take(20).Select(p => new AdminStorePreview(p.Id, p.Name, p.Status == 1 ? "Đang bán" : "Đã ẩn", p.SalePrice ?? p.BasePrice, p.CreatedAt)).ToListAsync(ct),
+            await sellerOrders.OrderByDescending(x => x.order.CreatedAt).ThenBy(x => x.order.Id).Take(20).Select(x => new AdminStorePreview(x.order.Id, x.order.OrderCode, x.order.Status, x.seller.TotalAmount, x.order.CreatedAt)).ToListAsync(ct),
+            await reviews.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).Take(20).Select(r => new AdminStorePreview(r.Id, r.Content, "Đánh giá sản phẩm", r.Rating, r.CreatedAt)).ToListAsync(ct),
+            await store.Set<AuditLog>().AsNoTracking().Where(a => a.EntityType == "Store" && a.EntityId == id).OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id).Take(20).Select(a => new AdminStorePreview(a.Id, a.Action, a.Details ?? "", null, a.CreatedAt)).ToListAsync(ct));
+    }
+
+    private async Task<Store> Lock(Guid id, DateTimeOffset expected, CancellationToken ct)
+    {
+        var count = await Shops.Where(s => s.Id == id && s.UpdatedAt == expected.ToUniversalTime()).ExecuteUpdateAsync(setters => setters.SetProperty(s => s.UpdatedAt, DateTimeOffset.UtcNow), ct);
+        if (count == 0) throw new BusinessException("Cửa hàng vừa thay đổi. Vui lòng tải lại trước khi thao tác.", 409);
+        return await Shops.SingleAsync(s => s.Id == id, ct);
+    }
+    private void Audit(Guid actor, Guid id, string action, string reason) => store.Set<AuditLog>().Add(new AuditLog { AccountId = actor, EntityType = "Store", EntityId = id, Action = action, Details = reason, CreatedAt = DateTimeOffset.UtcNow });
+    private static string Reason(string reason) => !string.IsNullOrWhiteSpace(reason) && reason.Trim().Length <= 1000 ? reason.Trim() : throw new BusinessException("Nhập lý do, tối đa 1.000 ký tự.");
+    public async Task<Guid> SaveAsync(Guid accountId, Guid? id, AdminStoreInput input, CancellationToken ct)
+    {
+        await Admin(accountId, ct);
+        var name = input.Name?.Trim() ?? ""; var slug = input.Slug?.Trim().ToLowerInvariant() ?? "";
+        var email = input.Email?.Trim() ?? ""; var phone = input.Phone?.Trim() ?? ""; var description = input.Description?.Trim() ?? "";
+        if (name.Length is < 2 or > 200 || slug.Length is < 2 or > 200 || !Regex.IsMatch(slug, "^[a-z0-9]+(?:-[a-z0-9]+)*$")
+            || email.Length > 255 || email.Length > 0 && !MailAddress.TryCreate(email, out _) || phone.Length > 20 || phone.Length > 0 && !Regex.IsMatch(phone, "^[+0-9 ().-]{6,20}$") || description.Length > 5000)
+            throw new BusinessException("Kiểm tra tên, đường dẫn, liên hệ và mô tả cửa hàng.");
+        await using var tx = await store.BeginTransactionAsync(ct); await Admin(accountId, ct);
+        if (await store.Set<Store>().IgnoreQueryFilters().AnyAsync(s => s.Slug == slug && s.Id != id, ct)) throw new BusinessException("Đường dẫn cửa hàng đã tồn tại.", 409);
+        var shop = id == null ? new Store { OwnerAccountId = accountId, StoreType = 1, Status = 1 } : await Lock(id.Value, input.UpdatedAt ?? throw new BusinessException("Thiếu phiên bản cửa hàng."), ct);
+        shop.Name = name; shop.Slug = slug; shop.Email = email; shop.Phone = phone; shop.Description = description;
+        if (id == null) { store.Set<Store>().Add(shop); store.Set<StoreSettings>().Add(new StoreSettings { StoreId = shop.Id, ShowBranches = true }); }
+        Audit(accountId, shop.Id, id == null ? "CREATE_STORE" : "UPDATE_STORE", $"{name} (@{slug})");
+        try { await store.SaveChangesAsync(ct); await tx.CommitAsync(ct); }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" }) { throw new BusinessException("Đường dẫn cửa hàng đã tồn tại.", 409); }
+        return shop.Id;
+    }
+    public async Task StatusAsync(Guid accountId, Guid id, AdminStoreStatusInput input, CancellationToken ct)
+    {
+        await Admin(accountId, ct); var reason = Reason(input.Reason);
+        await using var tx = await store.BeginTransactionAsync(ct); await Admin(accountId, ct);
+        var shop = await Lock(id, input.UpdatedAt, ct); shop.Status = (short)(input.Active ? 1 : 0);
+        Audit(accountId, id, input.Active ? "ACTIVATE_STORE" : "SUSPEND_STORE", reason);
+        await store.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+    }
+    public async Task ReviewAsync(Guid accountId, Guid id, AdminStoreReviewInput input, CancellationToken ct)
+    {
+        await Admin(accountId, ct); var reason = input.Approved ? "Duyệt hồ sơ xác minh" : Reason(input.Reason);
+        await using var tx = await store.BeginTransactionAsync(ct); await Admin(accountId, ct);
+        var shop = await Lock(id, input.UpdatedAt, ct);
+        var verification = await store.Set<StoreVerification>().SingleOrDefaultAsync(v => v.StoreId == id && v.Id == input.VerificationId && v.Status == 0, ct)
+            ?? throw new BusinessException("Hồ sơ không còn chờ duyệt.", 409);
+        verification.Status = (short)(input.Approved ? 1 : 2); verification.RejectionReason = input.Approved ? null : reason;
+        verification.ReviewedByAccountId = accountId; verification.ReviewedAt = verification.UpdatedAt = DateTimeOffset.UtcNow;
+        if (input.Approved) { shop.IsVerified = true; shop.VerifiedAt = DateTimeOffset.UtcNow; }
+        Audit(accountId, id, input.Approved ? "APPROVE_STORE_VERIFICATION" : "REJECT_STORE_VERIFICATION", reason);
+        await store.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+    }
+    public async Task<AdminStoreDocument> DocumentAsync(Guid accountId, Guid id, Guid verificationId, string kind, CancellationToken ct)
+    {
+        await Admin(accountId, ct);
+        if (!await Shops.AnyAsync(s => s.Id == id, ct)) throw new BusinessException("Không tìm thấy cửa hàng.", 404);
+        var verification = await store.Set<StoreVerification>().AsNoTracking().SingleOrDefaultAsync(v => v.StoreId == id && v.Id == verificationId, ct) ?? throw new BusinessException("Không tìm thấy hồ sơ.", 404);
+        var document = VerificationDocuments.Read(verification.Documents).SingleOrDefault(d => d.Kind == kind && VerificationDocuments.Kinds.Contains(d.Kind)) ?? throw new BusinessException("Không tìm thấy giấy tờ.", 404);
+        if (document.ContentType is not ("application/pdf" or "image/jpeg" or "image/png")) throw new BusinessException("Định dạng giấy tờ không hợp lệ.");
+        return new(document.FileName, document.ContentType, Convert.ToBase64String(await documents.ReadAsync(document, ct)));
+    }
+}
