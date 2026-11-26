@@ -31,7 +31,7 @@ public sealed class ProductSpecificationsFlowTests
             Assert.False(db.Database.HasPendingModelChanges());
             var account = new Account { Email = "specs@example.test", Status = 1 };
             var brand = new Brand { OwnerAccountId = account.Id, Name = "Brand", Slug = "specs-brand", Status = 1 };
-            db.AddRange(account, brand, new AccountRole { AccountId = account.Id, Role = "SuperAdmin" });
+            account.Role = "SuperAdmin"; db.AddRange(account, brand);
             await db.SaveChangesAsync();
             var store = new CommerceStore(db);
             var admin = new AdminCatalogService(store);

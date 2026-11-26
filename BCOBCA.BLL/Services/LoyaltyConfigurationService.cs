@@ -15,8 +15,7 @@ public sealed class LoyaltyConfigurationService(ICommerceStore store) : ILoyalty
 
     private async Task RequireAdmin(Guid accountId, CancellationToken ct)
     {
-        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1, ct)
-            || !await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct))
+        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct))
             throw new BusinessException("Cần quyền quản trị cấu hình thành viên", 403);
     }
 

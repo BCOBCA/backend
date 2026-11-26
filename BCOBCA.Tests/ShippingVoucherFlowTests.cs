@@ -31,7 +31,7 @@ public sealed class ShippingVoucherFlowTests
             var auth = new AuthService(store, config, new RegisterValidator(), new LoginValidator(), new ProfileValidator());
             var owner = await auth.RegisterAsync(new RegisterRequest("ship-owner@example.com", "StrongPassword123!", "Owner"), default);
             var buyer = await auth.RegisterAsync(new RegisterRequest("ship-buyer@example.com", "StrongPassword123!", "Buyer", ReferralCode: owner.User.ReferralCode), default);
-            db.AccountRoles.Add(new AccountRole { AccountId = owner.User.AccountId, Role = "Admin" });
+            (await db.Accounts.SingleAsync(a => a.Id == owner.User.AccountId)).Role = "Admin";
             var member = await db.UserMemberships.SingleAsync(x => x.UserId == buyer.User.Id); member.AvailablePoints = 2000; member.LifetimeEarnedPoints = 2000;
             var category = new Category { Name = "Shipping test", Slug = "shipping-test", IsActive = true };
             var brand = new Brand { Name = "Shipping test", Slug = "shipping-test", OwnerAccountId = owner.User.AccountId, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };

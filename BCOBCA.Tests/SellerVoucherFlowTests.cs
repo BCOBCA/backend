@@ -86,7 +86,7 @@ public sealed class SellerVoucherFlowTests
             await Assert.ThrowsAsync<BusinessException>(() => members.ClaimAsync(buyer2.User.Id, active.Id, default));
             await orders.AddAsync(buyer.User.Id, new(a.Id, av.Id, 1), default);
             await Assert.ThrowsAsync<BusinessException>(() => orders.PreviewAsync(buyer.User.Id, new(active.Code), default));
-            db.AccountRoles.Add(new AccountRole { AccountId = other.User.AccountId, Role = "Admin" }); await db.SaveChangesAsync();
+            (await db.Accounts.SingleAsync(a => a.Id == other.User.AccountId)).Role = "Admin"; await db.SaveChangesAsync();
             await service.DisableAsync(other.User.AccountId, null, future.Id, new("Vi phạm quy định"), true, default);
             Assert.Equal("DISABLED", (await service.DetailAsync(other.User.AccountId, null, future.Id, 1, true, default)).Voucher.Status);
 

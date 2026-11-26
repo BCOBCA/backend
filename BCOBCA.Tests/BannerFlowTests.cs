@@ -65,7 +65,6 @@ public sealed class BannerFlowTests
 
             var account = new Account { Email = "banner-admin@example.test", Phone = "0900000001", PasswordHash = "not-a-real-login", Role = "Admin", Status = 1, CreatedAt = now, UpdatedAt = now };
             db.Accounts.Add(account);
-            db.AccountRoles.Add(new AccountRole { AccountId = account.Id, Role = "Admin" });
             await db.SaveChangesAsync();
             var service = new AdminCatalogService(new CommerceStore(db));
             const string uploadedUrl = "https://res.cloudinary.com/test-cloud/image/upload/bcobca/uploads/new.png";
@@ -96,8 +95,7 @@ public sealed class BannerFlowTests
             var image = new FormFile(new MemoryStream(png), 0, png.Length, "file", "image.png") { Headers = new HeaderDictionary(), ContentType = "image/png" };
             var missingConfiguration = await Assert.ThrowsAsync<BusinessException>(() => controller.Image(image, default));
             Assert.Equal(503, missingConfiguration.StatusCode);
-            var assignedRole = await db.AccountRoles.SingleAsync(x => x.AccountId == account.Id && x.Role == "Admin");
-            db.AccountRoles.Remove(assignedRole);
+            account.Role = "Customer";
             await db.SaveChangesAsync();
             // The token still claims Admin, but the current database role has been revoked.
             var revoked = await Assert.ThrowsAsync<BusinessException>(() => controller.Image(image, default));

@@ -9,7 +9,7 @@ namespace BCOBCA.BLL.Services;
 
 public sealed class AdminOperationsService(ICommerceStore store, IOrderService orders) : IAdminOperationsService
 {
-    private Task<bool> IsAdmin(Guid accountId, CancellationToken ct) => store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct);
+    private Task<bool> IsAdmin(Guid accountId, CancellationToken ct) => store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct);
     private async Task Admin(Guid accountId, CancellationToken ct) { if (!await IsAdmin(accountId, ct)) throw new BusinessException("Không có quyền quản trị", 403); }
     private static async Task<PageResult<T>> Page<T>(IQueryable<T> source, CatalogQuery query, CancellationToken ct)
     {
@@ -56,7 +56,7 @@ public sealed class AdminOperationsService(ICommerceStore store, IOrderService o
     public async Task<PageResult<ServiceRequestDto>> RequestsAsync(Guid accountId, CatalogQuery query, CancellationToken ct)
     {
         var admin = await IsAdmin(accountId, ct);
-        if (!admin && !await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "BrandOwner" || x.Role == "BrandStaff"), ct)) throw new BusinessException("Không có quyền quản lý yêu cầu tư vấn", 403);
+        if (!admin && !await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "BrandOwner" || x.Role == "BrandStaff"), ct)) throw new BusinessException("Không có quyền quản lý yêu cầu tư vấn", 403);
         return await Page(from request in store.Set<ServiceRequest>().AsNoTracking() join service in store.Set<Service>() on request.ServiceId equals service.Id
             where admin || store.Set<Brand>().Any(b => b.Id == service.BrandId && b.OwnerAccountId == accountId) || store.Set<BrandMember>().Any(m => m.BrandId == service.BrandId && m.AccountId == accountId && m.Status == 1 && (m.Role == "Owner" || m.Role == "Manager"))
             orderby request.CreatedAt descending, request.Id select new ServiceRequestDto(request.Id, service.Id, service.Name, request.CustomerName, request.Phone, request.Email, request.Description, request.Status, request.CreatedAt), query, ct);

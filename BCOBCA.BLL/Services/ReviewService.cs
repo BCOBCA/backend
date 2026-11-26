@@ -24,7 +24,7 @@ public sealed class ReviewService(ICommerceStore store) : IReviewService
     }
     private async Task Admin(Guid accountId, CancellationToken ct)
     {
-        if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Không có quyền duyệt đánh giá", 403);
+        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Không có quyền duyệt đánh giá", 403);
     }
     private async Task<OrderItem> PurchasedItem(Guid userId, Guid id, CancellationToken ct)
         => await (from item in store.Set<OrderItem>() join order in store.Set<Order>() on item.OrderId equals order.Id

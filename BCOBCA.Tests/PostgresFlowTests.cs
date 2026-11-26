@@ -37,7 +37,8 @@ public sealed class PostgresFlowTests
             Assert.Contains("ImageUrl", categoryColumns);
             Assert.Contains("AttributeDefinitions", categoryColumns);
             Assert.Equal(8, categoryColumns.Count);
-            Assert.Equal(68, db.Model.GetEntityTypes().Count());
+            Assert.DoesNotContain(db.Model.GetEntityTypes(), entity => entity.GetTableName() == "AccountRoles");
+            Assert.False(db.Database.HasPendingModelChanges());
             var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
             var store = new CommerceStore(db);
             var catalog = new CatalogService(store);
@@ -181,7 +182,7 @@ public sealed class PostgresFlowTests
             var adminCatalog = new AdminCatalogService(store);
             var forbidden = await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => adminCatalog.SaveBrandAsync(created.User.AccountId, null, new BrandInput("Test owned brand", "test-owned-brand"), default));
             Assert.Equal(403, forbidden.StatusCode);
-            db.AccountRoles.Add(new AccountRole { AccountId = created.User.AccountId, Role = "BrandOwner" });
+            (await db.Accounts.SingleAsync(a => a.Id == created.User.AccountId)).Role = "BrandOwner";
             await db.SaveChangesAsync();
             var ownedBrandId = await adminCatalog.SaveBrandAsync(created.User.AccountId, null, new BrandInput("Test owned brand", "test-owned-brand"), default);
             var adminProductInput = new ProductInput(ownedBrandId, category.Id, "Admin-created test product", "admin-created-test-product", "ADMIN-TEST", 1000,
@@ -201,7 +202,8 @@ public sealed class PostgresFlowTests
             await orderService.RemoveAsync(created.User.Id, archivedItem.Id, default);
             Assert.Empty((await orderService.CartAsync(created.User.Id, default)).Items);
             Assert.True(await db.AuditLogs.AnyAsync(x => x.Action == "ARCHIVE" && x.EntityId == adminProductId));
-            db.AccountRoles.AddRange(new AccountRole { AccountId = created.User.AccountId, Role = "SuperAdmin" }, new AccountRole { AccountId = second.User.AccountId, Role = "SuperAdmin" });
+            (await db.Accounts.SingleAsync(a => a.Id == created.User.AccountId)).Role = "SuperAdmin";
+            (await db.Accounts.SingleAsync(a => a.Id == second.User.AccountId)).Role = "SuperAdmin";
             await db.SaveChangesAsync();
             var barrier = new SuperAdminReadBarrier();
             var raceOptions = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connection).AddInterceptors(barrier).Options;
@@ -214,7 +216,7 @@ public sealed class PostgresFlowTests
             }
             var roleRace = await Task.WhenAll(RevokePeer(created.User.AccountId, second.User.AccountId), RevokePeer(second.User.AccountId, created.User.AccountId));
             Assert.Equal(2, barrier.Hits); Assert.Single(roleRace, success => success);
-            Assert.Equal(1, await db.AccountRoles.CountAsync(x => x.Role == "SuperAdmin"));
+            Assert.Equal(1, await db.Accounts.CountAsync(x => x.Role == "SuperAdmin"));
         }
         finally
         {
@@ -232,7 +234,7 @@ public sealed class PostgresFlowTests
         public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
         {
             // Hold both successful authority reads before either peer can mutate roles.
-            if (command.CommandText.Contains("SELECT EXISTS", StringComparison.Ordinal) && command.CommandText.Contains("AccountRoles", StringComparison.Ordinal) && command.CommandText.Contains("'SuperAdmin'", StringComparison.Ordinal))
+            if (command.CommandText.Contains("SELECT EXISTS", StringComparison.Ordinal) && command.CommandText.Contains("Accounts", StringComparison.Ordinal) && command.CommandText.Contains("'SuperAdmin'", StringComparison.Ordinal))
             {
                 if (Interlocked.Increment(ref hits) == 2) released.TrySetResult();
                 await released.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);

@@ -51,7 +51,7 @@ public sealed class LoyaltyFlowTests
             Assert.Equal(2, (await memberService.MembershipAsync(owner.User.Id, default)).LevelInfo!.Level);
             membership.AvailablePoints = 0; membership.LifetimeEarnedPoints = 50000; await db.SaveChangesAsync();
             Assert.Equal(10, (await memberService.MembershipAsync(owner.User.Id, default)).LevelInfo!.Level);
-            db.AccountRoles.Add(new AccountRole { AccountId = owner.User.AccountId, Role = "Admin" }); await db.SaveChangesAsync();
+            (await db.Accounts.SingleAsync(a => a.Id == owner.User.AccountId)).Role = "Admin"; await db.SaveChangesAsync();
             var changedLevels = levels.Select(x => x.Level == 1 ? x with { Benefits = new[] { "Ưu đãi riêng" } } : x.Level == 2 ? x with { MinPoints = 200 } : x).ToArray();
             await loyalty.UpdateMembershipLevelsAsync(owner.User.AccountId, new(changedLevels), default);
             membership.AvailablePoints = 150; membership.LifetimeEarnedPoints = 150; await db.SaveChangesAsync();

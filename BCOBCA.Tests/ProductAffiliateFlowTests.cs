@@ -45,7 +45,7 @@ public sealed class ProductAffiliateFlowTests
             var outsider = await auth.RegisterAsync(new RegisterRequest("outsider@example.com", "StrongPassword123!", "Outsider"), default);
             await Assert.ThrowsAsync<BusinessException>(() => auth.RegisterAsync(new RegisterRequest("bad@example.com", "StrongPassword123!", "Bad", ReferralCode: "UNKNOWN"), default));
             Assert.Equal(owner.User.Id, (await db.Users.SingleAsync(x => x.Id == buyer.User.Id)).ReferredByUserId);
-            db.AccountRoles.Add(new AccountRole { AccountId = other.User.AccountId, Role = "Admin" });
+            (await db.Accounts.SingleAsync(a => a.Id == other.User.AccountId)).Role = "Admin";
             var category = new Category { Name = "Products", Slug = "products", IsActive = true };
             var brand = new Brand { OwnerAccountId = other.User.AccountId, Name = "Brand", Slug = "brand", Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
             var product = new Product { StoreId = TestStores.Own(db, brand), BrandId = brand.Id, CategoryId = category.Id, Name = "Linked product", Slug = "linked", SKU = "LINKED", BasePrice = 100000, Status = 1, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };

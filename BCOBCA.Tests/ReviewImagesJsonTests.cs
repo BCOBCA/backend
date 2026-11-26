@@ -37,7 +37,7 @@ public sealed class ReviewImagesJsonTests
             var user = new User { AccountId = account.Id, Nickname = "Reviewer", ReferralCode = "REVIEW-JSON" };
             var brand = new Brand { OwnerAccountId = account.Id, Name = "Brand", Slug = "review-json", Status = 1 };
             var category = new Category { Name = "Category", Slug = "review-json" };
-            db.AddRange(account, user, brand, category, new AccountRole { AccountId = account.Id, Role = "Admin" });
+            account.Role = "Admin"; db.AddRange(account, user, brand, category);
             var product = new Product { BrandId = brand.Id, CategoryId = category.Id, StoreId = TestStores.Own(db, brand), Name = "Product", Slug = "review-json", SKU = "REVIEW-JSON", Status = 1 };
             var order = new Order { UserId = user.Id, OrderCode = "REVIEW-JSON", Status = "COMPLETED", PaymentStatus = "PAID", CompletedAt = DateTimeOffset.UtcNow };
             var item = new OrderItem { OrderId = order.Id, ProductId = product.Id, BrandId = brand.Id, StoreId = product.StoreId, Quantity = 1 };

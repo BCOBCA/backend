@@ -20,7 +20,7 @@ public sealed class VoucherManagementService(ICommerceStore store) : IVoucherMan
     {
         if (admin)
         {
-            if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct))
+            if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct))
                 throw new BusinessException("Không có quyền quản trị", 403);
         }
         else if (storeId is null || !await store.Set<Store>().AnyAsync(x => x.Id == storeId && x.OwnerAccountId == accountId && x.StoreType == 1 && x.Status == 1 && x.DeletedAt == null, ct))

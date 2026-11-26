@@ -116,7 +116,7 @@ public sealed class VoucherRedemptionFlowTests
             Assert.Equal(-200, await db.PointTransactions.Where(x => x.Type == "VOUCHER_REDEEM" && x.ReferenceId != claim.Id).SumAsync(x => x.Points));
             var loser = await db.UserVouchers.AnyAsync(x => x.VoucherId == limited.Id && x.UserId == buyer.User.Id) ? poor.User.Id : buyer.User.Id;
             await Assert.ThrowsAsync<BusinessException>(() => members.ClaimAsync(loser, limited.Id, default));
-            db.AccountRoles.Add(new AccountRole { AccountId = buyer.User.AccountId, Role = "Admin" }); await db.SaveChangesAsync();
+            (await db.Accounts.SingleAsync(a => a.Id == buyer.User.AccountId)).Role = "Admin"; await db.SaveChangesAsync();
             var adminCatalog = new AdminCatalogService(store);
             var input = new VoucherInput(redeem.Code, redeem.Code, redeem.Description, redeem.DiscountType, redeem.DiscountValue, redeem.MinOrderAmount, 1, redeem.StartsAt, redeem.ExpiresAt, [], UsageLimit: redeem.UsageLimit, PointCost: 100, MinLevel: 1);
             await Assert.ThrowsAsync<BusinessException>(() => adminCatalog.SaveVoucherAsync(buyer.User.AccountId, redeem.Id, input, default));

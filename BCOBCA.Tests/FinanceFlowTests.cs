@@ -52,7 +52,7 @@ public sealed class FinanceFlowTests
             var order = await orders.CheckoutAsync(buyer.User.Id, "test-finance-order", new CheckoutRequest(address.Id), default);
             var denied = await Assert.ThrowsAsync<BusinessException>(() => orders.TransitionAsync(referrer.User.AccountId, order.Id, new OrderStatusRequest("CONFIRMED"), default));
             Assert.Equal(403, denied.StatusCode);
-            db.AccountRoles.Add(new AccountRole { AccountId = referrer.User.AccountId, Role = "Admin" }); await db.SaveChangesAsync();
+            (await db.Accounts.SingleAsync(a => a.Id == referrer.User.AccountId)).Role = "Admin"; await db.SaveChangesAsync();
             var feeSettings = new PlatformFeeConfigurationService(store);
             await feeSettings.UpdateAsync(referrer.User.AccountId, new(0.1m, (await feeSettings.GetAsync(referrer.User.AccountId, default)).Revision), default);
             foreach (var status in new[] { "CONFIRMED", "READY" }) await orders.TransitionAsync(referrer.User.AccountId, order.Id, new OrderStatusRequest(status), default);

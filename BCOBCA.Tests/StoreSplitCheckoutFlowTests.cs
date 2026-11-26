@@ -173,7 +173,7 @@ public sealed class StoreSplitCheckoutFlowTests
                 var independentChildren = independent.CheckoutOrders!;
                 var childIds = independentChildren.Select(x => x.Id).ToArray();
                 Assert.Equal(3, await db.OrderVoucherApplications.CountAsync(x => childIds.Contains(x.OrderId) && x.VoucherId != shipping.Id));
-                db.Add(new AccountRole { AccountId = owner.User.AccountId, Role = "Admin" });
+                (await db.Accounts.SingleAsync(a => a.Id == owner.User.AccountId)).Role = "Admin";
                 await db.SaveChangesAsync();
                 foreach (var status in new[] { "CONFIRMED", "READY", "SHIPPING" }) await service.TransitionAsync(owner.User.AccountId, childIds[0], new(status), default);
                 await service.TransitionAsync(owner.User.AccountId, childIds[0], new("COMPLETED", true), default);

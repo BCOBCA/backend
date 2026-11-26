@@ -90,7 +90,7 @@ public sealed class AffiliateLinkService(ICommerceStore store, IConfiguration co
 
     private async Task RequireAdmin(Guid accountId, CancellationToken ct)
     {
-        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1, ct) || !await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Cần quyền quản trị", 403);
+        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Cần quyền quản trị", 403);
     }
 
     public async Task<ProductAffiliatePolicyRequest> ProductPolicyAsync(Guid accountId, Guid productId, CancellationToken ct)

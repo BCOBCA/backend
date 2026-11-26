@@ -32,7 +32,7 @@ public sealed class RefreshRotationTests
             var account = new Account { Email = "rotation@example.test", Status = 1 };
             account.PasswordHash = new PasswordHasher<Account>().HashPassword(account, "StrongPassword123!");
             var user = new User { AccountId = account.Id, ReferralCode = "ROTATION" };
-            db.AddRange(account, user, new AccountRole { AccountId = account.Id, Role = "Customer" }); await db.SaveChangesAsync();
+            account.Role = "Customer"; db.AddRange(account, user); await db.SaveChangesAsync();
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
                 ["Jwt:SigningKey"] = new string('k', 64), ["Jwt:Issuer"] = "rotation-test", ["Jwt:Audience"] = "rotation-test", ["Jwt:AccessTokenMinutes"] = "15", ["Jwt:RefreshTokenDays"] = "30"
             }).Build();

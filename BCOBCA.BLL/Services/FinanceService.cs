@@ -16,7 +16,7 @@ public sealed class FinanceService(ICommerceStore store, IConfiguration config) 
     private async Task<AffiliateWallet> Wallet(Guid userId, CancellationToken ct) => await (from p in store.Set<AffiliateProfile>() join w in store.Set<AffiliateWallet>() on p.Id equals w.AffiliateProfileId where p.UserId == userId && p.Status == "ACTIVE" select w).SingleOrDefaultAsync(ct) ?? throw new BusinessException("Affiliate chưa hoạt động", 409);
     private async Task RequireAdmin(Guid accountId, CancellationToken ct)
     {
-        if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Không có quyền quản trị tài chính", 403);
+        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Không có quyền quản trị tài chính", 403);
     }
     private void Ledger(AffiliateWallet wallet, string type, decimal amount, decimal balance, string referenceType, Guid id)
         => WalletLedger.Entry(store, wallet, type, amount, balance, referenceType, id);

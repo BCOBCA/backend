@@ -14,7 +14,7 @@ public static class AdminProvisioning
         var store = scope.ServiceProvider.GetRequiredService<ICommerceStore>();
         var auth = scope.ServiceProvider.GetRequiredService<IAuthService>();
         var config = app.Configuration;
-        if (await store.Set<AccountRole>().AnyAsync(x => x.Role == "SuperAdmin", ct)) throw new InvalidOperationException("A SuperAdmin already exists. Use the authorized role-management API.");
+        if (await store.Set<Account>().AnyAsync(x => x.Role == "SuperAdmin" && x.Status == 1, ct)) throw new InvalidOperationException("A SuperAdmin already exists. Use the authorized role-management API.");
         var email = config["Bootstrap:Email"] ?? throw new InvalidOperationException("Configure Bootstrap__Email in the environment.");
         var password = config["Bootstrap:Password"] ?? throw new InvalidOperationException("Configure Bootstrap__Password in the environment.");
         var fullName = config["Bootstrap:FullName"] ?? throw new InvalidOperationException("Configure Bootstrap__FullName in the environment.");
@@ -24,8 +24,10 @@ public static class AdminProvisioning
             ? (session = await auth.LoginAsync(new LoginRequest(email, password, "CLI provisioning"), ct)).User
             : (await auth.RegisterAsync(new RegisterRequest(email, password, fullName), ct)).User;
         await using var tx = await store.BeginTransactionAsync(ct);
-        if (await store.Set<AccountRole>().AnyAsync(x => x.Role == "SuperAdmin", ct)) throw new InvalidOperationException("A SuperAdmin was provisioned concurrently. Sign in with that account.");
-        store.Set<AccountRole>().Add(new AccountRole { AccountId = profile.AccountId, Role = "SuperAdmin" });
+        if (await store.Set<Account>().AnyAsync(x => x.Role == "SuperAdmin" && x.Status == 1, ct)) throw new InvalidOperationException("A SuperAdmin was provisioned concurrently. Sign in with that account.");
+        var account = await store.Set<Account>().SingleAsync(x => x.Id == profile.AccountId && x.Status == 1, ct);
+        account.Role = "SuperAdmin"; account.UpdatedAt = DateTimeOffset.UtcNow;
+        foreach (var token in await store.Set<RefreshToken>().Where(x => x.AccountId == account.Id && x.RevokedAt == null).ToListAsync(ct)) token.RevokedAt = DateTimeOffset.UtcNow;
         store.Set<AuditLog>().Add(new AuditLog { AccountId = profile.AccountId, Action = "PROVISION_FIRST_SUPERADMIN", EntityType = "Account", EntityId = profile.AccountId, CreatedAt = DateTimeOffset.UtcNow });
         await store.SaveChangesAsync(ct); await tx.CommitAsync(ct);
         if (session is not null) await auth.LogoutAsync(session.RefreshToken, ct);

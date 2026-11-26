@@ -122,27 +122,6 @@ namespace BCOBCA.DAL.Migrations
                     b.ToTable("AccountActionTokens", (string)null);
                 });
 
-            modelBuilder.Entity("BCOBCA.DAL.Entities.AccountRole", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AccountId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasColumnType("varchar(30)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AccountId", "Role")
-                        .IsUnique();
-
-                    b.ToTable("AccountRoles", (string)null);
-                });
-
             modelBuilder.Entity("BCOBCA.DAL.Entities.AffiliateAttribution", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3397,15 +3376,6 @@ namespace BCOBCA.DAL.Migrations
                 });
 
             modelBuilder.Entity("BCOBCA.DAL.Entities.AccountActionToken", b =>
-                {
-                    b.HasOne("BCOBCA.DAL.Entities.Account", null)
-                        .WithMany()
-                        .HasForeignKey("AccountId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BCOBCA.DAL.Entities.AccountRole", b =>
                 {
                     b.HasOne("BCOBCA.DAL.Entities.Account", null)
                         .WithMany()

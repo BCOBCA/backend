@@ -13,3 +13,5 @@ Frontend serialize login/register/refresh/logout; Web Locks phối hợp nhiều
 AccountActionTokens là bảng bổ sung cho reset/verify; không dùng JWT dài hạn làm reset token. Reset/change password thu hồi sessions; login và các thao tác đó dùng Serializable để tránh race.
 
 Quyền quản trị nhạy cảm kiểm tra ở BLL; role changes thu hồi sessions. SuperAdmin authority check và invariant còn ít nhất một active SuperAdmin nằm trong transaction.
+
+2026-11-26: Mỗi account có một role duy nhất trong `Accounts.Role`; bỏ bảng `AccountRoles`. JWT có một role claim; `ProfileDto.Roles` giữ dạng mảng một phần tử để tương thích buyer/seller/admin. Grant thay thế role hiện tại; revoke role hiện tại về `Customer`. Seller onboarding chỉ đổi `Customer` thành `Seller`, không ghi đè role quản trị. Migration thu hồi phiên cũ để loại claims từ nguồn role cũ.

@@ -47,7 +47,6 @@
 | Articles | 9 | Word |
 | Notifications | 9 | Word |
 | Feedbacks | 9 | Word |
-| AccountRoles | 3 | Designed extension |
 | BrandCategoryMappings | 3 | Designed extension |
 | SellerOrders | 8 | Designed extension |
 | SellerSettlements | 9 | Designed extension |

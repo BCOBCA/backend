@@ -24,8 +24,6 @@ internal static class SellerProvisioning
             store.Set<Store>().Add(shop);
             store.Set<StoreSettings>().Add(new StoreSettings { StoreId = shop.Id, AllowMessages = true, UpdatedAt = now });
         }
-        if (!await store.Set<AccountRole>().AnyAsync(r => r.AccountId == account.Id && r.Role == "Seller", ct))
-            store.Set<AccountRole>().Add(new AccountRole { AccountId = account.Id, Role = "Seller" });
         if (account.Role == "Customer") { account.Role = "Seller"; account.UpdatedAt = now; }
         return shop;
     }

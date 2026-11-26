@@ -28,7 +28,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
     {
         if (value < 0 || value > 9999999999999999.99m || decimal.Round(value, 2) != value) throw new BusinessException("Số tiền không hợp lệ");
     }
-    private Task<bool> Admin(Guid accountId, CancellationToken ct) => store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct);
+    private Task<bool> Admin(Guid accountId, CancellationToken ct) => store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct);
     private async Task RequireAdmin(Guid accountId, CancellationToken ct)
     {
         if (!await Admin(accountId, ct)) throw new BusinessException("Không có quyền quản trị", 403);
@@ -42,7 +42,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
     private async Task BrandAccess(Guid accountId, Guid brandId, CancellationToken ct)
     {
         if (await Admin(accountId, ct)) return;
-        if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "BrandOwner" || x.Role == "BrandStaff"), ct)) throw new BusinessException("Cần quyền quản lý thương hiệu", 403);
+        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "BrandOwner" || x.Role == "BrandStaff"), ct)) throw new BusinessException("Cần quyền quản lý thương hiệu", 403);
         if (!await store.Set<Brand>().AnyAsync(x => x.Id == brandId && x.OwnerAccountId == accountId, ct)
             && !await store.Set<BrandMember>().AnyAsync(x => x.BrandId == brandId && x.AccountId == accountId && x.Status == 1 && (x.Role == "Owner" || x.Role == "Manager"), ct)) throw new BusinessException("Không có quyền quản lý thương hiệu này", 403);
     }
@@ -61,7 +61,7 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
         var owner = input.OwnerAccountId ?? accountId;
         if (id is null)
         {
-            if (!await Admin(accountId, ct) && !await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && x.Role == "BrandOwner", ct)) throw new BusinessException("Cần quyền chủ thương hiệu", 403);
+            if (!await Admin(accountId, ct) && !await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && x.Role == "BrandOwner", ct)) throw new BusinessException("Cần quyền chủ thương hiệu", 403);
             if (owner != accountId) await RequireAdmin(accountId, ct);
         }
         else await BrandAccess(accountId, id.Value, ct);
@@ -264,18 +264,20 @@ public sealed class AdminCatalogService(ICommerceStore store) : IAdminCatalogSer
     public async Task SetRoleAsync(Guid accountId, AccountRoleInput input, CancellationToken ct)
     {
         await using var tx = await store.BeginTransactionAsync(ct);
-        if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && x.Role == "SuperAdmin", ct)) throw new BusinessException("Cần quyền SuperAdmin", 403);
+        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && x.Role == "SuperAdmin", ct)) throw new BusinessException("Cần quyền SuperAdmin", 403);
         if (input.Role is not ("Customer" or "Seller" or "BrandOwner" or "BrandStaff" or "Admin" or "SuperAdmin")) throw new BusinessException("Vai trò không hợp lệ");
-        if (accountId == input.AccountId && input.Role == "SuperAdmin" && !input.Granted) throw new BusinessException("Không thể tự thu hồi quyền SuperAdmin");
-        if (input.Role == "SuperAdmin" && !input.Granted)
+        var account = await store.Set<Account>().SingleOrDefaultAsync(x => x.Id == input.AccountId, ct)
+            ?? throw new BusinessException("Không tìm thấy tài khoản", 404);
+        var nextRole = input.Granted ? input.Role : account.Role == input.Role ? "Customer" : account.Role;
+        if (nextRole == account.Role) { await tx.CommitAsync(ct); return; }
+        if (account.Role == "SuperAdmin" && nextRole != "SuperAdmin" && accountId == account.Id)
+            throw new BusinessException("Không thể tự thu hồi quyền SuperAdmin");
+        if (account.Role == "SuperAdmin" && account.Status == 1 && nextRole != "SuperAdmin")
         {
-            var activeSuperAdmins = await (from assignedRole in store.Set<AccountRole>() join account in store.Set<Account>() on assignedRole.AccountId equals account.Id where assignedRole.Role == "SuperAdmin" && account.Status == 1 select assignedRole.Id).CountAsync(ct);
+            var activeSuperAdmins = await store.Set<Account>().CountAsync(x => x.Role == "SuperAdmin" && x.Status == 1, ct);
             if (activeSuperAdmins <= 1) throw new BusinessException("Phải giữ ít nhất một SuperAdmin đang hoạt động", 409);
         }
-        if (!await store.Set<Account>().AnyAsync(x => x.Id == input.AccountId, ct)) throw new BusinessException("Không tìm thấy tài khoản", 404);
-        var role = await store.Set<AccountRole>().SingleOrDefaultAsync(x => x.AccountId == input.AccountId && x.Role == input.Role, ct);
-        if (input.Granted && role is null) store.Set<AccountRole>().Add(new AccountRole { AccountId = input.AccountId, Role = input.Role });
-        if (!input.Granted && role is not null) store.Set<AccountRole>().Remove(role);
+        account.Role = nextRole; account.UpdatedAt = DateTimeOffset.UtcNow;
         foreach (var session in await store.Set<RefreshToken>().Where(x => x.AccountId == input.AccountId && x.RevokedAt == null).ToListAsync(ct)) session.RevokedAt = DateTimeOffset.UtcNow;
         await Audit(accountId, input.Granted ? "GRANT_ROLE" : "REVOKE_ROLE", "Account", input.AccountId, ct); await tx.CommitAsync(ct);
     }

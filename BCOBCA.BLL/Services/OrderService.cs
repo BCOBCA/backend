@@ -316,7 +316,7 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
 
     public async Task TransitionAsync(Guid accountId, Guid orderId, OrderStatusRequest input, CancellationToken ct)
     {
-        if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Không có quyền quản lý đơn hàng", 403);
+        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Không có quyền quản lý đơn hàng", 403);
         var order = await store.Set<Order>().SingleOrDefaultAsync(x => x.Id == orderId, ct) ?? throw new BusinessException("Không tìm thấy đơn hàng", 404);
         await ChangeAsync(order, input.Status, accountId, input.ConfirmCodCollected, ct);
     }

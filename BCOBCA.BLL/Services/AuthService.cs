@@ -53,7 +53,6 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
         }
         store.Set<Account>().Add(account);
         store.Set<User>().Add(user);
-        store.Set<AccountRole>().Add(new AccountRole { AccountId = account.Id, Role = "Customer" });
         if (seller) await SellerProvisioning.EnsureAsync(store, account, user, ct);
         store.Set<Cart>().Add(new Cart { UserId = user.Id, CreatedAt = now, UpdatedAt = now });
         var tier = await store.Set<MembershipTier>().Where(x => x.IsActive).OrderBy(x => x.SortOrder).FirstAsync(ct);
@@ -128,9 +127,8 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
         var now = DateTimeOffset.UtcNow;
         var accessMinutes = config.GetValue<int>("Jwt:AccessTokenMinutes");
         var refreshDays = config.GetValue<int>("Jwt:RefreshTokenDays");
-        var roles = await store.Set<AccountRole>().Where(x => x.AccountId == account.Id).Select(x => x.Role).ToListAsync(ct);
         var claims = new List<Claim> { new(JwtRegisteredClaimNames.Sub, account.Id.ToString()), new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), new("sid", familyId.ToString()) };
-        claims.AddRange(roles.Select(x => new Claim(ClaimTypes.Role, x)));
+        claims.Add(new Claim(ClaimTypes.Role, account.Role));
         var jwt = new JwtSecurityToken(config["Jwt:Issuer"], config["Jwt:Audience"], claims, now.UtcDateTime, now.AddMinutes(accessMinutes).UtcDateTime,
             new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:SigningKey"]!)), SecurityAlgorithms.HmacSha256));
         var refresh = NewToken();
@@ -147,11 +145,10 @@ public sealed class AuthService(ICommerceStore store, IConfiguration config, IVa
     {
         var user = await store.Set<User>().SingleOrDefaultAsync(x => x.AccountId == accountId, ct) ?? throw new BusinessException("Không tìm thấy hồ sơ", 404);
         var account = await store.Set<Account>().SingleAsync(x => x.Id == accountId && x.Status == 1, ct);
-        var roles = await store.Set<AccountRole>().Where(x => x.AccountId == accountId).Select(x => x.Role).ToListAsync(ct);
         var referrerNickname = user.ReferredByUserId is { } referrerId ? await store.Set<User>()
             .Where(u => u.Id == referrerId && u.Nickname != "" && store.Set<Account>().Any(a => a.Id == u.AccountId && a.Status == 1))
             .Select(u => u.Nickname).SingleOrDefaultAsync(ct) : null;
-        return new ProfileDto(user.Id, accountId, account.Email, account.Phone, user.FullName, user.AvatarUrl, user.ReferralCode, roles, user.Nickname,
+        return new ProfileDto(user.Id, accountId, account.Email, account.Phone, user.FullName, user.AvatarUrl, user.ReferralCode, [account.Role], user.Nickname,
             user.CoverUrl, user.Gender, user.DateOfBirth == default ? null : user.DateOfBirth, user.ReferredByUserId, referrerNickname,
             user.CreatedAt == default ? null : user.CreatedAt, user.UpdatedAt == default ? null : user.UpdatedAt, account.Status, account.EmailVerified, account.PhoneVerified);
     }

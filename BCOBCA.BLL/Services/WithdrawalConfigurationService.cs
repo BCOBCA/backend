@@ -15,8 +15,7 @@ public sealed class WithdrawalConfigurationService(ICommerceStore store) : IWith
     public async Task<WithdrawalConfigurationDto> UpdateAsync(Guid accountId, UpdateWithdrawalConfigurationRequest input, CancellationToken ct)
     {
         await using var tx = await store.BeginTransactionAsync(ct);
-        if (!await store.Set<Account>().AnyAsync(a => a.Id == accountId && a.Status == 1, ct)
-            || !await store.Set<AccountRole>().AnyAsync(r => r.AccountId == accountId && (r.Role == "Admin" || r.Role == "SuperAdmin"), ct)) throw new BusinessException("Cần quyền quản trị cấu hình rút tiền", 403);
+        if (!await store.Set<Account>().AnyAsync(r => r.Id == accountId && r.Status == 1 && (r.Role == "Admin" || r.Role == "SuperAdmin"), ct)) throw new BusinessException("Cần quyền quản trị cấu hình rút tiền", 403);
         if (input.FeeAmount is null || input.MinimumAmount is null || input.MaximumAmount is null || input.ExpectedRevision is null || input.ExpectedRevision == Guid.Empty) throw new BusinessException("Vui lòng nhập đầy đủ cấu hình và phiên bản hiện tại");
         var amounts = new[] { input.FeeAmount.Value, input.MinimumAmount.Value, input.MaximumAmount.Value };
         if (amounts.Any(a => a < 0 || a > 9999999999999999.99m || decimal.Round(a, 2) != a) || input.MinimumAmount <= input.FeeAmount || input.MaximumAmount < input.MinimumAmount) throw new BusinessException("Phí và giới hạn rút tiền không hợp lệ");

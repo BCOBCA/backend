@@ -15,7 +15,7 @@ public sealed class RefundSettlementService(ICommerceStore store, IConfiguration
 {
     private async Task RequireAdmin(Guid accountId, CancellationToken ct)
     {
-        if (!await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Không có quyền quản trị tài chính", 403);
+        if (!await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct)) throw new BusinessException("Không có quyền quản trị tài chính", 403);
     }
     private void Audit(Guid actor, string action, string entity, Guid id) => store.Set<AuditLog>().Add(new AuditLog { AccountId = actor, Action = action, EntityType = entity, EntityId = id, CreatedAt = DateTimeOffset.UtcNow });
     private static async Task<PageResult<T>> Page<T>(IQueryable<T> source, CatalogQuery query, CancellationToken ct)
@@ -121,7 +121,7 @@ public sealed class RefundSettlementService(ICommerceStore store, IConfiguration
     {
         if (allBrands) await RequireAdmin(accountId, ct);
         else if (!await store.Set<Store>().AnyAsync(s => s.OwnerAccountId == accountId && s.StoreType == 1 && s.DeletedAt == null, ct)
-            && !await store.Set<AccountRole>().AnyAsync(x => x.AccountId == accountId && (x.Role == "BrandOwner" || x.Role == "BrandStaff"), ct)) throw new BusinessException("Cần quyền quản lý cửa hàng", 403);
+            && !await store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "BrandOwner" || x.Role == "BrandStaff"), ct)) throw new BusinessException("Cần quyền quản lý cửa hàng", 403);
         var source = store.Set<SellerSettlement>().AsNoTracking().Where(x => allBrands
             || x.StoreId != null && store.Set<Store>().Any(s => s.Id == x.StoreId && s.OwnerAccountId == accountId && s.StoreType == 1 && s.DeletedAt == null)
             || x.StoreId == null && (store.Set<Brand>().Any(b => b.Id == x.BrandId && b.OwnerAccountId == accountId) || store.Set<BrandMember>().Any(m => m.BrandId == x.BrandId && m.AccountId == accountId && m.Status == 1 && (m.Role == "Owner" || m.Role == "Manager"))));

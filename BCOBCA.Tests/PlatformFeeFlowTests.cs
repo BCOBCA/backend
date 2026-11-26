@@ -30,10 +30,10 @@ public sealed class PlatformFeeFlowTests
             var admin = new Account { Email = "fee-admin@example.test", Status = 1 };
             var buyer = new Account { Email = "fee-buyer@example.test", Status = 1 };
             var user = new User { AccountId = buyer.Id, ReferralCode = "FEE-BUYER" };
-            var role = new AccountRole { AccountId = admin.Id, Role = "Admin" };
+            admin.Role = "Admin";
             var brand = new Brand { OwnerAccountId = admin.Id, Name = "Fee brand", Slug = "fee-brand", Status = 1 };
             var membership = new UserMembership { UserId = user.Id, TierId = (await db.MembershipTiers.OrderBy(t => t.SortOrder).FirstAsync()).Id, MemberCode = "FEE-BUYER" };
-            db.AddRange(admin, buyer, user, role, brand, membership);
+            db.AddRange(admin, buyer, user, brand, membership);
             var storeId = TestStores.Own(db, brand); await db.SaveChangesAsync();
             var store = new CommerceStore(db);
             var settings = new PlatformFeeConfigurationService(store);
@@ -72,10 +72,10 @@ public sealed class PlatformFeeFlowTests
             Assert.Equal(100m, (await db.SellerSettlements.AsNoTracking().SingleAsync(s => s.Id == charged.Id)).FeeAmount);
             Assert.Equal(0m, (await db.SellerSettlements.AsNoTracking().SingleAsync(s => s.Id == old.Id)).FeeAmount);
             Assert.Equal(1000m, (await Complete(10_000m)).FeeAmount);
-            db.AccountRoles.Remove(role); await db.SaveChangesAsync();
+            admin.Role = "Customer"; await db.SaveChangesAsync();
             Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => settings.UpdateAsync(admin.Id, new(0m, later.Revision), default))).StatusCode);
             Assert.Equal(0.1m, (await db.PlatformFeeConfigurations.SingleAsync()).PlatformFeeRate);
-            db.AccountRoles.Add(new AccountRole { AccountId = admin.Id, Role = "SuperAdmin" }); admin.Status = 0; await db.SaveChangesAsync();
+            (await db.Accounts.SingleAsync(a => a.Id == admin.Id)).Role = "SuperAdmin"; admin.Status = 0; await db.SaveChangesAsync();
             Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => settings.GetAsync(admin.Id, default))).StatusCode);
             Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => settings.UpdateAsync(admin.Id, new(0m, later.Revision), default))).StatusCode);
             admin.Status = 1; await db.SaveChangesAsync();

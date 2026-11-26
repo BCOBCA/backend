@@ -19,7 +19,7 @@ public sealed class UploadsController(CloudinaryImageService images, Application
     {
         if (!Guid.TryParse(User.FindFirst("sub")?.Value, out var accountId)) return Unauthorized();
         // Check current database roles, so revoked administrators cannot spend the upload quota.
-        if (!await db.AccountRoles.AnyAsync(x => x.AccountId == accountId && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct))
+        if (!await db.Accounts.AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct))
             throw new BusinessException("Không có quyền quản trị.", 403);
         return Ok(ApiResponse<ImageUploadDto>.Ok(await images.UploadAsync(file, ct)));
     }

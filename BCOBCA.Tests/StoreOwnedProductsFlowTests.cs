@@ -48,7 +48,12 @@ public sealed class StoreOwnedProductsFlowTests
             async Task InsertLegacy(string table, object value)
             {
                 var payload = JsonSerializer.SerializeToNode(value)!;
-                if (value is Product p) payload["Specifications"] = System.Text.Json.Nodes.JsonNode.Parse(p.Specifications);
+                if (value is Product p)
+                {
+                    payload["Specifications"] = System.Text.Json.Nodes.JsonNode.Parse(p.Specifications);
+                    // This fixture targets the pre-removal Products schema.
+                    payload["ShortDescription"] = "";
+                }
                 if (value is ProductVariant v) payload["Attributes"] = System.Text.Json.Nodes.JsonNode.Parse(v.Attributes);
                 var parameter = new NpgsqlParameter("payload", NpgsqlTypes.NpgsqlDbType.Jsonb) { Value = payload.ToJsonString() };
                 var sql = table switch
@@ -57,6 +62,7 @@ public sealed class StoreOwnedProductsFlowTests
                     "Products" => "INSERT INTO \"Products\" SELECT (jsonb_populate_record(NULL::\"Products\", @payload)).*",
                     "ProductVariants" => "INSERT INTO \"ProductVariants\" SELECT (jsonb_populate_record(NULL::\"ProductVariants\", @payload)).*",
                     "ProductImages" => "INSERT INTO \"ProductImages\" SELECT (jsonb_populate_record(NULL::\"ProductImages\", @payload)).*",
+                    "ProductReviews" => "INSERT INTO \"ProductReviews\" SELECT (jsonb_populate_record(NULL::\"ProductReviews\", @payload)).*",
                     "Orders" => "INSERT INTO \"Orders\" SELECT (jsonb_populate_record(NULL::\"Orders\", @payload)).*",
                     "OrderItems" => "INSERT INTO \"OrderItems\" SELECT (jsonb_populate_record(NULL::\"OrderItems\", @payload)).*",
                     "SellerOrders" => "INSERT INTO \"SellerOrders\" SELECT (jsonb_populate_record(NULL::\"SellerOrders\", @payload)).*",
@@ -77,7 +83,8 @@ public sealed class StoreOwnedProductsFlowTests
             await InsertLegacy("OrderItems", historicalItem);
             await InsertLegacy("SellerOrders", historicalSeller);
             await InsertLegacy("SellerSettlements", new SellerSettlement { BrandId = brand.Id, SellerOrderId = historicalSeller.Id, GrossAmount = 1000, NetAmount = 1000, Status = "PENDING" });
-            db.AddRange(new ProductFavorite { ProductId = original.Id, UserId = buyer.Id }, new ProductReview { ProductId = original.Id, OrderItemId = historicalItem.Id, UserId = buyer.Id, Rating = 5, Content = "Original store purchase", Status = 1 });
+            db.Add(new ProductFavorite { ProductId = original.Id, UserId = buyer.Id });
+            await InsertLegacy("ProductReviews", new ProductReview { ProductId = original.Id, OrderItemId = historicalItem.Id, UserId = buyer.Id, Rating = 5, Content = "Original store purchase", Status = 1 });
             var oldCartItem = new CartItem { CartId = cart.Id, ProductId = original.Id, VariantId = originalVariant.Id, Quantity = 1, IsSelected = false };
             db.Add(oldCartItem);
             await db.SaveChangesAsync();
@@ -161,7 +168,7 @@ public sealed class StoreOwnedProductsFlowTests
             var sellerBOrderId = await db.SellerOrders.Where(s => s.Id == settlementB.SellerOrderId).Select(s => s.OrderId).SingleAsync();
             var completedRefund = new Refund { PaymentId = await db.Set<Payment>().Where(p => p.OrderId == sellerBOrderId).Select(p => p.Id).SingleAsync(), Amount = settlementB.NetAmount, Status = "COMPLETED", Reason = "Store B recovery fixture" };
             var debtB = new SellerSettlementAdjustment { SellerSettlementId = settlementB.Id, RefundId = completedRefund.Id, Amount = settlementB.NetAmount, RemainingAmount = settlementB.NetAmount, Status = "OPEN" };
-            db.AddRange(completedRefund, debtB, new AccountRole { AccountId = ownerA.Id, Role = "Admin" });
+            ownerA.Role = "Admin"; db.AddRange(completedRefund, debtB);
             await db.SaveChangesAsync();
             var settlementA = Assert.Single(aSettlements, s => checkoutIds.Contains(s.OrderId));
             await refunds.PaySettlementAsync(ownerA.Id, settlementA.Id, new SettlementPaymentRequest("STORE-A-PAYOUT"), default);
