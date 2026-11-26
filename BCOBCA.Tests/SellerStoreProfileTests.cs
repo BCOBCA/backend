@@ -56,7 +56,8 @@ public sealed class SellerStoreProfileTests
             var suspendedOwner = await db.Accounts.SingleAsync(a => a.Id == owner.Id); suspendedOwner.Status = 0; await db.SaveChangesAsync();
             await Assert.ThrowsAsync<BusinessException>(() => service.ProfileAsync(owner.Id, shop.Id, default));
             suspendedOwner.Status = 1; saved.Status = 0; await db.SaveChangesAsync();
-            await Assert.ThrowsAsync<BusinessException>(() => service.UpdateProfileAsync(owner.Id, shop.Id, input with { UpdatedAt = next.UpdatedAt }, default));
+            await service.UpdateProfileAsync(owner.Id, shop.Id, input with { UpdatedAt = next.UpdatedAt }, default);
+            Assert.Equal(0, (await db.Stores.SingleAsync(s => s.Id == shop.Id)).Status);
         }
         finally
         {

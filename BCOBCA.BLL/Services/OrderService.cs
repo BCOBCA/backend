@@ -301,7 +301,8 @@ public sealed class OrderService(ICommerceStore store, IConfiguration config, IF
     {
         var reason = OrderCancellationReasons.Seller(input.Reason);
         await using var tx = store.HasTransaction ? null : await store.BeginTransactionAsync(ct);
-        if (!await store.Set<Store>().AnyAsync(s => s.Id == storeId && s.OwnerAccountId == accountId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null, ct)
+        if (!await store.Set<Account>().AnyAsync(a => a.Id == accountId && a.Status == 1, ct)
+            || !await store.Set<Store>().AnyAsync(s => s.Id == storeId && s.OwnerAccountId == accountId && s.StoreType == 1 && (s.Status == 0 || s.Status == 1) && s.DeletedAt == null, ct)
             || !await store.Set<OrderItem>().AnyAsync(i => i.OrderId == id && i.StoreId == storeId, ct)
             || await store.Set<OrderItem>().AnyAsync(i => i.OrderId == id && (i.StoreId == null || i.StoreId != storeId), ct))
             throw new BusinessException("Không tìm thấy đơn hàng thuộc cửa hàng của bạn", 404);

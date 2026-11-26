@@ -24,7 +24,8 @@ public sealed partial class SellerService(ICommerceStore store, GhnQuoteClient? 
     }
 
     private IQueryable<Store> Owned(Guid accountId) => store.Set<Store>().AsNoTracking()
-        .Where(s => s.OwnerAccountId == accountId && s.StoreType == 1 && s.Status == 1 && s.DeletedAt == null);
+        .Where(s => s.OwnerAccountId == accountId && s.StoreType == 1 && (s.Status == 0 || s.Status == 1) && s.DeletedAt == null
+            && store.Set<Account>().Any(a => a.Id == accountId && a.Status == 1));
 
     private async Task CheckAccess(Guid accountId, Guid storeId, CancellationToken ct)
     {

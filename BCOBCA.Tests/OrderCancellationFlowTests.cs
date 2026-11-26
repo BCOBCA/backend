@@ -76,8 +76,10 @@ public sealed class OrderCancellationFlowTests
             var shopOrder = await AddOrder("CANCEL-SELLER");
             await Assert.ThrowsAsync<BusinessException>(() => seller.UpdateOrderStatusAsync(stranger.Id, shop.Id, shopOrder.Id, new("CANCELLED", Reason: "Hết hàng"), default));
             await Assert.ThrowsAsync<BusinessException>(() => seller.UpdateOrderStatusAsync(owner.Id, shop.Id, shopOrder.Id, new("CANCELLED"), default));
+            shop.Status = 0; await db.SaveChangesAsync(); // Paused selling still permits handling existing orders.
             var result = await seller.UpdateOrderStatusAsync(owner.Id, shop.Id, shopOrder.Id, new("CANCELLED", Reason: " Sản phẩm bị lỗi khi đóng gói "), default);
             Assert.Equal("CANCELLED", result.Status);
+            Assert.Equal(0, shop.Status);
             Assert.Equal(0, variant.ReservedQuantity);
             var shopHistory = await db.Set<OrderStatusHistory>().SingleAsync(h => h.OrderId == shopOrder.Id);
             Assert.Equal(owner.Id, shopHistory.ChangedByAccountId);

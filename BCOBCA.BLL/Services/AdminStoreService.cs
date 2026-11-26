@@ -22,7 +22,9 @@ public sealed class AdminStoreService(ICommerceStore store, IVerificationDocumen
         store.Set<User>().Where(u => u.AccountId == s.OwnerAccountId).Select(u => u.FullName).FirstOrDefault()
             ?? store.Set<Account>().Where(a => a.Id == s.OwnerAccountId).Select(a => a.Email).FirstOrDefault() ?? "—",
         s.Email, s.Phone, s.CreatedAt, s.UpdatedAt,
-        store.Set<StoreVerification>().Any(v => v.StoreId == s.Id && v.Status == 0) ? "pending" : s.Status == 1 ? "active" : "inactive", s.IsVerified, s.Status == 1));
+        store.Set<StoreVerification>().Any(v => v.StoreId == s.Id && v.Status == 0) ? "pending" : s.Status == 1 ? "active" : "inactive", s.IsVerified, s.Status == 1,
+        !store.Set<Account>().Any(a => a.Id == s.OwnerAccountId && a.Status == 1),
+        store.Set<Account>().Any(a => a.Id == s.OwnerAccountId && a.Status == 1 && a.Role != "Admin" && a.Role != "SuperAdmin")));
 
     public async Task<AdminStoreSummary> SummaryAsync(Guid accountId, CancellationToken ct)
     {
@@ -103,8 +105,32 @@ public sealed class AdminStoreService(ICommerceStore store, IVerificationDocumen
     {
         await Admin(accountId, ct); var reason = Reason(input.Reason);
         await using var tx = await store.BeginTransactionAsync(ct); await Admin(accountId, ct);
+        var ownerId = await Shops.Where(s => s.Id == id).Select(s => (Guid?)s.OwnerAccountId).SingleOrDefaultAsync(ct) ?? throw new BusinessException("Không tìm thấy cửa hàng.", 404);
+        // Lock owner before stores, matching account suspension, so reopen cannot race a ban.
+        var owner = await store.Set<Account>().Where(a => a.Id == ownerId && a.Status == 1)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(a => a.UpdatedAt, a => a.UpdatedAt), ct);
+        if (owner == 0) throw new BusinessException("Tài khoản chủ cửa hàng đang bị khóa. Không thể thay đổi trạng thái bán.", 409);
         var shop = await Lock(id, input.UpdatedAt, ct); shop.Status = (short)(input.Active ? 1 : 0);
         Audit(accountId, id, input.Active ? "ACTIVATE_STORE" : "SUSPEND_STORE", reason);
+        await store.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+    }
+    public async Task SuspendOwnerAsync(Guid accountId, Guid id, AdminStoreSuspensionInput input, CancellationToken ct)
+    {
+        await Admin(accountId, ct); var reason = Reason(input.Reason);
+        await using var tx = await store.BeginTransactionAsync(ct); await Admin(accountId, ct);
+        var ownerId = await Shops.Where(s => s.Id == id).Select(s => (Guid?)s.OwnerAccountId).SingleOrDefaultAsync(ct) ?? throw new BusinessException("Không tìm thấy cửa hàng.", 404);
+        var owner = await store.Set<Account>().AsNoTracking().SingleOrDefaultAsync(a => a.Id == ownerId, ct) ?? throw new BusinessException("Không tìm thấy tài khoản chủ cửa hàng.", 404);
+        if (owner.Id == accountId || owner.Role is "Admin" or "SuperAdmin") throw new BusinessException("Không đình chỉ tài khoản quản trị từ trang cửa hàng.", 403);
+        var now = DateTimeOffset.UtcNow;
+        var changed = await store.Set<Account>().Where(a => a.Id == ownerId && a.Status == 1 && a.Role != "Admin" && a.Role != "SuperAdmin")
+            .ExecuteUpdateAsync(setters => setters.SetProperty(a => a.Status, (short)0).SetProperty(a => a.UpdatedAt, now), ct);
+        if (changed == 0) throw new BusinessException("Trạng thái tài khoản đã thay đổi. Vui lòng tải lại.", 409);
+        await Lock(id, input.UpdatedAt, ct);
+        var affected = await Shops.Where(s => s.OwnerAccountId == ownerId).Select(s => s.Id).ToListAsync(ct);
+        await Shops.Where(s => s.OwnerAccountId == ownerId).ExecuteUpdateAsync(setters => setters.SetProperty(s => s.Status, (short)0).SetProperty(s => s.UpdatedAt, now), ct);
+        await store.Set<RefreshToken>().Where(t => t.AccountId == ownerId && t.RevokedAt == null).ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAt, (DateTimeOffset?)now), ct);
+        foreach (var shopId in affected) Audit(accountId, shopId, "SUSPEND_STORE_OWNER", reason);
+        store.Set<AuditLog>().Add(new AuditLog { AccountId = accountId, EntityType = "Account", EntityId = ownerId, Action = "SUSPEND_ACCOUNT", Details = reason, CreatedAt = now });
         await store.SaveChangesAsync(ct); await tx.CommitAsync(ct);
     }
     public async Task ReviewAsync(Guid accountId, Guid id, AdminStoreReviewInput input, CancellationToken ct)

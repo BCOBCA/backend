@@ -40,6 +40,8 @@ public sealed class AdminStoresTests
             var order = new Order { UserId = user.Id, OrderCode = "STORES-ORDER", Status = "COMPLETED", PaymentStatus = "PAID", Subtotal = 1000000, TotalAmount = 1010000, IdempotencyKey = "admin-stores-order", CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) };
             var sellerOrder = new SellerOrder { StoreId = shop.Id, BrandId = brand.Id, OrderId = order.Id, TotalAmount = 40000, CreatedAt = order.CreatedAt };
             db.AddRange(admin, owner, user, shop, active, hidden, brandStore, verification, brand, order, sellerOrder);
+            db.AddRange(new RefreshToken { AccountId = owner.Id, TokenHash = "stores-session-one", FamilyId = Guid.NewGuid(), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1) },
+                new RefreshToken { AccountId = owner.Id, TokenHash = "stores-session-two", FamilyId = Guid.NewGuid(), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1) });
             await db.SaveChangesAsync(); db.ChangeTracker.Clear();
             var storage = new FakeDocuments(); var service = new AdminStoreService(new CommerceStore(db), storage);
             var summary = await service.SummaryAsync(admin.Id, default);
@@ -73,11 +75,32 @@ public sealed class AdminStoresTests
             db.ChangeTracker.Clear();
             detail = await service.DetailAsync(admin.Id, shop.Id, 7, default);
             Assert.True(detail.Store.Active); Assert.Contains(detail.History, h => h.Title == "ACTIVATE_STORE" && h.Subtitle == "Reopen after review");
+            await service.StatusAsync(admin.Id, shop.Id, new(false, "Pause selling only", detail.Store.UpdatedAt), default); db.ChangeTracker.Clear();
+            detail = await service.DetailAsync(admin.Id, shop.Id, 7, default);
+            Assert.False(detail.Store.Active); Assert.False(detail.Store.OwnerSuspended); Assert.True(detail.Store.CanSuspendOwner);
+            Assert.Equal(1, (await db.Accounts.SingleAsync(a => a.Id == owner.Id)).Status);
+            Assert.All(await db.RefreshTokens.Where(t => t.AccountId == owner.Id).ToListAsync(), t => Assert.Null(t.RevokedAt));
+            Assert.Contains(await new SellerService(new CommerceStore(db)).StoresAsync(owner.Id, default), s => s.Id == shop.Id);
             var created = await service.SaveAsync(admin.Id, null, new("Internal store", "internal-store", "", "", "Description"), default);
             Assert.Equal(admin.Id, (await db.Stores.SingleAsync(s => s.Id == created)).OwnerAccountId);
+            var internalDetail = await service.DetailAsync(admin.Id, created, 7, default);
+            Assert.False(internalDetail.Store.CanSuspendOwner);
+            Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => service.SuspendOwnerAsync(admin.Id, created, new("Protected owner", internalDetail.Store.UpdatedAt), default))).StatusCode);
             Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(admin.Id, null, new("Duplicate", "internal-store", "", "", ""), default))).StatusCode);
             Assert.Equal(404, (await Assert.ThrowsAsync<BusinessException>(() => service.DetailAsync(admin.Id, brandStore.Id, 7, default))).StatusCode);
             await Assert.ThrowsAsync<BusinessException>(() => service.SaveAsync(admin.Id, null, new("Invalid", "invalid-store", "invalid email", "", ""), default));
+            Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => service.SuspendOwnerAsync(owner.Id, shop.Id, new("Not admin", detail.Store.UpdatedAt), default))).StatusCode);
+            Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.SuspendOwnerAsync(admin.Id, shop.Id, new("Stale ban", stale), default))).StatusCode);
+            db.ChangeTracker.Clear(); Assert.Equal(1, (await db.Accounts.SingleAsync(a => a.Id == owner.Id)).Status);
+            await service.SuspendOwnerAsync(admin.Id, shop.Id, new("Suspend owner account", detail.Store.UpdatedAt), default); db.ChangeTracker.Clear();
+            Assert.Equal(0, (await db.Accounts.SingleAsync(a => a.Id == owner.Id)).Status);
+            Assert.All(await db.RefreshTokens.Where(t => t.AccountId == owner.Id).ToListAsync(), t => Assert.NotNull(t.RevokedAt));
+            Assert.All(await db.Stores.Where(s => s.OwnerAccountId == owner.Id && s.StoreType == 1).ToListAsync(), s => Assert.Equal(0, s.Status));
+            Assert.Empty(await new SellerService(new CommerceStore(db)).StoresAsync(owner.Id, default));
+            detail = await service.DetailAsync(admin.Id, shop.Id, 7, default);
+            Assert.True(detail.Store.OwnerSuspended); Assert.False(detail.Store.CanSuspendOwner);
+            Assert.Contains(detail.History, h => h.Title == "SUSPEND_STORE_OWNER");
+            Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.StatusAsync(admin.Id, shop.Id, new(true, "Cannot reopen banned owner", detail.Store.UpdatedAt), default))).StatusCode);
             (await db.Set<Account>().SingleAsync(a => a.Id == admin.Id)).Status = 0; await db.SaveChangesAsync();
             Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => service.StatusAsync(admin.Id, shop.Id, new(false, "Denied", detail.Store.UpdatedAt), default))).StatusCode);
         }

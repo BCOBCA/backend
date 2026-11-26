@@ -63,7 +63,8 @@ public sealed class SellerRegistrationTests
             var blocked = await db.Stores.SingleAsync(s => s.Id == recovered.Id);
             blocked.Status = 0;
             await db.SaveChangesAsync();
-            await Assert.ThrowsAsync<BusinessException>(() => seller.OnboardAsync(customer.User.AccountId, default));
+            Assert.Equal(recovered.Id, (await seller.OnboardAsync(customer.User.AccountId, default)).Id);
+            Assert.Equal(0, (await db.Stores.SingleAsync(s => s.Id == recovered.Id)).Status);
             blocked.Status = 1;
             blocked.DeletedAt = DateTimeOffset.UtcNow;
             await db.SaveChangesAsync();

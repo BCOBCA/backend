@@ -12,7 +12,7 @@ internal static class SellerProvisioning
     {
         var shops = await store.Set<Store>().IgnoreQueryFilters()
             .Where(s => s.OwnerAccountId == account.Id && s.StoreType == 1).OrderBy(s => s.CreatedAt).ToListAsync(ct);
-        var shop = shops.FirstOrDefault(s => s.Status == 1 && s.DeletedAt == null);
+        var shop = shops.FirstOrDefault(s => (s.Status == 0 || s.Status == 1) && s.DeletedAt == null);
         if (shop is null && shops.Count != 0)
             throw new BusinessException("Cửa hàng đã ngừng hoạt động hoặc bị khóa. Vui lòng liên hệ quản trị viên.", 409);
         var now = DateTimeOffset.UtcNow;
