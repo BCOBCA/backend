@@ -30,7 +30,7 @@ public sealed class AdminStoresTests
             await db.Database.MigrateAsync();
             var admin = new Account { Email = "stores-admin@example.test", Role = "Admin", Status = 1 };
             var owner = new Account { Email = "stores-owner@example.test", Role = "Customer", Status = 1 };
-            var user = new User { AccountId = owner.Id, FullName = "Owner Search", ReferralCode = "STORES" };
+            var user = new User { AccountId = owner.Id, FullName = "Owner Search", Nickname = "Kai", ReferralCode = "STORES" };
             var shop = new Store { OwnerAccountId = owner.Id, Name = "Pending store", Slug = "pending-store", StoreType = 1, Status = 0, Phone = "0912345678", CreatedAt = DateTimeOffset.UtcNow.AddDays(-2) };
             var active = new Store { OwnerAccountId = owner.Id, Name = "Active store", Slug = "active-store", StoreType = 1, Status = 1, IsVerified = true, CreatedAt = DateTimeOffset.UtcNow.AddDays(-20) };
             var hidden = new Store { OwnerAccountId = owner.Id, Name = "Deleted", Slug = "deleted-store", StoreType = 1, Status = 1, DeletedAt = DateTimeOffset.UtcNow };
@@ -40,6 +40,17 @@ public sealed class AdminStoresTests
             var order = new Order { UserId = user.Id, OrderCode = "STORES-ORDER", Status = "COMPLETED", PaymentStatus = "PAID", Subtotal = 1000000, TotalAmount = 1010000, IdempotencyKey = "admin-stores-order", CreatedAt = DateTimeOffset.UtcNow.AddDays(-1) };
             var sellerOrder = new SellerOrder { StoreId = shop.Id, BrandId = brand.Id, OrderId = order.Id, TotalAmount = 40000, CreatedAt = order.CreatedAt };
             db.AddRange(admin, owner, user, shop, active, hidden, brandStore, verification, brand, order, sellerOrder);
+            var category = new Category { Name = "Reviews", Slug = "stores-review-category", IsActive = true };
+            var product = new Product { Name = "Reviewed product", Slug = "stores-reviewed-product", SKU = "STORES-REVIEW", CategoryId = category.Id, BrandId = brand.Id, StoreId = shop.Id, BasePrice = 10000, Status = 1 };
+            var otherProduct = new Product { Name = "Other product", Slug = "stores-other-reviewed-product", SKU = "STORES-OTHER-REVIEW", CategoryId = category.Id, BrandId = brand.Id, StoreId = active.Id, BasePrice = 10000, Status = 1 };
+            OrderItem ReviewItem(Product p) => new() { OrderId = order.Id, ProductId = p.Id, BrandId = brand.Id, StoreId = p.StoreId, ProductName = p.Name, Quantity = 1, UnitPrice = 10000, TotalPrice = 10000 };
+            var lowItem = ReviewItem(product); var highItem = ReviewItem(product); var hiddenItem = ReviewItem(product); var otherItem = ReviewItem(otherProduct);
+            var reviewTime = new DateTimeOffset(2026, 11, 23, 3, 4, 0, TimeSpan.Zero);
+            db.AddRange(category, product, otherProduct, lowItem, highItem, hiddenItem, otherItem,
+                new ProductReview { ProductId = product.Id, StoreId = shop.Id, UserId = user.Id, OrderItemId = lowItem.Id, Rating = 1, Content = "Low review", Status = 1, CreatedAt = reviewTime, ReplyContent = "Store response", RepliedAt = reviewTime.AddMinutes(4) },
+                new ProductReview { ProductId = product.Id, StoreId = shop.Id, UserId = user.Id, OrderItemId = highItem.Id, Rating = 5, Content = "High review", Status = 1, CreatedAt = reviewTime.AddMinutes(7) },
+                new ProductReview { ProductId = product.Id, StoreId = shop.Id, UserId = user.Id, OrderItemId = hiddenItem.Id, Rating = 2, Content = "Hidden review", Status = 0, CreatedAt = reviewTime.AddMinutes(8) },
+                new ProductReview { ProductId = otherProduct.Id, StoreId = active.Id, UserId = user.Id, OrderItemId = otherItem.Id, Rating = 3, Content = "Other store review", Status = 1, CreatedAt = reviewTime.AddMinutes(9) });
             db.AddRange(new RefreshToken { AccountId = owner.Id, TokenHash = "stores-session-one", FamilyId = Guid.NewGuid(), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1) },
                 new RefreshToken { AccountId = owner.Id, TokenHash = "stores-session-two", FamilyId = Guid.NewGuid(), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1) });
             await db.SaveChangesAsync(); db.ChangeTracker.Clear();
@@ -54,6 +65,16 @@ public sealed class AdminStoresTests
             var detail = await service.DetailAsync(admin.Id, shop.Id, 7, default);
             Assert.Equal(40000, detail.Stats.Sales); Assert.Equal(1, detail.Stats.Orders); Assert.False(detail.Store.Active);
             Assert.Equal(40000, Assert.Single(detail.Orders).Value);
+            Assert.Equal(2, detail.Stats.Reviews); Assert.Equal(2, detail.ReviewDetails.Count);
+            Assert.Equal(new short[] { 5, 1 }, detail.ReviewDetails.Select(r => r.Rating).ToArray());
+            Assert.All(detail.ReviewDetails, r => Assert.Equal("Kai", r.DisplayName));
+            var answered = detail.ReviewDetails.Single(r => r.Rating == 1);
+            Assert.Equal("Store response", answered.Reply!.Content); Assert.Equal(shop.Name, answered.Reply.StoreName);
+            Assert.Equal(reviewTime.AddMinutes(4), answered.Reply.UpdatedAt);
+            Assert.Null(detail.ReviewDetails.Single(r => r.Rating == 5).Reply);
+            Assert.Equal(2, detail.Reviews.Count); // Legacy response remains available.
+            using (var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(detail, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))))
+                Assert.Equal("Kai", json.RootElement.GetProperty("reviewDetails")[0].GetProperty("displayName").GetString());
             var doc = await service.DocumentAsync(admin.Id, shop.Id, verification.Id, "license", default);
             Assert.Equal("AQID", doc.Content); Assert.Equal(1, storage.Reads);
             Assert.Equal(404, (await Assert.ThrowsAsync<BusinessException>(() => service.DocumentAsync(admin.Id, active.Id, verification.Id, "license", default))).StatusCode);

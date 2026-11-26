@@ -67,12 +67,16 @@ public sealed class AdminStoreService(ICommerceStore store, IVerificationDocumen
             await reviews.AverageAsync(r => (double?)r.Rating, ct), await reviews.CountAsync(ct));
         var verification = await store.Set<StoreVerification>().AsNoTracking().Where(v => v.StoreId == id).OrderByDescending(v => v.Status == 0).ThenByDescending(v => v.CreatedAt).ThenBy(v => v.Id).FirstOrDefaultAsync(ct);
         var categories = await (from c in store.Set<Category>() join sc in store.Set<StoreCategory>() on c.Id equals sc.CategoryId where sc.StoreId == id select c.Name).ToListAsync(ct);
+        var reviewDetails = await reviews.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).Take(20).Select(r => new AdminStoreReview(r.Id,
+            store.Set<User>().Where(u => u.Id == r.UserId && u.Nickname != "").Select(u => u.Nickname).FirstOrDefault() ?? "Khách hàng",
+            r.Rating, r.Content, r.CreatedAt,
+            r.ReplyContent == null || r.RepliedAt == null ? null : new ReviewReplyDto(r.ReplyContent, shop.Name, r.RepliedAt.Value))).ToListAsync(ct);
         return new(row, shop.Description, string.Join(", ", categories), stats,
             verification == null ? null : new(verification.Id, verification.LegalName, verification.TaxCode, verification.RepresentativeName, verification.Status, verification.RejectionReason, verification.CreatedAt, VerificationDocuments.Summaries(verification.Documents).Select(d => d.Kind).ToList()),
             await products.OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id).Take(20).Select(p => new AdminStorePreview(p.Id, p.Name, p.Status == 1 ? "Đang bán" : "Đã ẩn", p.SalePrice ?? p.BasePrice, p.CreatedAt)).ToListAsync(ct),
             await sellerOrders.OrderByDescending(x => x.order.CreatedAt).ThenBy(x => x.order.Id).Take(20).Select(x => new AdminStorePreview(x.order.Id, x.order.OrderCode, x.order.Status, x.seller.TotalAmount, x.order.CreatedAt)).ToListAsync(ct),
-            await reviews.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).Take(20).Select(r => new AdminStorePreview(r.Id, r.Content, "Đánh giá sản phẩm", r.Rating, r.CreatedAt)).ToListAsync(ct),
-            await store.Set<AuditLog>().AsNoTracking().Where(a => a.EntityType == "Store" && a.EntityId == id).OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id).Take(20).Select(a => new AdminStorePreview(a.Id, a.Action, a.Details ?? "", null, a.CreatedAt)).ToListAsync(ct));
+            reviewDetails.Select(r => new AdminStorePreview(r.Id, r.Content, "Đánh giá sản phẩm", r.Rating, r.CreatedAt)).ToArray(),
+            await store.Set<AuditLog>().AsNoTracking().Where(a => a.EntityType == "Store" && a.EntityId == id).OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id).Take(20).Select(a => new AdminStorePreview(a.Id, a.Action, a.Details ?? "", null, a.CreatedAt)).ToListAsync(ct)) { ReviewDetails = reviewDetails };
     }
 
     private async Task<Store> Lock(Guid id, DateTimeOffset expected, CancellationToken ct)
