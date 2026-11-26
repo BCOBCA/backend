@@ -1,0 +1,8 @@
+# Admin dashboard API
+
+- GET `/api/admin/dashboard?from=YYYY-MM-DD&to=YYYY-MM-DD`; Admin/SuperAdmin authorization at controller and active-account role check in BLL. Registered IAdminDashboardService / AdminDashboardService. DTOs in AdminDashboardDtos.cs. No database migration/dependency changes.
+- Inclusive dates become [Vietnam midnight, next midnight) UTC boundaries. Default last seven days; range limited to 93 days, year 2000 through today. Aggregate orders by Vietnam calendar date and zero-fill gaps. Previous period has equal length.
+- Revenue is Sum(Subtotal - DiscountAmount) for COMPLETED, non-REFUNDED-payment orders created in the range. Current counts: all orders, new profiles, cancellation/return/refund percentage. Calculate percentage growth on unrounded rates; round only exposed values. Previous zero baseline returns null growth.
+- Active StoreType=1 stores and listed products in those stores are current snapshots. Status groups exhaust all orders; unknown states fall into processing, refunded payments into cancellation. Return five recent orders and five best-selling products by completed-order quantities. No all-orders download or production sample data.
+- PostgreSQL tests cover exact Vietnam start/end boundaries, previous-period comparisons, shipping exclusion, refund exclusion, status totals, quantity ranking, no-data, invalid range, inactive/non-admin rejection and endpoint role metadata. Fourteen dashboard tests pass.
+- The admin app requires deployment of this backend revision to use the endpoint on Render. Existing Accounts.Role rollout/deployment boundary remains unchanged.
