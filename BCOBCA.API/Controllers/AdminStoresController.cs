@@ -13,6 +13,10 @@ public sealed class AdminStoresController(IAdminStoreService stores) : Controlle
     [HttpGet] public async Task<IActionResult> List([FromQuery] AdminStoreQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<AdminStoreRow>>.Ok(await stores.ListAsync(AccountId, query, ct)));
     [HttpGet("{id:guid}")] public async Task<IActionResult> Detail(Guid id, [FromQuery] AdminStoreDetailQuery query, [FromQuery] int days = 7, CancellationToken ct = default) => Ok(ApiResponse<AdminStoreDetail>.Ok(await stores.DetailAsync(AccountId, id, days, ct, query)));
     [HttpPost] public async Task<IActionResult> Create(AdminStoreInput input, CancellationToken ct) => Ok(ApiResponse<ResourceIdDto>.Ok(new(await stores.SaveAsync(AccountId, null, input, ct))));
+    [HttpGet("{storeId:guid}/products/{id:guid}")]
+    public async Task<IActionResult> Product(Guid storeId, Guid id, CancellationToken ct) { Response.Headers.CacheControl = "no-store"; return Ok(ApiResponse<AdminStoreProductDetail>.Ok(await stores.ProductAsync(AccountId, storeId, id, ct))); }
+    [HttpGet("{storeId:guid}/orders/{id:guid}")]
+    public async Task<IActionResult> Order(Guid storeId, Guid id, CancellationToken ct) { Response.Headers.CacheControl = "no-store"; return Ok(ApiResponse<AdminStoreOrderDetail>.Ok(await stores.OrderAsync(AccountId, storeId, id, ct))); }
     [HttpPut("{id:guid}")] public async Task<IActionResult> Update(Guid id, AdminStoreInput input, CancellationToken ct) => Ok(ApiResponse<ResourceIdDto>.Ok(new(await stores.SaveAsync(AccountId, id, input, ct))));
     [HttpPut("{id:guid}/status")] public async Task<IActionResult> Status(Guid id, AdminStoreStatusInput input, CancellationToken ct) { await stores.StatusAsync(AccountId, id, input, ct); return Ok(ApiResponse<object>.Ok(new { })); }
     [HttpPut("{id:guid}/owner-suspension")] public async Task<IActionResult> SuspendOwner(Guid id, AdminStoreSuspensionInput input, CancellationToken ct) { await stores.SuspendOwnerAsync(AccountId, id, input, ct); return Ok(ApiResponse<object>.Ok(new { })); }

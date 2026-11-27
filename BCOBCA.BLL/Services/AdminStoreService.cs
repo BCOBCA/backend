@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace BCOBCA.BLL.Services;
-public sealed class AdminStoreService(ICommerceStore store, IVerificationDocumentStorage documents) : IAdminStoreService
+public sealed partial class AdminStoreService(ICommerceStore store, IVerificationDocumentStorage documents) : IAdminStoreService
 {
     private IQueryable<Store> Shops => store.Set<Store>().Where(s => s.StoreType == 1 && s.DeletedAt == null);
     private IQueryable<Store> Pending => Shops.Where(s => store.Set<StoreVerification>().Any(v => v.StoreId == s.Id && v.Status == 0));
@@ -61,8 +61,13 @@ public sealed class AdminStoreService(ICommerceStore store, IVerificationDocumen
         var shop = await Shops.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, ct) ?? throw new BusinessException("Không tìm thấy cửa hàng.", 404);
         var row = await Rows(Shops.AsNoTracking().Where(s => s.Id == id)).SingleAsync(ct);
         var end = new DateTimeOffset(CommerceRules.VietnamDate(DateTimeOffset.UtcNow).AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)).ToUniversalTime(); var start = end.AddDays(-days);
-        var sellerOrders = from seller in store.Set<SellerOrder>().AsNoTracking() join order in store.Set<Order>() on seller.OrderId equals order.Id
+        var orderRows = from seller in store.Set<SellerOrder>().AsNoTracking() join order in store.Set<Order>() on seller.OrderId equals order.Id
             where seller.StoreId == id && order.CreatedAt >= start && order.CreatedAt < end select new { seller, order };
+        var sellerOrders = orderRows.GroupBy(x => new { x.order.Id, x.order.OrderCode, x.order.Status, x.order.PaymentStatus, x.order.RecipientName, x.order.RecipientPhone, x.order.CreatedAt })
+            .Select(g => new {
+                order = g.Key,
+                seller = new { TotalAmount = g.Sum(x => x.seller.TotalAmount), Status = g.Select(x => x.seller.Status).Distinct().Count() == 1 ? g.Max(x => x.seller.Status) ?? "" : "" }
+            });
         var reviews = store.Set<ProductReview>().AsNoTracking().Where(r => r.StoreId == id && r.Status == 1);
         var products = store.Set<Product>().AsNoTracking().Where(p => p.StoreId == id);
         var stats = new AdminStoreStats(await products.CountAsync(ct), await sellerOrders.CountAsync(ct),
@@ -73,6 +78,16 @@ public sealed class AdminStoreService(ICommerceStore store, IVerificationDocumen
         var pagination = new AdminStorePagination(Page(query.ProductsPage, stats.Products), Page(query.OrdersPage, stats.Orders), Page(query.ReviewsPage, stats.Reviews), Page(query.HistoryPage, await history.CountAsync(ct)));
         var verification = await store.Set<StoreVerification>().AsNoTracking().Where(v => v.StoreId == id).OrderByDescending(v => v.Status == 0).ThenByDescending(v => v.CreatedAt).ThenBy(v => v.Id).FirstOrDefaultAsync(ct);
         var categories = await (from c in store.Set<Category>() join sc in store.Set<StoreCategory>() on c.Id equals sc.CategoryId where sc.StoreId == id select c.Name).ToListAsync(ct);
+        var orderDetails = await sellerOrders.OrderByDescending(x => x.order.CreatedAt).ThenBy(x => x.order.Id)
+            .Skip((pagination.Orders.Page - 1) * query.PageSize).Take(query.PageSize)
+            .Select(x => new AdminStoreOrder(x.order.Id, x.order.OrderCode, x.seller.Status != "" ? x.seller.Status : x.order.Status,
+                x.order.PaymentStatus, store.Set<Payment>().Where(p => p.OrderId == x.order.Id).OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.PaymentMethod).FirstOrDefault() ?? "",
+                x.order.RecipientName, x.order.RecipientPhone, x.seller.TotalAmount,
+                store.Set<OrderItem>().Count(i => i.OrderId == x.order.Id && i.StoreId == id),
+                store.Set<OrderItem>().Where(i => i.OrderId == x.order.Id && i.StoreId == id).Sum(i => i.Quantity), x.order.CreatedAt,
+                store.Set<OrderItem>().Where(i => i.OrderId == x.order.Id && i.StoreId == id).OrderBy(i => i.Id)
+                    .Select(i => new AdminStoreOrderItem(i.ProductId, i.ProductName,
+                        store.Set<ProductImage>().Where(image => image.ProductId == i.ProductId && image.ImageUrl != "").OrderByDescending(image => image.IsPrimary).ThenBy(image => image.SortOrder).ThenBy(image => image.Id).Select(image => image.ImageUrl).FirstOrDefault() ?? "", i.Quantity)).FirstOrDefault())).ToListAsync(ct);
         var productDetails = await products.OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id)
             .Skip((pagination.Products.Page - 1) * query.PageSize).Take(query.PageSize)
             .Select(p => new AdminStoreProduct(p.Id, p.Name, p.SKU,
@@ -91,9 +106,9 @@ public sealed class AdminStoreService(ICommerceStore store, IVerificationDocumen
         return new(row, shop.Description, string.Join(", ", categories), stats,
             verification == null ? null : new(verification.Id, verification.LegalName, verification.TaxCode, verification.RepresentativeName, verification.Status, verification.RejectionReason, verification.CreatedAt, VerificationDocuments.Summaries(verification.Documents).Select(d => d.Kind).ToList()),
             productDetails.Select(p => new AdminStorePreview(p.Id, p.Name, p.IsDeleted ? "Đã xóa" : p.Status == 1 ? "Đang bán" : "Đã ẩn", p.SalePrice ?? p.BasePrice, p.CreatedAt)).ToArray(),
-            await sellerOrders.OrderByDescending(x => x.order.CreatedAt).ThenBy(x => x.order.Id).Skip((pagination.Orders.Page - 1) * query.PageSize).Take(query.PageSize).Select(x => new AdminStorePreview(x.order.Id, x.order.OrderCode, x.order.Status, x.seller.TotalAmount, x.order.CreatedAt)).ToListAsync(ct),
+            orderDetails.Select(o => new AdminStorePreview(o.Id, o.Code, o.Status, o.TotalAmount, o.CreatedAt)).ToArray(),
             reviewDetails.Select(r => new AdminStorePreview(r.Id, r.Content, "Đánh giá sản phẩm", r.Rating, r.CreatedAt)).ToArray(),
-            await history.OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id).Skip((pagination.History.Page - 1) * query.PageSize).Take(query.PageSize).Select(a => new AdminStorePreview(a.Id, a.Action, a.Details ?? "", null, a.CreatedAt)).ToListAsync(ct)) { ReviewDetails = reviewDetails, ProductDetails = productDetails, Pagination = pagination };
+            await history.OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id).Skip((pagination.History.Page - 1) * query.PageSize).Take(query.PageSize).Select(a => new AdminStorePreview(a.Id, a.Action, a.Details ?? "", null, a.CreatedAt)).ToListAsync(ct)) { ReviewDetails = reviewDetails, ProductDetails = productDetails, OrderDetails = orderDetails, Pagination = pagination };
     }
 
     private async Task<Store> Lock(Guid id, DateTimeOffset expected, CancellationToken ct)

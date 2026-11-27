@@ -7,6 +7,8 @@ public interface IAdminStoreService
     Task<AdminStoreSummary> SummaryAsync(Guid accountId, CancellationToken ct);
     Task<PageResult<AdminStoreRow>> ListAsync(Guid accountId, AdminStoreQuery query, CancellationToken ct);
     Task<AdminStoreDetail> DetailAsync(Guid accountId, Guid id, int days, CancellationToken ct, AdminStoreDetailQuery? query = null);
+    Task<AdminStoreProductDetail> ProductAsync(Guid accountId, Guid storeId, Guid id, CancellationToken ct);
+    Task<AdminStoreOrderDetail> OrderAsync(Guid accountId, Guid storeId, Guid id, CancellationToken ct);
     Task<Guid> SaveAsync(Guid accountId, Guid? id, AdminStoreInput input, CancellationToken ct);
     Task StatusAsync(Guid accountId, Guid id, AdminStoreStatusInput input, CancellationToken ct);
     Task SuspendOwnerAsync(Guid accountId, Guid id, AdminStoreSuspensionInput input, CancellationToken ct);

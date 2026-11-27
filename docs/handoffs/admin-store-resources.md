@@ -1,0 +1,6 @@
+# Admin store read-only resource details
+
+- GET `/api/admin/stores/{storeId}/products/{id}` and `/orders/{id}` in AdminStoresController. Active Admin/SuperAdmin rechecked in service; shop must be a live commerce shop. Missing/wrong-shop resource returns 404; response Cache-Control no-store. No mutation endpoints or side effects.
+- Explicit DTOs in AdminStoreResourceDtos; queries in partial AdminStoreResourceService. Product: full description, grouped specs, primary-first gallery (20), active/inactive variants (200), aggregate stock and packaging. Existing soft-delete filters retained.
+- Order: selected-store items (200), SKU/variant/image snapshots, aggregate seller subtotal/discount/total across all brands, recipient/address/note, parent payment/lifecycle, shipments (50) and latest history (200, chronological). Parent shipping fees/whole-order total are deliberately absent from store totals. Admin list aggregation groups seller allocations per order before pagination.
+- AdminStoresTests passed with isolated PostgreSQL: role/scope/missing checks, full gallery/description/inactive variants, no other-shop lines, multi-store and multi-brand totals, list/detail agreement. No migrations or dependencies. Deploy with admin detail pages.
