@@ -51,6 +51,14 @@ public sealed class AdminStoresTests
                 new ProductReview { ProductId = product.Id, StoreId = shop.Id, UserId = user.Id, OrderItemId = highItem.Id, Rating = 5, Content = "High review", Status = 1, CreatedAt = reviewTime.AddMinutes(7) },
                 new ProductReview { ProductId = product.Id, StoreId = shop.Id, UserId = user.Id, OrderItemId = hiddenItem.Id, Rating = 2, Content = "Hidden review", Status = 0, CreatedAt = reviewTime.AddMinutes(8) },
                 new ProductReview { ProductId = otherProduct.Id, StoreId = active.Id, UserId = user.Id, OrderItemId = otherItem.Id, Rating = 3, Content = "Other store review", Status = 1, CreatedAt = reviewTime.AddMinutes(9) });
+            product.SalePrice = 9000;
+            product.Description = new string('x', 600);
+            otherProduct.Status = 0;
+            db.AddRange(
+                new ProductImage { ProductId = product.Id, ImageUrl = "https://example.test/secondary.jpg", SortOrder = 0 },
+                new ProductImage { ProductId = product.Id, ImageUrl = "https://example.test/primary.jpg", IsPrimary = true, SortOrder = 5 },
+                new ProductVariant { ProductId = product.Id, SKU = "STORES-A", VariantName = "Active", Price = 10000, StockQuantity = 20, ReservedQuantity = 3, IsActive = true },
+                new ProductVariant { ProductId = product.Id, SKU = "STORES-B", VariantName = "Hidden", Price = 10000, StockQuantity = 5, ReservedQuantity = 1, IsActive = false });
             db.AddRange(new RefreshToken { AccountId = owner.Id, TokenHash = "stores-session-one", FamilyId = Guid.NewGuid(), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1) },
                 new RefreshToken { AccountId = owner.Id, TokenHash = "stores-session-two", FamilyId = Guid.NewGuid(), ExpiresAt = DateTimeOffset.UtcNow.AddDays(1) });
             await db.SaveChangesAsync(); db.ChangeTracker.Clear();
@@ -66,6 +74,22 @@ public sealed class AdminStoresTests
             Assert.Equal(40000, detail.Stats.Sales); Assert.Equal(1, detail.Stats.Orders); Assert.False(detail.Store.Active);
             Assert.Equal(40000, Assert.Single(detail.Orders).Value);
             Assert.Equal(2, detail.Stats.Reviews); Assert.Equal(2, detail.ReviewDetails.Count);
+            var productCard = Assert.Single(detail.ProductDetails);
+            Assert.Equal(product.Id, productCard.Id);
+            Assert.Equal("https://example.test/primary.jpg", productCard.ImageUrl);
+            Assert.Equal(product.SKU, productCard.SKU);
+            Assert.Equal(category.Name, productCard.CategoryName);
+            Assert.Equal(brand.Name, productCard.BrandName);
+            Assert.Equal(10000, productCard.BasePrice);
+            Assert.Equal(9000, productCard.SalePrice);
+            Assert.Equal(25, productCard.StockQuantity);
+            Assert.Equal(4, productCard.ReservedQuantity);
+            Assert.Equal(17, productCard.AvailableStock);
+            Assert.Equal(2, productCard.VariantCount);
+            Assert.Equal(500, productCard.Description.Length);
+            Assert.False(productCard.IsDeleted);
+            Assert.Equal(detail.Products.Select(p => p.Id), detail.ProductDetails.Select(p => p.Id));
+            Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => service.DetailAsync(owner.Id, shop.Id, 7, default))).StatusCode);
             var secondPage = await service.DetailAsync(admin.Id, shop.Id, 7, default, new(ProductsPage: 2, OrdersPage: 2, ReviewsPage: 2, HistoryPage: 2, PageSize: 1));
             Assert.Equal("Low review", Assert.Single(secondPage.ReviewDetails).Content);
             Assert.Equal(2, secondPage.Pagination.Reviews.TotalItems);
@@ -94,6 +118,10 @@ public sealed class AdminStoresTests
             await Assert.ThrowsAsync<BusinessException>(() => service.StatusAsync(admin.Id, shop.Id, new(true, "", detail.Store.UpdatedAt), default));
             await Assert.ThrowsAsync<BusinessException>(() => service.ReviewAsync(admin.Id, shop.Id, new(verification.Id, false, "", detail.Store.UpdatedAt), default));
             var otherDetail = await service.DetailAsync(admin.Id, active.Id, 7, default);
+            Assert.False(Assert.Single(otherDetail.ProductDetails).IsDeleted);
+            Assert.Equal(0, otherDetail.ProductDetails[0].Status);
+            Assert.Equal("", otherDetail.ProductDetails[0].ImageUrl);
+            Assert.Equal(0, otherDetail.ProductDetails[0].AvailableStock);
             Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.ReviewAsync(admin.Id, active.Id, new(verification.Id, true, "", otherDetail.Store.UpdatedAt), default))).StatusCode);
             db.ChangeTracker.Clear();
             await service.ReviewAsync(admin.Id, shop.Id, new(verification.Id, true, "", detail.Store.UpdatedAt), default);
@@ -152,6 +180,7 @@ public sealed class AdminStoresTests
             Assert.Equal(24, pages.SelectMany(p => p.ReviewDetails).Select(p => p.Id).Distinct().Count());
             Assert.Equal(24, pages.SelectMany(p => p.History).Select(p => p.Id).Distinct().Count());
             Assert.Equal(4, pages[2].Products.Count);
+            Assert.All(pages, page => Assert.Equal(page.Products.Select(p => p.Id), page.ProductDetails.Select(p => p.Id)));
             Assert.Equal(3, pages[2].Orders.Count);
             Assert.Equal(24, pages[2].Pagination.Products.TotalItems);
             Assert.Equal(24, pages[2].Pagination.History.TotalItems);

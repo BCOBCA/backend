@@ -10,11 +10,15 @@ public sealed record AdminStorePreview(Guid Id, string Title, string Subtitle, d
 public sealed record AdminStoreVerification(Guid Id, string LegalName, string TaxCode, string RepresentativeName, short Status, string? RejectionReason, DateTimeOffset CreatedAt, IReadOnlyList<string> Documents);
 public sealed record AdminStoreStats(int Products, int Orders, decimal Sales, double? Rating, int Reviews);
 public sealed record AdminStoreReview(Guid Id, string DisplayName, short Rating, string Content, DateTimeOffset CreatedAt, ReviewReplyDto? Reply);
+public sealed record AdminStoreProduct(Guid Id, string Name, string SKU, string ImageUrl, string CategoryName, string BrandName, string Description,
+    decimal BasePrice, decimal? SalePrice, int StockQuantity, int ReservedQuantity, int AvailableStock, int VariantCount,
+    short Status, bool IsDeleted, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 public sealed record AdminStoreDetail(AdminStoreRow Store, string Description, string Categories, AdminStoreStats Stats, AdminStoreVerification? Verification,
     IReadOnlyList<AdminStorePreview> Products, IReadOnlyList<AdminStorePreview> Orders, IReadOnlyList<AdminStorePreview> Reviews, IReadOnlyList<AdminStorePreview> History)
 {
     public required AdminStorePagination Pagination { get; init; }
     public IReadOnlyList<AdminStoreReview> ReviewDetails { get; init; } = [];
+    public IReadOnlyList<AdminStoreProduct> ProductDetails { get; init; } = [];
 }
 public sealed record AdminStoreInput(string Name, string Slug, string Email, string Phone, string Description, DateTimeOffset? UpdatedAt = null);
 public sealed record AdminStoreStatusInput(bool Active, string Reason, DateTimeOffset UpdatedAt);
