@@ -66,6 +66,16 @@ public sealed class AdminStoresTests
             Assert.Equal(40000, detail.Stats.Sales); Assert.Equal(1, detail.Stats.Orders); Assert.False(detail.Store.Active);
             Assert.Equal(40000, Assert.Single(detail.Orders).Value);
             Assert.Equal(2, detail.Stats.Reviews); Assert.Equal(2, detail.ReviewDetails.Count);
+            var secondPage = await service.DetailAsync(admin.Id, shop.Id, 7, default, new(ProductsPage: 2, OrdersPage: 2, ReviewsPage: 2, HistoryPage: 2, PageSize: 1));
+            Assert.Equal("Low review", Assert.Single(secondPage.ReviewDetails).Content);
+            Assert.Equal(2, secondPage.Pagination.Reviews.TotalItems);
+            Assert.Equal(2, secondPage.Pagination.Reviews.Page);
+            Assert.Equal(1, secondPage.Pagination.Products.Page);
+            Assert.Equal(1, secondPage.Pagination.Orders.Page);
+            Assert.Empty(secondPage.History);
+            Assert.Equal(0, secondPage.Pagination.History.TotalItems);
+            await Assert.ThrowsAsync<BusinessException>(() => service.DetailAsync(admin.Id, shop.Id, 7, default, new(ReviewsPage: 0)));
+            await Assert.ThrowsAsync<BusinessException>(() => service.DetailAsync(admin.Id, shop.Id, 7, default, new(PageSize: 21)));
             Assert.Equal(new short[] { 5, 1 }, detail.ReviewDetails.Select(r => r.Rating).ToArray());
             Assert.All(detail.ReviewDetails, r => Assert.Equal("Kai", r.DisplayName));
             var answered = detail.ReviewDetails.Single(r => r.Rating == 1);
@@ -122,6 +132,32 @@ public sealed class AdminStoresTests
             Assert.True(detail.Store.OwnerSuspended); Assert.False(detail.Store.CanSuspendOwner);
             Assert.Contains(detail.History, h => h.Title == "SUSPEND_STORE_OWNER");
             Assert.Equal(409, (await Assert.ThrowsAsync<BusinessException>(() => service.StatusAsync(admin.Id, shop.Id, new(true, "Cannot reopen banned owner", detail.Store.UpdatedAt), default))).StatusCode);
+            // More than the old 20-item cap, including equal timestamps to exercise tie ordering.
+            for (var i = 0; i < 23; i++)
+            {
+                var extraProduct = new Product { Name = $"Page product {i}", Slug = $"page-product-{i}", SKU = $"PAGE-{i}", CategoryId = category.Id, BrandId = brand.Id, StoreId = active.Id, BasePrice = 10000, Status = 1, CreatedAt = order.CreatedAt };
+                var extraOrder = new Order { UserId = user.Id, OrderCode = $"PAGE-{i}", Status = "COMPLETED", PaymentStatus = "PAID", Subtotal = 10000, TotalAmount = 10000, IdempotencyKey = $"page-order-{i}", CreatedAt = order.CreatedAt };
+                var item = new OrderItem { OrderId = extraOrder.Id, ProductId = extraProduct.Id, BrandId = brand.Id, StoreId = active.Id, ProductName = extraProduct.Name, Quantity = 1, UnitPrice = 10000, TotalPrice = 10000 };
+                db.AddRange(extraProduct, extraOrder, item,
+                    new SellerOrder { StoreId = active.Id, BrandId = brand.Id, OrderId = extraOrder.Id, TotalAmount = 10000, CreatedAt = order.CreatedAt },
+                    new ProductReview { ProductId = extraProduct.Id, StoreId = active.Id, UserId = user.Id, OrderItemId = item.Id, Rating = 5, Content = $"Page review {i}", Status = 1, CreatedAt = reviewTime },
+                    new AuditLog { AccountId = admin.Id, EntityType = "Store", EntityId = active.Id, Action = "UPDATE_STORE", Details = $"Page history {i}", CreatedAt = reviewTime });
+            }
+            await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+            var pages = new List<AdminStoreDetail>();
+            for (var page = 1; page <= 3; page++)
+                pages.Add(await service.DetailAsync(admin.Id, active.Id, 7, default, new(page, page, page, page)));
+            Assert.Equal(24, pages.SelectMany(p => p.Products).Select(p => p.Id).Distinct().Count());
+            Assert.Equal(23, pages.SelectMany(p => p.Orders).Select(p => p.Id).Distinct().Count());
+            Assert.Equal(24, pages.SelectMany(p => p.ReviewDetails).Select(p => p.Id).Distinct().Count());
+            Assert.Equal(24, pages.SelectMany(p => p.History).Select(p => p.Id).Distinct().Count());
+            Assert.Equal(4, pages[2].Products.Count);
+            Assert.Equal(3, pages[2].Orders.Count);
+            Assert.Equal(24, pages[2].Pagination.Products.TotalItems);
+            Assert.Equal(24, pages[2].Pagination.History.TotalItems);
+            var beyond = await service.DetailAsync(admin.Id, active.Id, 7, default, new(ProductsPage: 100000));
+            Assert.Equal(3, beyond.Pagination.Products.Page);
+            Assert.Equal(pages[2].Products.Select(p => p.Id), beyond.Products.Select(p => p.Id));
             (await db.Set<Account>().SingleAsync(a => a.Id == admin.Id)).Status = 0; await db.SaveChangesAsync();
             Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => service.StatusAsync(admin.Id, shop.Id, new(false, "Denied", detail.Store.UpdatedAt), default))).StatusCode);
         }

@@ -1,6 +1,9 @@
 namespace BCOBCA.BLL.DTOs;
 
 public sealed record AdminStoreQuery(int Page = 1, int PageSize = 8, string? Search = null, string Status = "all", string Verification = "all", string Joined = "all", string Sort = "newest");
+public sealed record AdminStoreDetailQuery(int ProductsPage = 1, int OrdersPage = 1, int ReviewsPage = 1, int HistoryPage = 1, int PageSize = 10);
+public sealed record AdminStoreSectionPage(int Page, int PageSize, int TotalItems);
+public sealed record AdminStorePagination(AdminStoreSectionPage Products, AdminStoreSectionPage Orders, AdminStoreSectionPage Reviews, AdminStoreSectionPage History);
 public sealed record AdminStoreSummary(int Total, int Pending, int Active, int Inactive, decimal? Growth);
 public sealed record AdminStoreRow(Guid Id, string Name, string Slug, string LogoUrl, string OwnerName, string Email, string Phone, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, string Status, bool IsVerified, bool Active, bool OwnerSuspended = false, bool CanSuspendOwner = false);
 public sealed record AdminStorePreview(Guid Id, string Title, string Subtitle, decimal? Value, DateTimeOffset? CreatedAt);
@@ -10,6 +13,7 @@ public sealed record AdminStoreReview(Guid Id, string DisplayName, short Rating,
 public sealed record AdminStoreDetail(AdminStoreRow Store, string Description, string Categories, AdminStoreStats Stats, AdminStoreVerification? Verification,
     IReadOnlyList<AdminStorePreview> Products, IReadOnlyList<AdminStorePreview> Orders, IReadOnlyList<AdminStorePreview> Reviews, IReadOnlyList<AdminStorePreview> History)
 {
+    public required AdminStorePagination Pagination { get; init; }
     public IReadOnlyList<AdminStoreReview> ReviewDetails { get; init; } = [];
 }
 public sealed record AdminStoreInput(string Name, string Slug, string Email, string Phone, string Description, DateTimeOffset? UpdatedAt = null);
