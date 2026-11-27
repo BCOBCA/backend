@@ -7,5 +7,6 @@ public interface IAdminUserService
     Task<AdminUserSummary> SummaryAsync(Guid actor, CancellationToken ct);
     Task<PageResult<AdminUserRow>> ListAsync(Guid actor, AdminUserQuery query, CancellationToken ct);
     Task<AdminUserDetail> DetailAsync(Guid actor, Guid id, AdminUserDetailQuery query, CancellationToken ct);
+    Task<AdminUserOrderDetail> OrderAsync(Guid actor, Guid id, Guid orderId, CancellationToken ct);
     Task StatusAsync(Guid actor, Guid id, AdminUserStatusInput input, CancellationToken ct);
 }

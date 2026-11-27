@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace BCOBCA.BLL.Services;
-public sealed class AdminUserService(ICommerceStore store) : IAdminUserService
+public sealed partial class AdminUserService(ICommerceStore store) : IAdminUserService
 {
     private IQueryable<Account> Accounts => store.Set<Account>().Where(a => a.Role != "Admin" && a.Role != "SuperAdmin");
     private async Task Admin(Guid actor, CancellationToken ct)
@@ -64,7 +64,7 @@ public sealed class AdminUserService(ICommerceStore store) : IAdminUserService
         var reviewsPage = Page(query.ReviewsPage, query.PageSize, stats.Reviews); var historyCount = await history.CountAsync(ct); var historyPage = Page(query.HistoryPage, query.PageSize, historyCount);
         var orderRows = await orders.OrderByDescending(o => o.CreatedAt).ThenBy(o => o.Id).Skip((ordersPage - 1) * query.PageSize).Take(query.PageSize).Select(o => new AdminUserOrder(o.Id, o.OrderCode, o.Status, o.PaymentStatus, o.TotalAmount,
             store.Set<OrderItem>().Where(i => i.OrderId == o.Id).Sum(i => i.Quantity), store.Set<OrderItem>().Where(i => i.OrderId == o.Id).OrderBy(i => i.Id).Select(i => i.ProductName).FirstOrDefault() ?? "",
-            store.Set<OrderItem>().Where(i => i.OrderId == o.Id).OrderBy(i => i.Id).Select(i => store.Set<ProductImage>().Where(image => image.ProductId == i.ProductId).OrderByDescending(image => image.IsPrimary).ThenBy(image => image.SortOrder).ThenBy(image => image.Id).Select(image => image.ImageUrl).FirstOrDefault()).FirstOrDefault() ?? "", o.CreatedAt)).ToArrayAsync(ct);
+            store.Set<OrderItem>().Where(i => i.OrderId == o.Id).OrderBy(i => i.Id).Select(i => store.Set<ProductImage>().Where(image => image.ProductId == i.ProductId).OrderByDescending(image => image.IsPrimary).ThenBy(image => image.SortOrder).ThenBy(image => image.Id).Select(image => image.ImageUrl).FirstOrDefault()).FirstOrDefault() ?? "", o.CreatedAt) { RecipientName = o.RecipientName, RecipientPhone = o.RecipientPhone, ItemCount = store.Set<OrderItem>().Count(i => i.OrderId == o.Id), PaymentMethod = store.Set<Payment>().Where(p => p.OrderId == o.Id).OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.PaymentMethod).FirstOrDefault() ?? "" }).ToArrayAsync(ct);
         var shopRows = await shops.OrderByDescending(s => s.CreatedAt).ThenBy(s => s.Id).Skip((storesPage - 1) * query.PageSize).Take(query.PageSize)
             .Select(s => new AdminUserStore(s.Id, s.Name, s.Slug, s.LogoUrl, s.Status == 1, s.IsVerified, s.CreatedAt)).ToArrayAsync(ct);
         var reviewRows = await reviews.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).Skip((reviewsPage - 1) * query.PageSize).Take(query.PageSize)
