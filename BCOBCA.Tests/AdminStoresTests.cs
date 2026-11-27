@@ -77,6 +77,26 @@ public sealed class AdminStoresTests
             var detail = await service.DetailAsync(admin.Id, shop.Id, 7, default);
             Assert.Equal(40000, detail.Stats.Sales); Assert.Equal(1, detail.Stats.Orders); Assert.False(detail.Store.Active);
             Assert.Equal(40000, Assert.Single(detail.Orders).Value);
+            var orderDate = CommerceRules.VietnamDate(order.CreatedAt);
+            var iso = (DateOnly day) => day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            var byDate = await service.DetailAsync(admin.Id, shop.Id, 7, default, new(OrdersFrom: iso(orderDate), OrdersTo: iso(orderDate)));
+            Assert.Equal(order.Id, Assert.Single(byDate.Orders).Id);
+            var emptyDate = await service.DetailAsync(admin.Id, shop.Id, 7, default, new(OrdersPage: 100, OrdersFrom: iso(orderDate.AddDays(-1)), OrdersTo: iso(orderDate.AddDays(-1))));
+            Assert.Empty(emptyDate.Orders);
+            Assert.Equal(0, emptyDate.Pagination.Orders.TotalItems);
+            Assert.Equal(1, emptyDate.Pagination.Orders.Page);
+            Assert.Equal(1, emptyDate.Stats.Orders);
+            var today = CommerceRules.VietnamDate(DateTimeOffset.UtcNow);
+            foreach (var range in new[] {
+                new AdminStoreDetailQuery(OrdersFrom: iso(today)),
+                new AdminStoreDetailQuery(OrdersTo: iso(today)),
+                new AdminStoreDetailQuery(OrdersFrom: "2026-02-30", OrdersTo: iso(today)),
+                new AdminStoreDetailQuery(OrdersFrom: iso(today), OrdersTo: iso(today.AddDays(-1))),
+                new AdminStoreDetailQuery(OrdersFrom: iso(today), OrdersTo: iso(today.AddDays(1))),
+                new AdminStoreDetailQuery(OrdersFrom: iso(today.AddDays(-93)), OrdersTo: iso(today)),
+                new AdminStoreDetailQuery(OrdersFrom: "1999-12-31", OrdersTo: "2000-01-01") })
+                await Assert.ThrowsAsync<BusinessException>(() => service.DetailAsync(admin.Id, shop.Id, 7, default, range));
+            await service.DetailAsync(admin.Id, shop.Id, 7, default, new(OrdersFrom: iso(today.AddDays(-92)), OrdersTo: iso(today)));
             var orderCard = Assert.Single(detail.OrderDetails);
             Assert.Equal(order.Id, orderCard.Id);
             Assert.Equal("Recipient Test", orderCard.RecipientName);
@@ -242,6 +262,20 @@ public sealed class AdminStoresTests
             var beyond = await service.DetailAsync(admin.Id, active.Id, 7, default, new(ProductsPage: 100000));
             Assert.Equal(3, beyond.Pagination.Products.Page);
             Assert.Equal(pages[2].Products.Select(p => p.Id), beyond.Products.Select(p => p.Id));
+            var boundaryDay = today.AddDays(-2);
+            var boundary = new DateTimeOffset(boundaryDay.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)).ToUniversalTime();
+            var boundaryOrders = new List<Order>();
+            foreach (var moment in new[] { boundary.AddTicks(-10), boundary, boundary.AddDays(1) })
+            {
+                var boundaryOrder = new Order { UserId = user.Id, OrderCode = $"PERIOD-{boundaryOrders.Count}", IdempotencyKey = $"period-{boundaryOrders.Count}", Status = "COMPLETED", PaymentStatus = "PAID", Subtotal = 50, TotalAmount = 50, CreatedAt = moment };
+                boundaryOrders.Add(boundaryOrder);
+                db.AddRange(boundaryOrder, new SellerOrder { StoreId = active.Id, BrandId = brand.Id, OrderId = boundaryOrder.Id, TotalAmount = 50, CreatedAt = moment });
+            }
+            await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+            var midnightPeriod = await service.DetailAsync(admin.Id, active.Id, 7, default, new(OrdersFrom: iso(boundaryDay), OrdersTo: iso(boundaryDay)));
+            Assert.Equal(boundaryOrders[1].Id, Assert.Single(midnightPeriod.Orders).Id);
+            Assert.Equal(1, midnightPeriod.Pagination.Orders.TotalItems);
+            Assert.All(midnightPeriod.OrderDetails, row => Assert.Equal(boundaryOrders[1].Id, row.Id));
             (await db.Set<Account>().SingleAsync(a => a.Id == admin.Id)).Status = 0; await db.SaveChangesAsync();
             Assert.Equal(403, (await Assert.ThrowsAsync<BusinessException>(() => service.StatusAsync(admin.Id, shop.Id, new(false, "Denied", detail.Store.UpdatedAt), default))).StatusCode);
         }

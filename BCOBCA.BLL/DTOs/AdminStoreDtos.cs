@@ -1,7 +1,7 @@
 namespace BCOBCA.BLL.DTOs;
 
 public sealed record AdminStoreQuery(int Page = 1, int PageSize = 8, string? Search = null, string Status = "all", string Verification = "all", string Joined = "all", string Sort = "newest");
-public sealed record AdminStoreDetailQuery(int ProductsPage = 1, int OrdersPage = 1, int ReviewsPage = 1, int HistoryPage = 1, int PageSize = 10);
+public sealed record AdminStoreDetailQuery(int ProductsPage = 1, int OrdersPage = 1, int ReviewsPage = 1, int HistoryPage = 1, int PageSize = 10, string? OrdersFrom = null, string? OrdersTo = null);
 public sealed record AdminStoreSectionPage(int Page, int PageSize, int TotalItems);
 public sealed record AdminStorePagination(AdminStoreSectionPage Products, AdminStoreSectionPage Orders, AdminStoreSectionPage Reviews, AdminStoreSectionPage History);
 public sealed record AdminStoreSummary(int Total, int Pending, int Active, int Inactive, decimal? Growth);

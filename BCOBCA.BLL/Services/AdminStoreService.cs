@@ -1,4 +1,5 @@
 using System.Net.Mail;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using BCOBCA.BLL.Common;
 using BCOBCA.BLL.DTOs;
@@ -61,13 +62,25 @@ public sealed partial class AdminStoreService(ICommerceStore store, IVerificatio
         var shop = await Shops.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, ct) ?? throw new BusinessException("Không tìm thấy cửa hàng.", 404);
         var row = await Rows(Shops.AsNoTracking().Where(s => s.Id == id)).SingleAsync(ct);
         var end = new DateTimeOffset(CommerceRules.VietnamDate(DateTimeOffset.UtcNow).AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)).ToUniversalTime(); var start = end.AddDays(-days);
+        var ordersStart = start; var ordersEnd = end;
+        if (query.OrdersFrom is not null || query.OrdersTo is not null)
+        {
+            if (!DateOnly.TryParseExact(query.OrdersFrom, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var from)
+                || !DateOnly.TryParseExact(query.OrdersTo, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to)
+                || from < new DateOnly(2000, 1, 1) || to > CommerceRules.VietnamDate(DateTimeOffset.UtcNow) || to.DayNumber - from.DayNumber is < 0 or > 92)
+                throw new BusinessException("Chọn khoảng ngày đơn hàng hợp lệ, tối đa 93 ngày và không vượt quá hôm nay.");
+            ordersStart = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)).ToUniversalTime();
+            ordersEnd = new DateTimeOffset(to.AddDays(1).ToDateTime(TimeOnly.MinValue), TimeSpan.FromHours(7)).ToUniversalTime();
+        }
         var orderRows = from seller in store.Set<SellerOrder>().AsNoTracking() join order in store.Set<Order>() on seller.OrderId equals order.Id
-            where seller.StoreId == id && order.CreatedAt >= start && order.CreatedAt < end select new { seller, order };
-        var sellerOrders = orderRows.GroupBy(x => new { x.order.Id, x.order.OrderCode, x.order.Status, x.order.PaymentStatus, x.order.RecipientName, x.order.RecipientPhone, x.order.CreatedAt })
+            where seller.StoreId == id select new { seller, order };
+        var groupedOrders = orderRows.GroupBy(x => new { x.order.Id, x.order.OrderCode, x.order.Status, x.order.PaymentStatus, x.order.RecipientName, x.order.RecipientPhone, x.order.CreatedAt })
             .Select(g => new {
                 order = g.Key,
                 seller = new { TotalAmount = g.Sum(x => x.seller.TotalAmount), Status = g.Select(x => x.seller.Status).Distinct().Count() == 1 ? g.Max(x => x.seller.Status) ?? "" : "" }
             });
+        var sellerOrders = groupedOrders.Where(x => x.order.CreatedAt >= start && x.order.CreatedAt < end);
+        var filteredOrders = groupedOrders.Where(x => x.order.CreatedAt >= ordersStart && x.order.CreatedAt < ordersEnd);
         var reviews = store.Set<ProductReview>().AsNoTracking().Where(r => r.StoreId == id && r.Status == 1);
         var products = store.Set<Product>().AsNoTracking().Where(p => p.StoreId == id);
         var stats = new AdminStoreStats(await products.CountAsync(ct), await sellerOrders.CountAsync(ct),
@@ -75,10 +88,10 @@ public sealed partial class AdminStoreService(ICommerceStore store, IVerificatio
             await reviews.AverageAsync(r => (double?)r.Rating, ct), await reviews.CountAsync(ct));
         var history = store.Set<AuditLog>().AsNoTracking().Where(a => a.EntityType == "Store" && a.EntityId == id);
         AdminStoreSectionPage Page(int requested, int total) => new(Math.Min(requested, Math.Max(1, (int)Math.Ceiling(total / (double)query.PageSize))), query.PageSize, total);
-        var pagination = new AdminStorePagination(Page(query.ProductsPage, stats.Products), Page(query.OrdersPage, stats.Orders), Page(query.ReviewsPage, stats.Reviews), Page(query.HistoryPage, await history.CountAsync(ct)));
+        var pagination = new AdminStorePagination(Page(query.ProductsPage, stats.Products), Page(query.OrdersPage, await filteredOrders.CountAsync(ct)), Page(query.ReviewsPage, stats.Reviews), Page(query.HistoryPage, await history.CountAsync(ct)));
         var verification = await store.Set<StoreVerification>().AsNoTracking().Where(v => v.StoreId == id).OrderByDescending(v => v.Status == 0).ThenByDescending(v => v.CreatedAt).ThenBy(v => v.Id).FirstOrDefaultAsync(ct);
         var categories = await (from c in store.Set<Category>() join sc in store.Set<StoreCategory>() on c.Id equals sc.CategoryId where sc.StoreId == id select c.Name).ToListAsync(ct);
-        var orderDetails = await sellerOrders.OrderByDescending(x => x.order.CreatedAt).ThenBy(x => x.order.Id)
+        var orderDetails = await filteredOrders.OrderByDescending(x => x.order.CreatedAt).ThenBy(x => x.order.Id)
             .Skip((pagination.Orders.Page - 1) * query.PageSize).Take(query.PageSize)
             .Select(x => new AdminStoreOrder(x.order.Id, x.order.OrderCode, x.seller.Status != "" ? x.seller.Status : x.order.Status,
                 x.order.PaymentStatus, store.Set<Payment>().Where(p => p.OrderId == x.order.Id).OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id).Select(p => p.PaymentMethod).FirstOrDefault() ?? "",
