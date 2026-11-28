@@ -59,11 +59,15 @@ public sealed class VoucherManagementService(ICommerceStore store) : IVoucherMan
     {
         if (query.Status is not (null or "ALL" or "ACTIVE" or "UPCOMING" or "ENDED" or "EXPIRED" or "EXHAUSTED" or "DISABLED")) throw new BusinessException("Bộ lọc voucher không hợp lệ");
         if (query.Search?.Length > 200 || query.From > query.To) throw new BusinessException("Bộ lọc tìm kiếm không hợp lệ");
-        var source = Rows(await Scope(accountId, storeId, admin, ct));
+        if (query.Scope is not ("ALL" or "PLATFORM" or "SHOP") || !admin && query.Scope != "ALL") throw new BusinessException("Phạm vi voucher không hợp lệ");
+        var scoped = await Scope(accountId, storeId, admin, ct);
+        if (query.Scope == "PLATFORM") scoped = scoped.Where(v => v.StoreId == null);
+        if (query.Scope == "SHOP") scoped = scoped.Where(v => v.StoreId != null);
+        var source = Rows(scoped);
         var now = DateTimeOffset.UtcNow;
         var available = source.Where(x => (x.Voucher.Status == "ACTIVE" || x.Voucher.Status == "MEMBER_OFFER") && x.Voucher.ExpiresAt > now && (x.Voucher.UsageLimit == null || x.Used < x.Voucher.UsageLimit));
         var stats = new VoucherStatisticsDto(await available.CountAsync(x => x.Voucher.StartsAt <= now, ct), await available.CountAsync(x => x.Voucher.StartsAt > now, ct), await source.SumAsync(x => (int?)x.Used, ct) ?? 0);
-        if (!string.IsNullOrWhiteSpace(query.Search)) { var search = query.Search.Trim().ToLower(); source = source.Where(x => x.Voucher.Code.ToLower().Contains(search) || x.StoreName.ToLower().Contains(search)); }
+        if (!string.IsNullOrWhiteSpace(query.Search)) { var search = query.Search.Trim().ToLower(); source = source.Where(x => x.Voucher.Code.ToLower().Contains(search) || x.Voucher.Description.ToLower().Contains(search) || x.StoreName.ToLower().Contains(search)); }
         if (query.From is { } from) source = source.Where(x => x.Voucher.ExpiresAt >= from);
         if (query.To is { } to) source = source.Where(x => x.Voucher.StartsAt <= to);
         source = query.Status switch {
