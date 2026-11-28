@@ -4,6 +4,7 @@ using BCOBCA.BLL.DTOs;
 namespace BCOBCA.BLL.Interfaces;
 public interface IAdminStoreService
 {
+    Task<AdminProductPage> ProductsAsync(Guid accountId, AdminProductQuery query, CancellationToken ct);
     Task<AdminStoreSummary> SummaryAsync(Guid accountId, CancellationToken ct);
     Task<PageResult<AdminStoreRow>> ListAsync(Guid accountId, AdminStoreQuery query, CancellationToken ct);
     Task<AdminStoreDetail> DetailAsync(Guid accountId, Guid id, int days, CancellationToken ct, AdminStoreDetailQuery? query = null);

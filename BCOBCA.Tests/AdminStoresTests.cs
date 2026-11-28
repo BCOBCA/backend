@@ -87,6 +87,32 @@ public sealed class AdminStoresTests
             Assert.Equal(1, emptyDate.Pagination.Orders.Page);
             Assert.Equal(1, emptyDate.Stats.Orders);
             var today = CommerceRules.VietnamDate(DateTimeOffset.UtcNow);
+            var productsQuery = new AdminProductQuery { From = iso(today.AddDays(-29)), To = iso(today), Search = "Reviewed product", StoreId = shop.Id, MinPrice = 9000, MaxPrice = 9000, Stock = "available", Sort = "sold" };
+            var productList = await service.ProductsAsync(admin.Id, productsQuery, default);
+            var monitoredProduct = Assert.Single(productList.Items);
+            Assert.Equal(product.Id, monitoredProduct.Id);
+            Assert.Equal(17, monitoredProduct.AvailableStock);
+            Assert.Equal(9000, monitoredProduct.Price);
+            Assert.Equal(3, monitoredProduct.Rating);
+            Assert.Equal(0, monitoredProduct.Sold);
+            Assert.Equal(0, monitoredProduct.Revenue);
+            Assert.DoesNotContain(productList.Stores, s => s.Id == hidden.Id || s.Id == brandStore.Id);
+            var completedOrder = await db.Set<Order>().SingleAsync(o => o.Id == order.Id);
+            completedOrder.CompletedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+            var withSales = await service.ProductsAsync(admin.Id, productsQuery, default);
+            Assert.Equal(3, Assert.Single(withSales.Items).Sold);
+            Assert.Equal(30000, Assert.Single(withSales.Items).Revenue);
+            Assert.Equal(4, withSales.Summary.Sold);
+            completedOrder.PaymentStatus = "REFUNDED";
+            await db.SaveChangesAsync();
+            Assert.Equal(0, (await service.ProductsAsync(admin.Id, productsQuery, default)).Summary.Sold);
+            completedOrder.PaymentStatus = "PAID";
+            completedOrder.CompletedAt = null;
+            await db.SaveChangesAsync(); db.ChangeTracker.Clear();
+            productsQuery.Stock = "out";
+            Assert.Empty((await service.ProductsAsync(admin.Id, productsQuery, default)).Items);
+            await Assert.ThrowsAsync<BusinessException>(() => service.ProductsAsync(owner.Id, productsQuery, default));
             foreach (var range in new[] {
                 new AdminStoreDetailQuery(OrdersFrom: iso(today)),
                 new AdminStoreDetailQuery(OrdersTo: iso(today)),
