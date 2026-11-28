@@ -37,6 +37,20 @@ public sealed class FeedbackSearchTests
             Assert.Empty((await members.FeedbacksAsync(user.Id, new CatalogQuery(Search: "missing-query"), default)).Items);
             Assert.Empty((await members.FeedbacksAsync(Guid.NewGuid(), new CatalogQuery(Search: "voucher"), default)).Items);
             Assert.Equal(2, (await members.FeedbacksAsync(user.Id, new CatalogQuery(Search: "  "), default)).TotalItems);
+            var operatorAccount = new Account { Email = "support-admin@example.test", Role = "Admin", Status = 1 };
+            db.Add(operatorAccount); await db.SaveChangesAsync();
+            var operations = new AdminOperationsService(new CommerceStore(db), null!);
+            var inbox = await operations.SupportAsync(operatorAccount.Id, new AdminSupportQuery { Search = " VOUCHER ", Subject = wanted.Subject, Status = "RESOLVED" }, default);
+            Assert.Equal(wanted.Id, Assert.Single(inbox.Items).Id);
+            Assert.Equal(2, inbox.Summary.Total); Assert.Equal(1, inbox.Summary.Open); Assert.Equal(1, inbox.Summary.Resolved);
+            Assert.Equal(2, inbox.Subjects.Count);
+            var byCode = await operations.SupportAsync(operatorAccount.Id, new AdminSupportQuery { Search = "#HT-" + wanted.Id.ToString()[..8] }, default);
+            Assert.Equal(wanted.Id, Assert.Single(byCode.Items).Id);
+            var openInbox = await operations.SupportAsync(operatorAccount.Id, new AdminSupportQuery { Status = "OPEN", Page = 100 }, default);
+            Assert.Equal("OPEN", Assert.Single(openInbox.Items).Status); Assert.Equal(1, openInbox.Page);
+            await Assert.ThrowsAsync<BCOBCA.BLL.Common.BusinessException>(() => operations.SupportAsync(account.Id, new(), default));
+            await operations.ReplyAsync(operatorAccount.Id, wanted.Id, new FeedbackReplyRequest("Đã xác nhận hỗ trợ qua admin"), default);
+            Assert.Equal("Đã xác nhận hỗ trợ qua admin", Assert.Single((await members.FeedbacksAsync(user.Id, new CatalogQuery(Search: "voucher"), default)).Items).AdminResponse);
         }
         finally
         {

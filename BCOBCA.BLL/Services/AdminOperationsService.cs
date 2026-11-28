@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BCOBCA.BLL.Services;
 
-public sealed class AdminOperationsService(ICommerceStore store, IOrderService orders) : IAdminOperationsService
+public sealed partial class AdminOperationsService(ICommerceStore store, IOrderService orders) : IAdminOperationsService
 {
     private Task<bool> IsAdmin(Guid accountId, CancellationToken ct) => store.Set<Account>().AnyAsync(x => x.Id == accountId && x.Status == 1 && (x.Role == "Admin" || x.Role == "SuperAdmin"), ct);
     private async Task Admin(Guid accountId, CancellationToken ct) { if (!await IsAdmin(accountId, ct)) throw new BusinessException("Không có quyền quản trị", 403); }

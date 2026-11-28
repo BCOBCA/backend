@@ -10,6 +10,12 @@ namespace BCOBCA.API.Controllers;
 public sealed class AdminOperationsController(IAdminOperationsService operations) : ControllerBase
 {
     private Guid AccountId => Guid.Parse(User.FindFirst("sub")!.Value);
+    [Authorize(Roles = "Admin,SuperAdmin"), HttpGet("support")]
+    public async Task<IActionResult> Support([FromQuery] AdminSupportQuery query, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        return Ok(ApiResponse<AdminSupportPage>.Ok(await operations.SupportAsync(AccountId, query, ct)));
+    }
     [Authorize(Roles = "Admin,SuperAdmin"), HttpGet("orders")]
     public async Task<IActionResult> Orders([FromQuery] CatalogQuery query, CancellationToken ct) => Ok(ApiResponse<PageResult<OrderSummaryDto>>.Ok(await operations.OrdersAsync(AccountId, query, ct)));
     [Authorize(Roles = "Admin,SuperAdmin"), HttpGet("orders/{id:guid}")]

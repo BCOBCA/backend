@@ -5,6 +5,7 @@ namespace BCOBCA.BLL.Interfaces;
 
 public interface IAdminOperationsService
 {
+    Task<AdminSupportPage> SupportAsync(Guid accountId, AdminSupportQuery query, CancellationToken ct);
     Task<PageResult<OrderSummaryDto>> OrdersAsync(Guid accountId, CatalogQuery query, CancellationToken ct);
     Task<OrderDto> OrderAsync(Guid accountId, Guid id, CancellationToken ct);
     Task<Guid> ShipmentAsync(Guid accountId, ShipmentInput input, CancellationToken ct);
